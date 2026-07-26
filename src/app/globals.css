@@ -49,72 +49,74 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: #F7F7F7;
+  --foreground: #73879C;
+  --card: #FFFFFF;
+  --card-foreground: #73879C;
+  --popover: #FFFFFF;
+  --popover-foreground: #73879C;
+  --primary: #1ABB9C;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EDEDED;
+  --secondary-foreground: #2A3F54;
+  --muted: #F2F5F7;
+  --muted-foreground: #B0BEC5;
+  --accent: #F2F5F7;
+  --accent-foreground: #2A3F54;
+  --destructive: #E74C3C;
+  --destructive-foreground: #FFFFFF;
+  --border: #E6E9ED;
+  --input: #E6E9ED;
+  --ring: #1ABB9C;
+  
+  --chart-1: #1ABB9C;
+  --chart-2: #34495E;
+  --chart-3: #9B59B6;
+  --chart-4: #3498DB;
+  --chart-5: #E74C3C;
+  
+  --radius: 0.3rem; /* Gentelella uses smaller radius */
+
+  --sidebar: #2A3F54;
+  --sidebar-foreground: #E7E7E7;
+  --sidebar-primary: #1ABB9C;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #3E5367;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #2A3F54;
+  --sidebar-ring: #1ABB9C;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Dark mode is disabled for Gentelella theme, fallback to identical or slightly darker slate */
+  --background: #1B2936;
+  --foreground: #E7E7E7;
+  --card: #2A3F54;
+  --card-foreground: #E7E7E7;
+  --popover: #2A3F54;
+  --popover-foreground: #E7E7E7;
+  --primary: #1ABB9C;
+  --primary-foreground: #FFFFFF;
+  --secondary: #3E5367;
+  --secondary-foreground: #FFFFFF;
+  --muted: #3E5367;
+  --muted-foreground: #73879C;
+  --accent: #3E5367;
+  --accent-foreground: #FFFFFF;
+  --destructive: #E74C3C;
+  --destructive-foreground: #FFFFFF;
+  --border: #3E5367;
+  --input: #3E5367;
+  --ring: #1ABB9C;
+
+  --sidebar: #1B2936;
+  --sidebar-foreground: #E7E7E7;
+  --sidebar-primary: #1ABB9C;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #2A3F54;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1B2936;
+  --sidebar-ring: #1ABB9C;
 }
 
 @layer base {

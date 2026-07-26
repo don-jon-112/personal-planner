@@ -1,61 +1,130 @@
+"use client";
+
+import { useState } from "react";
+import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import { Plus, Search, Pin, Star } from "lucide-react";
-
-const mockNotes = [
-  { id: 1, title: "Meeting Notes - Sprint Planning", category: "Meeting", pinned: true, favorite: false },
-  { id: 2, title: "Architecture Design", category: "Design", pinned: false, favorite: true },
-];
+import { Search, Plus, MoreHorizontal, Pin, Star } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
+import { NoteDialog } from "./note-dialog";
 
 export default function NotesPage() {
+  const { data: notes, isLoading } = useCollection<any>("notes");
+  const { mutate: deleteNote } = useDeleteDocument("notes");
+  const { mutate: updateNote } = useUpdateDocument("notes");
+  
+  const [editingNote, setEditingNote] = useState<any>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const handleEdit = (note: any) => {
+    setEditingNote(note);
+    setIsDialogOpen(true);
+  };
+
+  const handleCreate = () => {
+    setEditingNote(null);
+    setIsDialogOpen(true);
+  };
+
+  const togglePin = (note: any) => {
+    updateNote({ id: note.id, data: { isPinned: !note.isPinned } });
+  };
+
+  const toggleFavorite = (note: any) => {
+    updateNote({ id: note.id, data: { isFavorite: !note.isFavorite } });
+  };
+
   return (
-    <div className="p-8 space-y-6 flex flex-col h-full">
-      <div className="flex justify-between items-center">
+    <Panel className="h-full border-t-4 border-t-primary">
+      <PanelHeader className="flex flex-row items-start justify-between border-b-0 pb-0">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Notes</h2>
-          <p className="text-muted-foreground mt-1">Your simple workspace for thoughts and markdown notes.</p>
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground">Notes & Ideas</PanelTitle>
+          <PanelDescription className="mt-1">Capture your thoughts, meetings, and brilliant ideas.</PanelDescription>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          New Note
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input type="search" placeholder="Search notes..." className="pl-8" />
+        <div className="flex gap-2">
+          <Button onClick={handleCreate} className="shadow-sm">
+            <Plus className="w-4 h-4 mr-2" />
+            New Note
+          </Button>
+          <NoteDialog 
+            open={isDialogOpen} 
+            onOpenChange={setIsDialogOpen} 
+            noteToEdit={editingNote} 
+          />
         </div>
-      </div>
+      </PanelHeader>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {mockNotes.map((note) => (
-          <Card key={note.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row justify-between items-start pb-2">
-              <div>
-                <CardTitle className="text-lg">{note.title}</CardTitle>
-                <CardDescription className="mt-1">{note.category}</CardDescription>
+      <PanelContent className="space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input type="search" placeholder="Search notes..." className="pl-8 bg-muted/50 border-border" />
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading notes...</div>
+        ) : notes?.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
+            No notes found. Start writing!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {notes?.map((note) => (
+              <div 
+                key={note.id} 
+                className="group relative flex flex-col p-5 bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <button onClick={() => togglePin(note)} className="text-muted-foreground hover:text-primary transition-colors">
+                    <Pin className={cn("w-4 h-4", note.isPinned && "fill-primary text-primary")} />
+                  </button>
+                  <button onClick={() => toggleFavorite(note)} className="text-muted-foreground hover:text-yellow-500 transition-colors">
+                    <Star className={cn("w-4 h-4", note.isFavorite && "fill-yellow-500 text-yellow-500")} />
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="text-muted-foreground hover:text-foreground">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEdit(note)}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => {
+                          if(confirm("Delete this note?")) {
+                            deleteNote(note.id);
+                          }
+                        }}
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                
+                <h3 className="font-semibold text-lg text-secondary-foreground mb-2 pr-16 truncate">{note.title}</h3>
+                <p className="text-sm text-muted-foreground line-clamp-3 mb-4 flex-1">
+                  {note.content}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-auto">
+                  {note.tags?.map((tag: string) => (
+                    <span key={tag} className="px-2 py-1 bg-muted/50 text-muted-foreground rounded text-xs">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-2">
-                {note.pinned && <Pin className="w-4 h-4 text-muted-foreground fill-muted-foreground" />}
-                {note.favorite && <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground line-clamp-3">
-                Preview of the note content goes here...
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+            ))}
+          </div>
+        )}
+      </PanelContent>
+    </Panel>
   );
 }
