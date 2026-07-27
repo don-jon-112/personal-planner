@@ -26,11 +26,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
 
 const formSchema = z.object({
-  title: z.string().min(1, "Title is required"),
+  task: z.string().min(1, "Task is required"),
   description: z.string().optional(),
   priority: z.enum(["High", "Medium", "Low"]),
   status: z.enum(["Todo", "Doing", "Done", "Cancelled"]),
-  dueDate: z.string().optional(),
+  deadline: z.string().optional(),
   tags: z.string().optional(),
 });
 
@@ -51,17 +51,17 @@ export function TodoDialog({
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
 
-  const { mutateAsync: addTodo, isPending: isAdding } = useAddDocument("todoPlans");
-  const { mutateAsync: updateTodo, isPending: isUpdating } = useUpdateDocument("todoPlans");
+  const { mutateAsync: addTodo, isPending: isAdding } = useAddDocument("todos");
+  const { mutateAsync: updateTodo, isPending: isUpdating } = useUpdateDocument("todos");
 
   const form = useForm<TodoFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: todoToEdit || {
-      title: "",
+      task: "",
       description: "",
       priority: "Medium",
       status: "Todo",
-      dueDate: "",
+      deadline: "",
       tags: "",
     },
   });
@@ -90,10 +90,10 @@ export function TodoDialog({
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" {...form.register("title")} />
-            {form.formState.errors.title && (
-              <p className="text-sm text-red-500">{form.formState.errors.title.message}</p>
+            <Label htmlFor="task">Task Name</Label>
+            <Input id="task" {...form.register("task")} />
+            {form.formState.errors.task && (
+              <p className="text-sm text-red-500">{form.formState.errors.task.message}</p>
             )}
           </div>
           
@@ -141,8 +141,8 @@ export function TodoDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="dueDate">Due Date</Label>
-              <Input type="date" id="dueDate" {...form.register("dueDate")} />
+              <Label htmlFor="deadline">Deadline</Label>
+              <Input type="date" id="deadline" {...form.register("deadline")} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="tags">Tags</Label>
