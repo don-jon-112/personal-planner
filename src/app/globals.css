@@ -132,23 +132,23 @@
 }
 
 @layer components {
-  /* Forcibly restore list styles by bypassing Tailwind's reset */
-  .rich-text-content {
-    all: revert; /* Revert all Tailwind resets for this container */
-  }
-  .rich-text-content ul {
-    list-style-type: disc !important;
-    padding-left: 2rem !important;
-    margin: 1rem 0 !important;
-  }
-  .rich-text-content ol {
-    list-style-type: decimal !important;
-    padding-left: 2rem !important;
-    margin: 1rem 0 !important;
-  }
-  .rich-text-content li {
-    display: list-item !important;
-    list-style-position: outside !important;
-    margin-bottom: 0.5rem !important;
-  }
+}
+
+/* Forcibly restore list styles by bypassing Tailwind's reset and Quill's default hide */
+.ql-snow.rich-text-content .ql-editor ul {
+  list-style-type: disc !important;
+  padding-left: 2rem !important;
+  margin: 1rem 0 !important;
+}
+
+.ql-snow.rich-text-content .ql-editor ol {
+  list-style-type: decimal !important;
+  padding-left: 2rem !important;
+  margin: 1rem 0 !important;
+}
+
+.ql-snow.rich-text-content .ql-editor li {
+  display: list-item !important;
+  list-style-position: inside !important;
+  margin-bottom: 0.5rem !important;
 }
