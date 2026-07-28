@@ -131,24 +131,4 @@
   }
 }
 
-@layer components {
-}
-
-/* Forcibly restore list styles by bypassing Tailwind's reset and Quill's default hide */
-.ql-snow.rich-text-content .ql-editor ul {
-  list-style-type: disc !important;
-  padding-left: 2rem !important;
-  margin: 1rem 0 !important;
-}
-
-.ql-snow.rich-text-content .ql-editor ol {
-  list-style-type: decimal !important;
-  padding-left: 2rem !important;
-  margin: 1rem 0 !important;
-}
-
-.ql-snow.rich-text-content .ql-editor li {
-  display: list-item !important;
-  list-style-position: inside !important;
-  margin-bottom: 0.5rem !important;
-}
+@plugin "@tailwindcss/typography";
