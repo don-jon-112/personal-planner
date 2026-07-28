@@ -32,7 +32,7 @@ export function NoteDetailDialog({
           </div>
         </DialogHeader>
         
-        <div className="mt-6 ql-snow">
+        <div className="mt-6 ql-snow rich-text-content">
           <div 
             className="ql-editor"
             dangerouslySetInnerHTML={{ __html: note.content || "" }}

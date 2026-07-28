@@ -127,7 +127,7 @@ export default function NotesPage() {
                 
                 {/* Rich text preview constrained in height with a fade-out effect */}
                 <div className="relative flex-1 mb-4 h-[100px] overflow-hidden">
-                  <div className="ql-snow">
+                  <div className="ql-snow rich-text-content">
                     <div 
                       className="ql-editor p-0 text-sm text-muted-foreground"
                       dangerouslySetInnerHTML={{ __html: note.content || "" }}

@@ -132,22 +132,23 @@
 }
 
 @layer components {
-  /* Restore list styles inside Quill editor that Tailwind strips */
-  .ql-editor ul, .ql-editor ol {
-    padding-left: 2rem !important;
-    margin-top: 0.5rem !important;
-    margin-bottom: 0.5rem !important;
+  /* Forcibly restore list styles by bypassing Tailwind's reset */
+  .rich-text-content {
+    all: revert; /* Revert all Tailwind resets for this container */
   }
-  .ql-editor ul {
+  .rich-text-content ul {
     list-style-type: disc !important;
-    list-style-position: inside !important;
+    padding-left: 2rem !important;
+    margin: 1rem 0 !important;
   }
-  .ql-editor ol {
+  .rich-text-content ol {
     list-style-type: decimal !important;
-    list-style-position: inside !important;
+    padding-left: 2rem !important;
+    margin: 1rem 0 !important;
   }
-  .ql-editor li {
-    padding-left: 0.5rem !important;
+  .rich-text-content li {
     display: list-item !important;
+    list-style-position: outside !important;
+    margin-bottom: 0.5rem !important;
   }
 }
