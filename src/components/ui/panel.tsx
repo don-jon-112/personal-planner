@@ -8,7 +8,7 @@ const Panel = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "relative flex flex-col w-full min-w-0 mb-4 bg-white border border-border shadow-sm rounded-md",
+      "relative flex flex-col w-full min-w-0 mb-4 bg-card border border-border shadow-sm rounded-md",
       className
     )}
     {...props}
