@@ -34,7 +34,7 @@ export function NoteDetailDialog({
         
         <div className="mt-6">
           <div 
-            className="prose prose-sm sm:prose-base max-w-none dark:invert dark:hue-rotate-180 wysiwyg-content"
+            className="prose prose-sm sm:prose-base dark:prose-invert max-w-none wysiwyg-content"
             dangerouslySetInnerHTML={{ __html: note.content || "" }}
           />
         </div>

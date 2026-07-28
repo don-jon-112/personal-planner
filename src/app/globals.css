@@ -133,9 +133,10 @@
 
 @plugin "@tailwindcss/typography";
 
-/* Double invert images and videos so they look normal when the parent is inverted in dark mode */
-.dark .wysiwyg-content img, .dark .wysiwyg-content video {
-  filter: invert(1) hue-rotate(180deg);
+/* Strip inline colors in dark mode for WYSIWYG content to ensure readability */
+.dark .wysiwyg-content [style] {
+  background-color: transparent !important;
+  color: inherit !important;
 }
 
 /* React Quill Dark Mode UI Overrides */

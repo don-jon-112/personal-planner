@@ -128,7 +128,7 @@ export default function NotesPage() {
                 {/* Rich text preview constrained in height with a fade-out effect */}
                 <div className="relative flex-1 mb-4 h-[100px] overflow-hidden">
                   <div 
-                    className="prose prose-sm max-w-none p-0 text-sm text-muted-foreground dark:invert dark:hue-rotate-180 wysiwyg-content"
+                    className="prose prose-sm dark:prose-invert max-w-none p-0 text-sm text-muted-foreground wysiwyg-content"
                     dangerouslySetInnerHTML={{ __html: note.content || "" }}
                   />
                   {/* Fade out gradient mask */}
