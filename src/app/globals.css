@@ -132,3 +132,8 @@
 }
 
 @plugin "@tailwindcss/typography";
+
+/* Double invert images and videos so they look normal when the parent is inverted in dark mode */
+.dark .wysiwyg-content img, .dark .wysiwyg-content video {
+  filter: invert(1) hue-rotate(180deg);
+}

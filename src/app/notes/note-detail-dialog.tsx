@@ -32,9 +32,9 @@ export function NoteDetailDialog({
           </div>
         </DialogHeader>
         
-        <div className="mt-6 ql-snow">
+        <div className="mt-6">
           <div 
-            className="ql-editor prose prose-sm sm:prose-base dark:prose-invert max-w-none"
+            className="prose prose-sm sm:prose-base max-w-none dark:invert dark:hue-rotate-180 wysiwyg-content"
             dangerouslySetInnerHTML={{ __html: note.content || "" }}
           />
         </div>
