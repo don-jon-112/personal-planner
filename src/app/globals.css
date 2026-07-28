@@ -137,3 +137,37 @@
 .dark .wysiwyg-content img, .dark .wysiwyg-content video {
   filter: invert(1) hue-rotate(180deg);
 }
+
+/* React Quill Dark Mode UI Overrides */
+.dark .ql-toolbar,
+.dark .ql-container {
+  border-color: var(--border) !important;
+}
+.dark .ql-toolbar {
+  background-color: var(--card) !important;
+}
+.dark .ql-container {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+.dark .ql-picker-options {
+  background-color: var(--popover) !important;
+  border-color: var(--border) !important;
+}
+.dark .ql-stroke {
+  stroke: var(--foreground) !important;
+}
+.dark .ql-fill,
+.dark .ql-picker.ql-expanded .ql-picker-label .ql-stroke {
+  fill: var(--foreground) !important;
+}
+.dark .ql-picker {
+  color: var(--foreground) !important;
+}
+.dark .ql-snow .ql-picker.ql-expanded .ql-picker-label {
+  color: var(--foreground) !important;
+}
+.dark .ql-snow .ql-color-picker .ql-picker-item.ql-selected, 
+.dark .ql-snow .ql-color-picker .ql-picker-item:hover {
+  border-color: var(--foreground) !important;
+}
