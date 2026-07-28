@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { NoteDialog } from "./note-dialog";
+import { NoteDetailDialog } from "./note-detail-dialog";
+
+// Helper to strip HTML tags for preview
+const stripHtml = (html: string) => {
+  if (!html) return "";
+  return html.replace(/<[^>]*>?/gm, '');
+};
 
 export default function NotesPage() {
   const { data: notes, isLoading } = useCollection<any>("notes");
@@ -22,6 +29,9 @@ export default function NotesPage() {
   
   const [editingNote, setEditingNote] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  const [viewingNote, setViewingNote] = useState<any>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const handleEdit = (note: any) => {
     setEditingNote(note);
@@ -58,6 +68,11 @@ export default function NotesPage() {
             onOpenChange={setIsDialogOpen} 
             noteToEdit={editingNote} 
           />
+          <NoteDetailDialog
+            open={isDetailOpen}
+            onOpenChange={setIsDetailOpen}
+            note={viewingNote}
+          />
         </div>
       </PanelHeader>
 
@@ -80,9 +95,13 @@ export default function NotesPage() {
             {notes?.map((note) => (
               <div 
                 key={note.id} 
-                className="group relative flex flex-col p-5 bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                className="group relative flex flex-col p-5 bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => {
+                  setViewingNote(note);
+                  setIsDetailOpen(true);
+                }}
               >
-                <div className="absolute top-4 right-4 flex gap-2">
+                <div className="absolute top-4 right-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => togglePin(note)} className="text-muted-foreground hover:text-primary transition-colors">
                     <Pin className={cn("w-4 h-4", note.isPinned && "fill-primary text-primary")} />
                   </button>
@@ -111,7 +130,7 @@ export default function NotesPage() {
                 
                 <h3 className="font-semibold text-lg text-secondary-foreground mb-2 pr-16 truncate">{note.title}</h3>
                 <p className="text-sm text-muted-foreground line-clamp-3 mb-4 flex-1">
-                  {note.content}
+                  {stripHtml(note.content)}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-auto">
                   {note.tags?.map((tag: string) => (

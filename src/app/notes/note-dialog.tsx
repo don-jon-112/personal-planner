@@ -14,7 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import dynamic from "next/dynamic";
+import "react-quill/dist/quill.snow.css";
+
+const ReactQuill = dynamic(() => import("react-quill"), { ssr: false });
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -94,8 +97,15 @@ export function NoteDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Content (Markdown support later)</Label>
-            <Textarea {...form.register("content")} rows={6} placeholder="Write your note here..." />
+            <Label>Content</Label>
+            <div className="bg-background rounded-md">
+              <ReactQuill 
+                theme="snow"
+                value={form.watch("content")}
+                onChange={(value) => form.setValue("content", value)}
+                className="h-[200px] mb-12"
+              />
+            </div>
           </div>
 
           <div className="flex gap-4">
