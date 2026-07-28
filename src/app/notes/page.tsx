@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { NoteDialog } from "./note-dialog";
 import { NoteDetailDialog } from "./note-detail-dialog";
