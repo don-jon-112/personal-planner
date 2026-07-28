@@ -16,10 +16,17 @@ import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use
 import { NoteDialog } from "./note-dialog";
 import { NoteDetailDialog } from "./note-detail-dialog";
 
-// Helper to strip HTML tags for preview
+// Helper to strip HTML tags for preview and decode basic entities
 const stripHtml = (html: string) => {
   if (!html) return "";
-  return html.replace(/<[^>]*>?/gm, '');
+  const noTags = html.replace(/<[^>]*>?/gm, '');
+  return noTags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 };
 
 export default function NotesPage() {
