@@ -11,23 +11,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { NoteDialog } from "./note-dialog";
 import { NoteDetailDialog } from "./note-detail-dialog";
-
-// Helper to strip HTML tags for preview and decode basic entities
-const stripHtml = (html: string) => {
-  if (!html) return "";
-  const noTags = html.replace(/<[^>]*>?/gm, '');
-  return noTags
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-};
+import "react-quill-new/dist/quill.snow.css";
 
 export default function NotesPage() {
   const { data: notes, isLoading } = useCollection<any>("notes");
@@ -136,9 +123,19 @@ export default function NotesPage() {
                 </div>
                 
                 <h3 className="font-semibold text-lg text-secondary-foreground mb-2 pr-16 truncate">{note.title}</h3>
-                <p className="text-sm text-muted-foreground line-clamp-3 mb-4 flex-1">
-                  {stripHtml(note.content)}
-                </p>
+                
+                {/* Rich text preview constrained in height with a fade-out effect */}
+                <div className="relative flex-1 mb-4 h-[100px] overflow-hidden">
+                  <div className="ql-snow">
+                    <div 
+                      className="ql-editor p-0 text-sm text-muted-foreground"
+                      dangerouslySetInnerHTML={{ __html: note.content || "" }}
+                    />
+                  </div>
+                  {/* Fade out gradient mask */}
+                  <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+                </div>
+
                 <div className="flex flex-wrap gap-2 mt-auto">
                   {note.tags?.map((tag: string) => (
                     <span key={tag} className="px-2 py-1 bg-muted/50 text-muted-foreground rounded text-xs">
