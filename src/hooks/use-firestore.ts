@@ -8,7 +8,8 @@ import {
   deleteDoc,
   serverTimestamp,
   query,
-  orderBy
+  orderBy,
+  writeBatch
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
 
@@ -78,6 +79,29 @@ export function useDeleteDocument(collectionName: string) {
       const docRef = doc(db, collectionName, id);
       await deleteDoc(docRef);
       return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [collectionName] });
+    },
+  });
+}
+
+// Generic Hook to Batch Update Documents
+export function useUpdateBatch(collectionName: string) {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (updates: { id: string; data: any }[]) => {
+      const batch = writeBatch(db);
+      updates.forEach((update) => {
+        const docRef = doc(db, collectionName, update.id);
+        batch.update(docRef, {
+          ...update.data,
+          updatedAt: serverTimestamp(),
+        });
+      });
+      await batch.commit();
+      return updates;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });

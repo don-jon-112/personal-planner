@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -20,14 +20,34 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCollection, useDeleteDocument } from "@/hooks/use-firestore";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+
+import { useCollection, useDeleteDocument, useUpdateBatch } from "@/hooks/use-firestore";
 import { TodoDialog } from "./todo-dialog";
+import { SortableTodoRow } from "./sortable-todo-row";
 
 
 export default function TodoPage() {
   const { data: todos, isLoading } = useCollection<any>("todos");
   const { mutate: deleteTodo } = useDeleteDocument("todos");
+  const { mutate: batchUpdate } = useUpdateBatch("todos");
   
+  const [localTodos, setLocalTodos] = useState<any[]>([]);
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -40,9 +60,15 @@ export default function TodoPage() {
     setSortConfig({ key, direction });
   };
 
+  // Sync local todos when firestore data changes (for optimistic updates)
+  useEffect(() => {
+    if (todos) {
+      setLocalTodos(todos);
+    }
+  }, [todos]);
+
   const sortedTodos = useMemo(() => {
-    if (!todos) return [];
-    let sortableItems = [...todos];
+    let sortableItems = [...localTodos];
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
         let aVal = a[sortConfig.key] || "";
@@ -59,9 +85,45 @@ export default function TodoPage() {
         if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
+    } else {
+      // Default sort by orderIndex (ascending)
+      sortableItems.sort((a, b) => {
+        const orderA = a.orderIndex ?? Date.now();
+        const orderB = b.orderIndex ?? Date.now();
+        return orderA - orderB;
+      });
     }
     return sortableItems;
-  }, [todos, sortConfig]);
+  }, [localTodos, sortConfig]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = sortedTodos.findIndex((t) => t.id === active.id);
+      const newIndex = sortedTodos.findIndex((t) => t.id === over.id);
+      
+      const newOrder = arrayMove(sortedTodos, oldIndex, newIndex);
+      
+      // Optimistically update UI
+      setLocalTodos(newOrder);
+
+      // Recalculate orderIndex for everything (simple integer spacing)
+      const updates = newOrder.map((item, index) => ({
+        id: item.id,
+        data: { orderIndex: index * 1000 }
+      }));
+      
+      batchUpdate(updates);
+    }
+  };
+
+  const isDragDisabled = sortConfig !== null; // Disable DND if custom sorted
 
   const handleEdit = (todo: any) => {
     setEditingTodo(todo);
@@ -125,58 +187,32 @@ export default function TodoPage() {
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8">Loading...</TableCell>
                 </TableRow>
-              ) : sortedTodos?.length === 0 ? (
+              ) : sortedTodos.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No tasks found.</TableCell>
                 </TableRow>
               ) : (
-                sortedTodos?.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/20">
-                    <TableCell className="font-medium">{item.task}</TableCell>
-                    <TableCell>
-                      <span className={cn(
-                        "px-2 py-1 rounded text-xs font-semibold",
-                        item.priority === "High" ? "bg-destructive/10 text-destructive dark:text-red-400" :
-                        item.priority === "Medium" ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" :
-                        "bg-green-500/10 text-green-600 dark:text-green-400"
-                      )}>
-                        {item.priority}
-                      </span>
-                    </TableCell>
-                    <TableCell>{item.deadline}</TableCell>
-                    <TableCell>
-                      <span className={cn(
-                        "px-2 py-1 rounded text-xs font-semibold",
-                        item.status === "Todo" ? "bg-slate-500/10 text-slate-600 dark:text-slate-400" :
-                        item.status === "Doing" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
-                        item.status === "Done" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                        "bg-red-500/10 text-red-600 dark:text-red-400"
-                      )}>
-                        {item.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-accent-foreground h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(item)}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => {
-                              if(confirm("Delete this task?")) {
-                                deleteTodo(item.id);
-                              }
-                            }}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                <DndContext 
+                  sensors={sensors} 
+                  collisionDetection={closestCenter} 
+                  onDragEnd={handleDragEnd}
+                  modifiers={[restrictToVerticalAxis]}
+                >
+                  <SortableContext 
+                    items={sortedTodos.map(t => t.id)} 
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {sortedTodos.map((item) => (
+                      <SortableTodoRow 
+                        key={item.id}
+                        item={item}
+                        handleEdit={handleEdit}
+                        deleteTodo={deleteTodo}
+                        isDragDisabled={isDragDisabled}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               )}
             </TableBody>
           </Table>
