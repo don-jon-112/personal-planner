@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -54,17 +54,35 @@ export function TodoDialog({
   const { mutateAsync: addTodo, isPending: isAdding } = useAddDocument("todos");
   const { mutateAsync: updateTodo, isPending: isUpdating } = useUpdateDocument("todos");
 
+  const defaultValues = {
+    task: "",
+    description: "",
+    priority: "Medium" as const,
+    status: "Todo" as const,
+    deadline: "",
+    tags: "",
+  };
+
   const form = useForm<TodoFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: todoToEdit || {
-      task: "",
-      description: "",
-      priority: "Medium",
-      status: "Todo",
-      deadline: "",
-      tags: "",
-    },
+    defaultValues: todoToEdit || defaultValues,
   });
+
+  // Reset form when todoToEdit changes
+  useEffect(() => {
+    if (todoToEdit) {
+      form.reset({
+        task: todoToEdit.task || "",
+        description: todoToEdit.description || "",
+        priority: todoToEdit.priority || "Medium",
+        status: todoToEdit.status || "Todo",
+        deadline: todoToEdit.deadline || "",
+        tags: todoToEdit.tags || "",
+      });
+    } else {
+      form.reset(defaultValues);
+    }
+  }, [todoToEdit, form]);
 
   async function onSubmit(data: TodoFormValues) {
     try {
