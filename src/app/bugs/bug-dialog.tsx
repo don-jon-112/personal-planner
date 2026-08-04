@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -49,16 +49,32 @@ export function BugDialog({
   const { mutateAsync: addBug, isPending: isAdding } = useAddDocument("bugReports");
   const { mutateAsync: updateBug, isPending: isUpdating } = useUpdateDocument("bugReports");
 
+  const defaultValues = {
+    summary: "",
+    priority: "Medium" as const,
+    status: "Open" as const,
+    pic: "",
+    details: "",
+  };
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: bugToEdit || {
-      summary: "",
-      priority: "Medium",
-      status: "Open",
-      pic: "",
-      details: "",
-    },
+    defaultValues: bugToEdit || defaultValues,
   });
+
+  useEffect(() => {
+    if (bugToEdit) {
+      form.reset({
+        summary: bugToEdit.summary || "",
+        priority: bugToEdit.priority || "Medium",
+        status: bugToEdit.status || "Open",
+        pic: bugToEdit.pic || "",
+        details: bugToEdit.details || "",
+      });
+    } else {
+      form.reset(defaultValues);
+    }
+  }, [bugToEdit, form]);
 
   async function onSubmit(data: FormValues) {
     try {
