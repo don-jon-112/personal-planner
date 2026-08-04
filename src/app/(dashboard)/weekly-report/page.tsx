@@ -100,46 +100,56 @@ export default function WeeklyReportPage() {
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No reports found.</TableCell>
                 </TableRow>
               ) : (
-                reports?.map((report) => (
-                  <TableRow key={report.id} className="hover:bg-muted/20">
-                    <TableCell className="whitespace-nowrap">{report.date}</TableCell>
-                    <TableCell className="font-medium text-secondary-foreground max-w-[120px] sm:max-w-[200px] md:max-w-[400px] lg:max-w-none truncate" title={report.task}>
-                      {report.task}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">{report.team}</TableCell>
-                    <TableCell>
-                      <span className={cn(
-                        "px-2 py-1 rounded text-xs font-semibold",
-                        report.status === "Done" ? "bg-green-500/10 text-green-600" :
-                        report.status === "Planned" ? "bg-blue-500/10 text-blue-600" :
-                        report.status === "Blocked" ? "bg-destructive/10 text-destructive" :
-                        "bg-yellow-500/10 text-yellow-600"
-                      )}>
-                        {report.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-accent-foreground h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(report)}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => {
-                              if(confirm("Delete this report?")) {
-                                deleteReport(report.id);
-                              }
-                            }}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                reports?.map((report) => {
+                  const formattedDate = report.date 
+                    ? new Date(report.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                    : '';
+                    
+                  return (
+                    <TableRow 
+                      key={report.id} 
+                      className="hover:bg-muted/20 cursor-pointer"
+                      onClick={() => handleEdit(report)}
+                    >
+                      <TableCell className="whitespace-nowrap font-medium">{formattedDate}</TableCell>
+                      <TableCell className="font-medium text-secondary-foreground max-w-[120px] sm:max-w-[200px] md:max-w-[400px] lg:max-w-none truncate" title={report.task}>
+                        {report.task}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{report.team}</TableCell>
+                      <TableCell>
+                        <span className={cn(
+                          "px-2 py-1 rounded text-xs font-semibold",
+                          report.status === "Done" ? "bg-green-500/10 text-green-600" :
+                          report.status === "Planned" ? "bg-blue-500/10 text-blue-600" :
+                          report.status === "Blocked" ? "bg-destructive/10 text-destructive" :
+                          "bg-yellow-500/10 text-yellow-600"
+                        )}>
+                          {report.status}
+                        </span>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-accent-foreground h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(report)}>Edit</DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={() => {
+                                if(confirm("Delete this report?")) {
+                                  deleteReport(report.id);
+                                }
+                              }}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
