@@ -102,9 +102,11 @@ export default function WeeklyReportPage() {
               ) : (
                 reports?.map((report) => (
                   <TableRow key={report.id} className="hover:bg-muted/20">
-                    <TableCell>{report.date}</TableCell>
-                    <TableCell className="font-medium text-secondary-foreground">{report.task}</TableCell>
-                    <TableCell>{report.team}</TableCell>
+                    <TableCell className="whitespace-nowrap">{report.date}</TableCell>
+                    <TableCell className="font-medium text-secondary-foreground max-w-[120px] sm:max-w-[200px] md:max-w-[400px] lg:max-w-none truncate" title={report.task}>
+                      {report.task}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{report.team}</TableCell>
                     <TableCell>
                       <span className={cn(
                         "px-2 py-1 rounded text-xs font-semibold",
