@@ -44,8 +44,8 @@ export default function GoLivePage() {
     <Panel className="h-full border-t-4 border-t-primary">
       <PanelHeader className="flex flex-row items-start justify-between border-b-0 pb-0">
         <div>
-          <PanelTitle className="text-2xl font-bold text-secondary-foreground">Phase 1 Go Live Check</PanelTitle>
-          <PanelDescription className="mt-1">Checklist and progress before going live.</PanelDescription>
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground">Go Live Check</PanelTitle>
+          <PanelDescription className="mt-1">Tracking readiness status of system components.</PanelDescription>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleCreate} className="shadow-sm">
