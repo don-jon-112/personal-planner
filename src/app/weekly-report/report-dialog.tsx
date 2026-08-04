@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -47,15 +47,30 @@ export function WeeklyReportDialog({
   const { mutateAsync: addReport, isPending: isAdding } = useAddDocument("weeklyReports");
   const { mutateAsync: updateReport, isPending: isUpdating } = useUpdateDocument("weeklyReports");
 
+  const defaultValues = {
+    date: new Date().toISOString().split("T")[0],
+    task: "",
+    team: "",
+    status: "In Progress" as const,
+  };
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: reportToEdit || {
-      date: new Date().toISOString().split("T")[0],
-      task: "",
-      team: "",
-      status: "In Progress",
-    },
+    defaultValues: reportToEdit || defaultValues,
   });
+
+  useEffect(() => {
+    if (reportToEdit) {
+      form.reset({
+        date: reportToEdit.date || new Date().toISOString().split("T")[0],
+        task: reportToEdit.task || "",
+        team: reportToEdit.team || "",
+        status: reportToEdit.status || "In Progress",
+      });
+    } else {
+      form.reset(defaultValues);
+    }
+  }, [reportToEdit, form]);
 
   async function onSubmit(data: FormValues) {
     try {

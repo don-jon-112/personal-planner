@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,18 @@ import { NoteDetailDialog } from "./note-detail-dialog";
 import "react-quill-new/dist/quill.snow.css";
 
 export default function NotesPage() {
-  const { data: notes, isLoading } = useCollection<any>("notes");
+  const { data: rawNotes, isLoading } = useCollection<any>("notes");
   const { mutate: deleteNote } = useDeleteDocument("notes");
   const { mutate: updateNote } = useUpdateDocument("notes");
+
+  const notes = useMemo(() => {
+    if (!rawNotes) return [];
+    return [...rawNotes].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return 0;
+    });
+  }, [rawNotes]);
   
   const [editingNote, setEditingNote] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -90,7 +99,7 @@ export default function NotesPage() {
             {notes?.map((note) => (
               <div 
                 key={note.id} 
-                className="group relative flex flex-col p-5 bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                className="group relative flex flex-col p-5 h-[220px] bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
                 onClick={() => {
                   setViewingNote(note);
                   setIsDetailOpen(true);
@@ -126,7 +135,7 @@ export default function NotesPage() {
                 <h3 className="font-semibold text-lg text-secondary-foreground mb-2 pr-16 truncate">{note.title}</h3>
                 
                 {/* Rich text preview constrained in height with a fade-out effect */}
-                <div className="relative flex-1 mb-4 h-[100px] overflow-hidden">
+                <div className="relative flex-1 mb-4 overflow-hidden">
                   <div 
                     className="prose prose-sm dark:prose-invert max-w-none p-0 text-sm text-muted-foreground wysiwyg-content"
                     dangerouslySetInnerHTML={{ __html: note.content || "" }}

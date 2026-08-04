@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,18 @@ import { WeeklyReportDialog } from "./report-dialog";
 
 
 export default function WeeklyReportPage() {
-  const { data: reports, isLoading } = useCollection<any>("weeklyReports");
+  const { data: rawReports, isLoading } = useCollection<any>("weeklyReports");
   const { mutate: deleteReport } = useDeleteDocument("weeklyReports");
+
+  const reports = useMemo(() => {
+    if (!rawReports) return [];
+    return [...rawReports].sort((a, b) => {
+      // Sort by date descending (newest first)
+      const dateA = new Date(a.date || "").getTime();
+      const dateB = new Date(b.date || "").getTime();
+      return dateB - dateA;
+    });
+  }, [rawReports]);
   
   const [editingReport, setEditingReport] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
