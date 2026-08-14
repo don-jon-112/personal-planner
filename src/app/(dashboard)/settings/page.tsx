@@ -8,9 +8,21 @@ import { menuItems } from "@/config/menu";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { CloudUpload, CloudDownload, Server, ServerOff } from "lucide-react";
-import { enableNetwork, disableNetwork, waitForPendingWrites } from "firebase/firestore";
+import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
+
+const ALL_COLLECTIONS = [
+  "appSettings",
+  "todos",
+  "notes",
+  "bugReports",
+  "timelineHolidays",
+  "timelineEpics",
+  "timelineTasks",
+  "goliveChecks",
+  "weeklyReports"
+];
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -50,6 +62,9 @@ export default function SettingsPage() {
   };
 
   const handleSyncToFirebase = async () => {
+    if (!window.confirm("Are you sure you want to push all your local changes to Firebase? This will overwrite conflicting data on the server.")) {
+      return;
+    }
     try {
       setIsSyncingUp(true);
       await enableNetwork(db);
@@ -70,11 +85,12 @@ export default function SettingsPage() {
     try {
       setIsSyncingDown(true);
       await enableNetwork(db);
-      // Wait for network to establish
-      await new Promise(r => setTimeout(r, 1000));
+      
+      // Explicitly fetch all collections so Firestore caches them locally
+      const fetchPromises = ALL_COLLECTIONS.map(col => getDocs(collection(db, col)));
+      await Promise.all(fetchPromises);
+
       await queryClient.invalidateQueries();
-      // Wait for React Query to fetch the new data
-      await new Promise(r => setTimeout(r, 2000));
       if (!isOnline) await disableNetwork(db);
       alert("Successfully downloaded latest data FROM Firebase!");
     } catch (e) {
