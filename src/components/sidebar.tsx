@@ -9,7 +9,8 @@ import {
   FileText, 
   CheckCircle, 
   Bug, 
-  Settings 
+  Settings,
+  CalendarClock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ const menuItems = [
   { name: "Weekly Report", href: "/weekly-report", icon: CalendarDays },
   { name: "Todo Plan", href: "/todo", icon: CheckSquare },
   { name: "Notes", href: "/notes", icon: FileText },
+  { name: "Timeline", href: "/timeline", icon: CalendarClock },
   { name: "Go Live Check", href: "/golive", icon: CheckCircle },
   { name: "Bug & Report", href: "/bugs", icon: Bug },
 ];

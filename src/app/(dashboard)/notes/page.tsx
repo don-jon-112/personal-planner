@@ -1,20 +1,29 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, MoreHorizontal, Pin, Star } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Search, Plus } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { NoteDialog } from "./note-dialog";
 import { NoteDetailDialog } from "./note-detail-dialog";
+import { SortableNoteItem } from "./sortable-note-item";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
 import "react-quill-new/dist/quill.snow.css";
 
 export default function NotesPage() {
@@ -22,13 +31,16 @@ export default function NotesPage() {
   const { mutate: deleteNote } = useDeleteDocument("notes");
   const { mutate: updateNote } = useUpdateDocument("notes");
 
-  const notes = useMemo(() => {
-    if (!rawNotes) return [];
-    return [...rawNotes].sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return 0;
-    });
+  const [orderedNotes, setOrderedNotes] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (rawNotes) {
+      setOrderedNotes([...rawNotes].sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return (a.order || 0) - (b.order || 0);
+      }));
+    }
   }, [rawNotes]);
   
   const [editingNote, setEditingNote] = useState<any>(null);
@@ -54,6 +66,49 @@ export default function NotesPage() {
   const toggleFavorite = (note: any) => {
     updateNote({ id: note.id, data: { isFavorite: !note.isFavorite } });
   };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setOrderedNotes((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        
+        const activeItem = items[oldIndex];
+        const overItem = items[newIndex];
+        
+        // Prevent moving pinned items into unpinned or vice-versa
+        if (activeItem.isPinned !== overItem.isPinned) {
+          return items;
+        }
+
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        
+        // Update order in firestore for the affected group
+        const groupItems = newItems.filter(i => i.isPinned === activeItem.isPinned);
+        
+        groupItems.forEach((item, index) => {
+          if (item.order !== index) {
+            updateNote({ id: item.id, data: { order: index } });
+          }
+        });
+
+        return newItems;
+      });
+    }
+  }
 
   return (
     <Panel className="h-full border-t-4 border-t-primary">
@@ -90,70 +145,31 @@ export default function NotesPage() {
 
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">Loading notes...</div>
-        ) : notes?.length === 0 ? (
+        ) : orderedNotes.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
             No notes found. Start writing!
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {notes?.map((note) => (
-              <div 
-                key={note.id} 
-                className="group relative flex flex-col p-5 h-[220px] bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
-                onClick={() => {
-                  setViewingNote(note);
-                  setIsDetailOpen(true);
-                }}
-              >
-                <div className="absolute top-4 right-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => togglePin(note)} className="text-muted-foreground hover:text-primary transition-colors">
-                    <Pin className={cn("w-4 h-4", note.isPinned && "fill-primary text-primary")} />
-                  </button>
-                  <button onClick={() => toggleFavorite(note)} className="text-muted-foreground hover:text-yellow-500 transition-colors">
-                    <Star className={cn("w-4 h-4", note.isFavorite && "fill-yellow-500 text-yellow-500")} />
-                  </button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="text-muted-foreground hover:text-foreground">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEdit(note)}>Edit</DropdownMenuItem>
-                      <DropdownMenuItem 
-                        className="text-destructive"
-                        onClick={() => {
-                          if(confirm("Delete this note?")) {
-                            deleteNote(note.id);
-                          }
-                        }}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                
-                <h3 className="font-semibold text-lg text-secondary-foreground mb-2 pr-16 truncate">{note.title}</h3>
-                
-                {/* Rich text preview constrained in height with a fade-out effect */}
-                <div className="relative flex-1 mb-4 overflow-hidden">
-                  <div 
-                    className="prose prose-sm dark:prose-invert max-w-none p-0 text-sm text-muted-foreground wysiwyg-content"
-                    dangerouslySetInnerHTML={{ __html: note.content || "" }}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={orderedNotes.map(n => n.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {orderedNotes.map((note) => (
+                  <SortableNoteItem
+                    key={note.id}
+                    note={note}
+                    onView={(n) => {
+                      setViewingNote(n);
+                      setIsDetailOpen(true);
+                    }}
+                    onEdit={handleEdit}
+                    onDelete={(n) => deleteNote(n.id)}
+                    onTogglePin={togglePin}
+                    onToggleFavorite={toggleFavorite}
                   />
-                  {/* Fade out gradient mask */}
-                  <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-auto">
-                  {note.tags?.map((tag: string) => (
-                    <span key={tag} className="px-2 py-1 bg-muted/50 text-muted-foreground rounded text-xs">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
       </PanelContent>
     </Panel>

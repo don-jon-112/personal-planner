@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LayoutDashboard, CalendarDays, CheckSquare, FileText, CheckCircle, Bug, Settings } from "lucide-react";
+import { Menu, X, LayoutDashboard, CalendarDays, CheckSquare, FileText, CheckCircle, Bug, Settings, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
@@ -11,6 +11,7 @@ const menuItems = [
   { name: "Weekly Report", href: "/weekly-report", icon: CalendarDays },
   { name: "Todo Plan", href: "/todo", icon: CheckSquare },
   { name: "Notes", href: "/notes", icon: FileText },
+  { name: "Timeline", href: "/timeline", icon: CalendarClock },
   { name: "Go Live Check", href: "/golive", icon: CheckCircle },
   { name: "Bug & Report", href: "/bugs", icon: Bug },
 ];

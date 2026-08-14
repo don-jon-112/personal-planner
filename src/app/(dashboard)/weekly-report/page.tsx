@@ -20,22 +20,46 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCollection, useDeleteDocument } from "@/hooks/use-firestore";
+import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { WeeklyReportDialog } from "./report-dialog";
+import { SortableTableRow } from "./sortable-table-row";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 
 export default function WeeklyReportPage() {
   const { data: rawReports, isLoading } = useCollection<any>("weeklyReports");
   const { mutate: deleteReport } = useDeleteDocument("weeklyReports");
+  const { mutate: updateReport } = useUpdateDocument("weeklyReports");
 
-  const reports = useMemo(() => {
-    if (!rawReports) return [];
-    return [...rawReports].sort((a, b) => {
-      // Sort by date descending (newest first)
-      const dateA = new Date(a.date || "").getTime();
-      const dateB = new Date(b.date || "").getTime();
-      return dateB - dateA;
-    });
+  const [orderedReports, setOrderedReports] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (rawReports) {
+      setOrderedReports([...rawReports].sort((a, b) => {
+        const orderA = a.order ?? 0;
+        const orderB = b.order ?? 0;
+        if (orderA !== orderB) return orderA - orderB;
+        
+        // Sort by date descending (newest first)
+        const dateA = new Date(a.date || "").getTime();
+        const dateB = new Date(b.date || "").getTime();
+        return dateB - dateA;
+      }));
+    }
   }, [rawReports]);
   
   const [editingReport, setEditingReport] = useState<any>(null);
@@ -50,6 +74,38 @@ export default function WeeklyReportPage() {
     setEditingReport(null);
     setIsDialogOpen(true);
   };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setOrderedReports((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        
+        newItems.forEach((item, index) => {
+          if (item.order !== index) {
+            updateReport({ id: item.id, data: { order: index } });
+          }
+        });
+
+        return newItems;
+      });
+    }
+  }
 
   return (
     <Panel className="h-full border-t-4 border-t-primary">
@@ -83,6 +139,7 @@ export default function WeeklyReportPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
+                <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Task</TableHead>
                 <TableHead>Team</TableHead>
@@ -93,63 +150,25 @@ export default function WeeklyReportPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">Loading...</TableCell>
+                  <TableCell colSpan={6} className="text-center py-8">Loading...</TableCell>
                 </TableRow>
-              ) : reports?.length === 0 ? (
+              ) : orderedReports.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No reports found.</TableCell>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No reports found.</TableCell>
                 </TableRow>
               ) : (
-                reports?.map((report) => {
-                  const formattedDate = report.date 
-                    ? new Date(report.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-                    : '';
-                    
-                  return (
-                    <TableRow 
-                      key={report.id} 
-                      className="hover:bg-muted/20 cursor-pointer"
-                      onClick={() => handleEdit(report)}
-                    >
-                      <TableCell className="whitespace-nowrap font-medium">{formattedDate}</TableCell>
-                      <TableCell className="font-medium text-secondary-foreground max-w-[120px] sm:max-w-[200px] md:max-w-[400px] lg:max-w-none truncate" title={report.task}>
-                        {report.task}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">{report.team}</TableCell>
-                      <TableCell>
-                        <span className={cn(
-                          "px-2 py-1 rounded text-xs font-semibold",
-                          report.status === "Done" ? "bg-green-500/10 text-green-600" :
-                          report.status === "Planned" ? "bg-blue-500/10 text-blue-600" :
-                          report.status === "Blocked" ? "bg-destructive/10 text-destructive" :
-                          "bg-yellow-500/10 text-yellow-600"
-                        )}>
-                          {report.status}
-                        </span>
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-accent-foreground h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(report)}>Edit</DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={() => {
-                                if(confirm("Delete this report?")) {
-                                  deleteReport(report.id);
-                                }
-                              }}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={orderedReports.map(r => r.id)} strategy={verticalListSortingStrategy}>
+                    {orderedReports.map((report) => (
+                      <SortableTableRow
+                        key={report.id}
+                        report={report}
+                        onEdit={handleEdit}
+                        onDelete={(r) => deleteReport(r.id)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               )}
             </TableBody>
           </Table>
