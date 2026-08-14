@@ -13,12 +13,15 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Search, MoreHorizontal, Plus } from "lucide-react";
+import { Search, MoreHorizontal, Plus, Filter } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { WeeklyReportDialog } from "./report-dialog";
@@ -65,7 +68,13 @@ export default function WeeklyReportPage() {
   const [editingReport, setEditingReport] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilters(prev => 
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
 
   const filteredReports = useMemo(() => {
     let result = orderedReports;
@@ -75,11 +84,11 @@ export default function WeeklyReportPage() {
         (r.task || "").toLowerCase().includes(q)
       );
     }
-    if (statusFilter !== "All") {
-      result = result.filter(r => r.status === statusFilter);
+    if (statusFilters.length > 0) {
+      result = result.filter(r => statusFilters.includes(r.status));
     }
     return result;
-  }, [orderedReports, searchQuery, statusFilter]);
+  }, [orderedReports, searchQuery, statusFilters]);
 
   const handleEdit = (report: any) => {
     setEditingReport(report);
@@ -156,17 +165,24 @@ export default function WeeklyReportPage() {
             />
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            {['All', 'Draft', 'Submitted'].map(status => (
-              <Button 
-                key={status} 
-                variant={statusFilter === status ? 'default' : 'outline'}
-                size="sm"
-                className="flex-1 sm:flex-none"
-                onClick={() => setStatusFilter(status)}
-              >
-                {status}
-              </Button>
-            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full sm:w-auto">
+                <Filter className="w-4 h-4 mr-2" />
+                Filter {statusFilters.length > 0 && `(${statusFilters.length})`}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                {['PLANNED', 'IN PROGRESS', 'DONE', 'BLOCKED'].map((status) => (
+                  <DropdownMenuCheckboxItem
+                    key={status}
+                    checked={statusFilters.includes(status)}
+                    onCheckedChange={() => toggleStatusFilter(status)}
+                  >
+                    {status}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

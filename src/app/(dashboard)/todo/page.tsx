@@ -13,12 +13,15 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Search, MoreHorizontal, Plus, ArrowUpDown } from "lucide-react";
+import { Search, MoreHorizontal, Plus, ArrowUpDown, Filter } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   DndContext,
@@ -52,7 +55,20 @@ export default function TodoPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [priorityFilters, setPriorityFilters] = useState<string[]>([]);
+
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilters(prev => 
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
+
+  const togglePriorityFilter = (priority: string) => {
+    setPriorityFilters(prev => 
+      prev.includes(priority) ? prev.filter(p => p !== priority) : [...prev, priority]
+    );
+  };
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -79,8 +95,12 @@ export default function TodoPage() {
       );
     }
 
-    if (statusFilter !== "All") {
-      sortableItems = sortableItems.filter(t => t.status === statusFilter);
+    if (statusFilters.length > 0) {
+      sortableItems = sortableItems.filter(t => statusFilters.includes(t.status));
+    }
+
+    if (priorityFilters.length > 0) {
+      sortableItems = sortableItems.filter(t => priorityFilters.includes(t.priority));
     }
 
     if (sortConfig !== null) {
@@ -182,17 +202,35 @@ export default function TodoPage() {
             />
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            {['All', 'TODO', 'ON PROGRESS', 'DONE'].map(status => (
-              <Button 
-                key={status} 
-                variant={statusFilter === status ? 'default' : 'outline'}
-                size="sm"
-                className="flex-1 sm:flex-none"
-                onClick={() => setStatusFilter(status)}
-              >
-                {status}
-              </Button>
-            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full sm:w-auto">
+                <Filter className="w-4 h-4 mr-2" />
+                Filter {(statusFilters.length + priorityFilters.length) > 0 && `(${statusFilters.length + priorityFilters.length})`}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                {['TODO', 'ON PROGRESS', 'DONE', 'CANCELLED'].map((status) => (
+                  <DropdownMenuCheckboxItem
+                    key={status}
+                    checked={statusFilters.includes(status)}
+                    onCheckedChange={() => toggleStatusFilter(status)}
+                  >
+                    {status}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Filter by Priority</DropdownMenuLabel>
+                {['Low', 'Medium', 'High'].map((priority) => (
+                  <DropdownMenuCheckboxItem
+                    key={priority}
+                    checked={priorityFilters.includes(priority)}
+                    onCheckedChange={() => togglePriorityFilter(priority)}
+                  >
+                    {priority}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
