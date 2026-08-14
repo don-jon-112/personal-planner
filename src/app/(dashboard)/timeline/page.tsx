@@ -96,19 +96,19 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates
       style={style} 
       className={cn("flex border-b hover:bg-muted/10 bg-background", isDragging && "z-50 relative")}
     >
-      <div className="w-[250px] sticky left-0 z-10 bg-background border-r shrink-0 flex items-center px-2 py-2">
+      <div className="w-[250px] sticky left-0 z-20 bg-background border-r shrink-0 flex items-center px-2 py-2">
         <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1">
           <GripVertical className="w-4 h-4" />
         </div>
         <span className="text-sm font-medium truncate pl-4 text-secondary-foreground">{task.name}</span>
       </div>
-      <div className="w-[120px] sticky left-[250px] z-10 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
+      <div className="w-[120px] sticky left-[250px] z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
         {task.pic}
       </div>
-      <div className="w-[60px] sticky left-[370px] z-10 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
+      <div className="w-[60px] sticky left-[370px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
         {task.md}
       </div>
-      <div className="w-[50px] sticky left-[430px] z-10 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
+      <div className="w-[50px] sticky left-[430px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
             <MoreHorizontal className="w-4 h-4" />
