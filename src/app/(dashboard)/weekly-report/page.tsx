@@ -22,6 +22,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { WeeklyReportDialog } from "./report-dialog";
@@ -171,16 +172,18 @@ export default function WeeklyReportPage() {
                 Filter {statusFilters.length > 0 && `(${statusFilters.length})`}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                {['PLANNED', 'IN PROGRESS', 'DONE', 'BLOCKED'].map((status) => (
-                  <DropdownMenuCheckboxItem
-                    key={status}
-                    checked={statusFilters.includes(status)}
-                    onCheckedChange={() => toggleStatusFilter(status)}
-                  >
-                    {status}
-                  </DropdownMenuCheckboxItem>
-                ))}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                  {['PLANNED', 'IN PROGRESS', 'DONE', 'BLOCKED'].map((status) => (
+                    <DropdownMenuCheckboxItem
+                      key={status}
+                      checked={statusFilters.includes(status)}
+                      onCheckedChange={() => toggleStatusFilter(status)}
+                    >
+                      {status}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

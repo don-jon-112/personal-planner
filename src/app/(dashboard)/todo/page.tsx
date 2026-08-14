@@ -22,6 +22,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import {
   DndContext,
@@ -208,27 +209,31 @@ export default function TodoPage() {
                 Filter {(statusFilters.length + priorityFilters.length) > 0 && `(${statusFilters.length + priorityFilters.length})`}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                {['TODO', 'ON PROGRESS', 'DONE', 'CANCELLED'].map((status) => (
-                  <DropdownMenuCheckboxItem
-                    key={status}
-                    checked={statusFilters.includes(status)}
-                    onCheckedChange={() => toggleStatusFilter(status)}
-                  >
-                    {status}
-                  </DropdownMenuCheckboxItem>
-                ))}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                  {['TODO', 'ON PROGRESS', 'DONE', 'CANCELLED'].map((status) => (
+                    <DropdownMenuCheckboxItem
+                      key={status}
+                      checked={statusFilters.includes(status)}
+                      onCheckedChange={() => toggleStatusFilter(status)}
+                    >
+                      {status}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Filter by Priority</DropdownMenuLabel>
-                {['Low', 'Medium', 'High'].map((priority) => (
-                  <DropdownMenuCheckboxItem
-                    key={priority}
-                    checked={priorityFilters.includes(priority)}
-                    onCheckedChange={() => togglePriorityFilter(priority)}
-                  >
-                    {priority}
-                  </DropdownMenuCheckboxItem>
-                ))}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Filter by Priority</DropdownMenuLabel>
+                  {['Low', 'Medium', 'High'].map((priority) => (
+                    <DropdownMenuCheckboxItem
+                      key={priority}
+                      checked={priorityFilters.includes(priority)}
+                      onCheckedChange={() => togglePriorityFilter(priority)}
+                    >
+                      {priority}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
