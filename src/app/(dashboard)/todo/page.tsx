@@ -104,11 +104,20 @@ export default function TodoPage() {
     }
 
     if (statusFilters.length > 0) {
-      sortableItems = sortableItems.filter(t => statusFilters.map(sf => STATUS_MAP[sf] || sf).includes(t.status));
+      sortableItems = sortableItems.filter(t => {
+        const tStatus = String(t.status || "").toLowerCase();
+        return statusFilters.some(sf => {
+          const mapped = STATUS_MAP[sf] || sf;
+          return tStatus === mapped.toLowerCase() || tStatus === sf.toLowerCase() || tStatus.replace(/\s+/g, '') === mapped.toLowerCase().replace(/\s+/g, '') || tStatus.replace(/\s+/g, '') === sf.toLowerCase().replace(/\s+/g, '');
+        });
+      });
     }
 
     if (priorityFilters.length > 0) {
-      sortableItems = sortableItems.filter(t => priorityFilters.includes(t.priority));
+      sortableItems = sortableItems.filter(t => {
+        const tPriority = String(t.priority || "").toLowerCase();
+        return priorityFilters.some(pf => tPriority === pf.toLowerCase());
+      });
     }
 
     if (sortConfig !== null) {

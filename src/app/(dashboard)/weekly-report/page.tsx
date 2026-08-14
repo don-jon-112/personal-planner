@@ -93,7 +93,13 @@ export default function WeeklyReportPage() {
       );
     }
     if (statusFilters.length > 0) {
-      result = result.filter(r => statusFilters.map(sf => STATUS_MAP[sf] || sf).includes(r.status));
+      result = result.filter(r => {
+        const rStatus = String(r.status || "").toLowerCase();
+        return statusFilters.some(sf => {
+          const mapped = STATUS_MAP[sf] || sf;
+          return rStatus === mapped.toLowerCase() || rStatus === sf.toLowerCase() || rStatus.replace(/\s+/g, '') === mapped.toLowerCase().replace(/\s+/g, '') || rStatus.replace(/\s+/g, '') === sf.toLowerCase().replace(/\s+/g, '');
+        });
+      });
     }
     return result;
   }, [orderedReports, searchQuery, statusFilters]);
