@@ -7,6 +7,7 @@ import { Plus, GripVertical, MoreHorizontal, CalendarClock } from "lucide-react"
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
+import { HolidaysDialog } from "./holidays-dialog";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -55,11 +56,20 @@ function getPicColor(name: string) {
   return `hsl(${hue}, 65%, 50%)`;
 }
 
+function isNonWorkingDay(date: Date, holidays: any[] = []) {
+  if (date.getDay() === 0 || date.getDay() === 6) return true;
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${yyyy}-${mm}-${dd}`;
+  return holidays.some((h: any) => h.date === dateStr);
+}
+
 // -------------------------------------------------------------
 // UI COMPONENTS
 // -------------------------------------------------------------
 
-function TaskRow({ task, dates, onEdit, onDelete }: { task: any, dates: Date[], onEdit: any, onDelete: any }) {
+function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates: Date[], holidays: any[], onEdit: any, onDelete: any }) {
   const {
     attributes,
     listeners,
@@ -111,13 +121,13 @@ function TaskRow({ task, dates, onEdit, onDelete }: { task: any, dates: Date[], 
       {/* Grid Cells */}
       <div className="flex relative">
         {dates.map((date, i) => {
-          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+          const isOffDay = isNonWorkingDay(date, holidays);
           return (
             <div 
               key={date.toISOString()} 
               className={cn(
                 "w-[40px] shrink-0 border-r",
-                isWeekend ? "bg-black/80" : ""
+                isOffDay ? "bg-black/80" : ""
               )}
             />
           );
@@ -134,7 +144,7 @@ function TaskRow({ task, dates, onEdit, onDelete }: { task: any, dates: Date[], 
           // Loop through dates to find the end index based on MD (working days)
           while (workingDays < task.md && currentIndex < dates.length) {
             const d = dates[currentIndex];
-            if (d.getDay() !== 0 && d.getDay() !== 6) {
+            if (!isNonWorkingDay(d, holidays)) {
                workingDays++;
             }
             if (workingDays < task.md) {
@@ -160,7 +170,7 @@ function TaskRow({ task, dates, onEdit, onDelete }: { task: any, dates: Date[], 
   );
 }
 
-function EpicGroup({ epic, tasks, dates, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask }: any) {
   const {
     attributes,
     listeners,
@@ -205,9 +215,9 @@ function EpicGroup({ epic, tasks, dates, onEditEpic, onDeleteEpic, onEditTask, o
         {/* Empty cells for epic row */}
         <div className="flex">
           {dates.map((date: Date) => {
-            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            const isOffDay = isNonWorkingDay(date, holidays);
             return (
-              <div key={date.toISOString()} className={cn("w-[40px] shrink-0 border-r", isWeekend && "bg-black/90")} />
+              <div key={date.toISOString()} className={cn("w-[40px] shrink-0 border-r", isOffDay && "bg-black/90")} />
             );
           })}
         </div>
@@ -221,6 +231,7 @@ function EpicGroup({ epic, tasks, dates, onEditEpic, onDeleteEpic, onEditTask, o
               key={task.id} 
               task={task} 
               dates={dates} 
+              holidays={holidays}
               onEdit={onEditTask} 
               onDelete={onDeleteTask} 
             />
@@ -238,6 +249,7 @@ function EpicGroup({ epic, tasks, dates, onEditEpic, onDeleteEpic, onEditTask, o
 export default function TimelinePage() {
   const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
+  const { data: holidays } = useCollection<any>("timelineHolidays");
 
   const { mutate: deleteEpic } = useDeleteDocument("timelineEpics");
   const { mutate: updateEpic } = useUpdateDocument("timelineEpics");
@@ -263,6 +275,7 @@ export default function TimelinePage() {
   const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isHolidaysDialogOpen, setIsHolidaysDialogOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const dates = useMemo(() => {
@@ -409,6 +422,9 @@ export default function TimelinePage() {
           <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setIsHolidaysDialogOpen(true)} variant="outline">
+            Holidays
+          </Button>
           <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline">
             <Plus className="w-4 h-4 mr-2" />
             New Epic
@@ -419,6 +435,7 @@ export default function TimelinePage() {
           </Button>
           <EpicDialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen} epicToEdit={editingEpic} />
           <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} />
+          <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
         </div>
       </PanelHeader>
 
@@ -475,17 +492,17 @@ export default function TimelinePage() {
                   <div className="flex">
                     {dates.map((date) => {
                       const isToday = date.toDateString() === new Date().toDateString();
-                      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                      const isOffDay = isNonWorkingDay(date, holidays);
                       return (
                         <div 
                           key={date.toISOString()} 
                           className={cn(
                             "w-[40px] shrink-0 border-r flex flex-col items-center justify-center py-1 text-xs select-none",
-                            isWeekend ? "bg-black text-white" : "",
-                            isToday && !isWeekend && "bg-primary/10 text-primary font-bold"
+                            isOffDay ? "bg-black text-white" : "",
+                            isToday && !isOffDay && "bg-primary/10 text-primary font-bold"
                           )}
                         >
-                          <span className={cn("font-medium", isWeekend ? "text-white/80" : (isToday ? "text-primary" : "text-muted-foreground"))}>{date.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                          <span className={cn("font-medium", isOffDay ? "text-white/80" : (isToday ? "text-primary" : "text-muted-foreground"))}>{date.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
                           <span>{date.getDate()}</span>
                         </div>
                       );
@@ -512,6 +529,7 @@ export default function TimelinePage() {
                           epic={epic}
                           tasks={epicTasks}
                           dates={dates}
+                          holidays={holidays}
                           onEditEpic={(e: any) => { setEditingEpic(e); setIsEpicDialogOpen(true); }}
                           onDeleteEpic={(e: any) => confirm("Delete Epic and all tasks?") && deleteEpic(e.id)}
                           onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
