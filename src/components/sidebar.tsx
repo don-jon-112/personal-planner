@@ -16,11 +16,28 @@ import { cn } from "@/lib/utils";
 
 import { menuItems } from "@/config/menu";
 import { useDocument } from "@/hooks/use-firestore";
+import { useEffect, useState } from "react";
+import { Cloud, CloudOff } from "lucide-react";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: menuSettings } = useDocument<any>("appSettings", "menu");
   
+  const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    const checkMode = () => {
+      setIsOnline(localStorage.getItem('syncMode') === 'online');
+    };
+    checkMode();
+    window.addEventListener('storage', checkMode);
+    window.addEventListener('syncModeChanged', checkMode);
+    return () => {
+      window.removeEventListener('storage', checkMode);
+      window.removeEventListener('syncModeChanged', checkMode);
+    };
+  }, []);
+
   const hiddenMenus = menuSettings?.hiddenMenus || [];
   const visibleMenuItems = menuItems.filter(item => !hiddenMenus.includes(item.href));
 
@@ -40,7 +57,14 @@ export function Sidebar() {
           <span className="text-white font-bold">JO</span>
         </div>
         <div>
-          <p className="text-xs text-sidebar-foreground/70">Welcome,</p>
+          <p className="text-xs text-sidebar-foreground/70 flex items-center gap-1">
+            Welcome,
+            {isOnline ? (
+              <span title="Online Mode"><Cloud className="w-3 h-3 text-green-500" /></span>
+            ) : (
+              <span title="Offline Mode"><CloudOff className="w-3 h-3 text-muted-foreground" /></span>
+            )}
+          </p>
           <h2 className="text-sm font-semibold">Jonathan</h2>
         </div>
       </div>

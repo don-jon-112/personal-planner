@@ -8,12 +8,28 @@ import { cn } from "@/lib/utils";
 
 import { menuItems } from "@/config/menu";
 import { useDocument } from "@/hooks/use-firestore";
+import { useEffect } from "react";
+import { Cloud, CloudOff } from "lucide-react";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const { data: menuSettings } = useDocument<any>("appSettings", "menu");
-  
+  const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    const checkMode = () => {
+      setIsOnline(localStorage.getItem('syncMode') === 'online');
+    };
+    checkMode();
+    window.addEventListener('storage', checkMode);
+    window.addEventListener('syncModeChanged', checkMode);
+    return () => {
+      window.removeEventListener('storage', checkMode);
+      window.removeEventListener('syncModeChanged', checkMode);
+    };
+  }, []);
+
   const hiddenMenus = menuSettings?.hiddenMenus || [];
   const visibleMenuItems = menuItems.filter(item => !hiddenMenus.includes(item.href));
 
@@ -42,7 +58,16 @@ export function MobileNav() {
                 <div className="w-8 h-8 rounded-full bg-sidebar-foreground text-sidebar flex items-center justify-center font-bold">
                   <Bug className="w-5 h-5" />
                 </div>
-                <h1 className="text-xl font-bold tracking-wide">Planner</h1>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-bold tracking-wide">Planner</h1>
+                    {isOnline ? (
+                      <span title="Online Mode"><Cloud className="w-4 h-4 text-green-500" /></span>
+                    ) : (
+                      <span title="Offline Mode"><CloudOff className="w-4 h-4 text-muted-foreground" /></span>
+                    )}
+                  </div>
+                </div>
               </div>
               <button 
                 onClick={() => setOpen(false)}
