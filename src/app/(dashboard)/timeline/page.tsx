@@ -128,12 +128,28 @@ function TaskRow({ task, dates, onEdit, onDelete }: { task: any, dates: Date[], 
           const startIndex = dates.findIndex(d => d.getTime() === taskStart.getTime());
           if (startIndex === -1) return null; // Outside of range
           
+          let workingDays = 0;
+          let currentIndex = startIndex;
+          
+          // Loop through dates to find the end index based on MD (working days)
+          while (workingDays < task.md && currentIndex < dates.length) {
+            const d = dates[currentIndex];
+            if (d.getDay() !== 0 && d.getDay() !== 6) {
+               workingDays++;
+            }
+            if (workingDays < task.md) {
+               currentIndex++;
+            }
+          }
+          
+          const barWidthDays = (currentIndex - startIndex + 1);
+
           return (
             <div 
               className="absolute top-2 h-[60%] rounded shadow-sm pointer-events-none border border-black/10"
               style={{
                 left: `${startIndex * 40}px`,
-                width: `${task.md * 40}px`,
+                width: `${barWidthDays * 40}px`,
                 backgroundColor: getPicColor(task.pic),
               }}
             />
@@ -164,17 +180,17 @@ function EpicGroup({ epic, tasks, dates, onEditEpic, onDeleteEpic, onEditTask, o
     <div ref={setNodeRef} style={style} className={cn("flex flex-col bg-card", isDragging && "z-40 relative")}>
       {/* Epic Header Row */}
       <div className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors">
-        <div className="w-[250px] sticky left-0 z-20 bg-muted/50 backdrop-blur-sm border-r shrink-0 flex items-center px-2 py-2">
+        <div className="w-[250px] sticky left-0 z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
           <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1">
             <GripVertical className="w-4 h-4" />
           </div>
           <span className="font-bold text-sm uppercase tracking-wider truncate text-foreground">{epic.name}</span>
         </div>
-        <div className="w-[120px] sticky left-[250px] z-20 bg-muted/50 backdrop-blur-sm border-r shrink-0 flex items-center px-4 py-2">
+        <div className="w-[120px] sticky left-[250px] z-20 bg-muted border-r shrink-0 flex items-center px-4 py-2">
         </div>
-        <div className="w-[60px] sticky left-[370px] z-20 bg-muted/50 backdrop-blur-sm border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <div className="w-[60px] sticky left-[370px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
         </div>
-        <div className="w-[50px] sticky left-[430px] z-20 bg-muted/50 backdrop-blur-sm border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <div className="w-[50px] sticky left-[430px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
           <DropdownMenu>
             <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
               <MoreHorizontal className="w-4 h-4" />
@@ -420,8 +436,8 @@ export default function TimelinePage() {
               
               <div className="flex flex-col sticky top-0 z-30 shadow-sm">
                 {/* Month Row */}
-                <div className="flex bg-muted/90 backdrop-blur-md border-b">
-                  <div className="w-[480px] sticky left-0 z-40 bg-muted/90 backdrop-blur-md border-r shrink-0" />
+                <div className="flex bg-muted border-b">
+                  <div className="w-[480px] sticky left-0 z-40 bg-muted border-r shrink-0" />
                   <div className="flex">
                     {(() => {
                       const months: { name: string, days: number }[] = [];
@@ -450,11 +466,11 @@ export default function TimelinePage() {
                 </div>
 
                 {/* Days Row */}
-                <div className="flex bg-muted/80 backdrop-blur-md border-b">
-                  <div className="w-[250px] sticky left-0 z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
-                  <div className="w-[120px] sticky left-[250px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
-                  <div className="w-[60px] sticky left-[370px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
-                  <div className="w-[50px] sticky left-[430px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-2 py-2"></div>
+                <div className="flex bg-muted border-b">
+                  <div className="w-[250px] sticky left-0 z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
+                  <div className="w-[120px] sticky left-[250px] z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
+                  <div className="w-[60px] sticky left-[370px] z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
+                  <div className="w-[50px] sticky left-[430px] z-40 bg-muted border-r shrink-0 px-2 py-2"></div>
                   
                   <div className="flex">
                     {dates.map((date) => {
