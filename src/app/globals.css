@@ -172,3 +172,16 @@
 .dark .ql-snow .ql-color-picker .ql-picker-item:hover {
   border-color: var(--foreground) !important;
 }
+
+/* Note Content Fixes */
+.wysiwyg-content, .ql-editor {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+.wysiwyg-content table, .ql-editor table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+}

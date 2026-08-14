@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronRight } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -208,15 +208,34 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const [isExpanded, setIsExpanded] = useState(true);
+  const totalTasks = tasks.length;
+  const doneTasks = tasks.filter((t: any) => t.status === "DONE").length;
+  const percentage = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
+
   return (
     <div ref={setNodeRef} style={style} className={cn("flex flex-col bg-card", isDragging && "z-40 relative")}>
       {/* Epic Header Row */}
-      <div className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors">
+      <div 
+        className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <div className="w-[250px] sticky left-0 z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
-          <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1">
+          <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1" onClick={(e) => e.stopPropagation()}>
             <GripVertical className="w-4 h-4" />
           </div>
-          <span className="font-bold text-sm uppercase tracking-wider truncate text-foreground">{epic.name}</span>
+          <button className="mr-1 text-muted-foreground hover:text-foreground focus:outline-none p-1">
+            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+          <span className="font-bold text-sm uppercase tracking-wider truncate text-foreground flex-1">{epic.name}</span>
+          <span className={cn(
+            "text-[10px] font-bold px-2 py-0.5 rounded-full ml-2",
+            percentage === 100 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+            percentage > 0 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+            "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+          )}>
+            {percentage}%
+          </span>
         </div>
         <div className="w-[120px] sticky left-[250px] z-20 bg-muted border-r shrink-0 flex items-center px-4 py-2">
         </div>
@@ -226,12 +245,12 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
         </div>
         <div className="w-[50px] sticky left-[550px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
           <DropdownMenu>
-            <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
+            <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded" onClick={(e) => e.stopPropagation()}>
               <MoreHorizontal className="w-4 h-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEditEpic(epic)}>Edit Epic</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive" onClick={() => onDeleteEpic(epic)}>Delete Epic</DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditEpic(epic); }}>Edit Epic</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteEpic(epic); }}>Delete Epic</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -248,21 +267,23 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
       </div>
       
       {/* Task List inside this Epic */}
-      <SortableContext items={tasks.map((t: any) => t.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col min-h-[10px]">
-          {tasks.map((task: any) => (
-            <TaskRow 
-              key={task.id} 
-              task={task} 
-              dates={dates} 
-              holidays={holidays}
-              onEdit={onEditTask} 
-              onDelete={onDeleteTask}
-              onUpdateStatus={onUpdateTaskStatus}
-            />
-          ))}
-        </div>
-      </SortableContext>
+      {isExpanded && (
+        <SortableContext items={tasks.map((t: any) => t.id)} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col min-h-[10px]">
+            {tasks.map((task: any) => (
+              <TaskRow 
+                key={task.id} 
+                task={task} 
+                dates={dates} 
+                holidays={holidays}
+                onEdit={onEditTask} 
+                onDelete={onDeleteTask}
+                onUpdateStatus={onUpdateTaskStatus}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      )}
     </div>
   );
 }
