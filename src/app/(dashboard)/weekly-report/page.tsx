@@ -77,6 +77,13 @@ export default function WeeklyReportPage() {
     );
   };
 
+  const STATUS_MAP: Record<string, string> = {
+    "PLANNED": "Planned",
+    "IN PROGRESS": "In Progress",
+    "DONE": "Done",
+    "BLOCKED": "Blocked"
+  };
+
   const filteredReports = useMemo(() => {
     let result = orderedReports;
     if (searchQuery.trim() !== "") {
@@ -86,7 +93,7 @@ export default function WeeklyReportPage() {
       );
     }
     if (statusFilters.length > 0) {
-      result = result.filter(r => statusFilters.includes(r.status));
+      result = result.filter(r => statusFilters.map(sf => STATUS_MAP[sf] || sf).includes(r.status));
     }
     return result;
   }, [orderedReports, searchQuery, statusFilters]);

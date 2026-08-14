@@ -71,6 +71,13 @@ export default function TodoPage() {
     );
   };
 
+  const STATUS_MAP: Record<string, string> = {
+    "TODO": "Todo",
+    "ON PROGRESS": "Doing",
+    "DONE": "Done",
+    "CANCELLED": "Cancelled"
+  };
+
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -97,7 +104,7 @@ export default function TodoPage() {
     }
 
     if (statusFilters.length > 0) {
-      sortableItems = sortableItems.filter(t => statusFilters.includes(t.status));
+      sortableItems = sortableItems.filter(t => statusFilters.map(sf => STATUS_MAP[sf] || sf).includes(t.status));
     }
 
     if (priorityFilters.length > 0) {
