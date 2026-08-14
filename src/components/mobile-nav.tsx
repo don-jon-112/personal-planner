@@ -6,19 +6,16 @@ import { usePathname } from "next/navigation";
 import { Menu, X, LayoutDashboard, CalendarDays, CheckSquare, FileText, CheckCircle, Bug, Settings, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Weekly Report", href: "/weekly-report", icon: CalendarDays },
-  { name: "Todo Plan", href: "/todo", icon: CheckSquare },
-  { name: "Notes", href: "/notes", icon: FileText },
-  { name: "Timeline", href: "/timeline", icon: CalendarClock },
-  { name: "Go Live Check", href: "/golive", icon: CheckCircle },
-  { name: "Bug & Report", href: "/bugs", icon: Bug },
-];
+import { menuItems } from "@/config/menu";
+import { useDocument } from "@/hooks/use-firestore";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { data: menuSettings } = useDocument<any>("appSettings", "menu");
+  
+  const hiddenMenus = menuSettings?.hiddenMenus || [];
+  const visibleMenuItems = menuItems.filter(item => !hiddenMenus.includes(item.href));
 
   return (
     <div className="md:hidden flex items-center">
@@ -58,7 +55,7 @@ export function MobileNav() {
             <div className="px-4 py-4 overflow-y-auto flex-1">
               <h3 className="text-xs uppercase font-bold text-sidebar-foreground/50 tracking-wider mb-2">Menu</h3>
               <nav className="space-y-1">
-                {menuItems.map((item) => {
+                {visibleMenuItems.map((item) => {
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   const isReallyActive = item.href === "/" ? pathname === "/" : isActive;
 

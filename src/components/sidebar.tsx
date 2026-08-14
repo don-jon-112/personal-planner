@@ -14,18 +14,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Weekly Report", href: "/weekly-report", icon: CalendarDays },
-  { name: "Todo Plan", href: "/todo", icon: CheckSquare },
-  { name: "Notes", href: "/notes", icon: FileText },
-  { name: "Timeline", href: "/timeline", icon: CalendarClock },
-  { name: "Go Live Check", href: "/golive", icon: CheckCircle },
-  { name: "Bug & Report", href: "/bugs", icon: Bug },
-];
+import { menuItems } from "@/config/menu";
+import { useDocument } from "@/hooks/use-firestore";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: menuSettings } = useDocument<any>("appSettings", "menu");
+  
+  const hiddenMenus = menuSettings?.hiddenMenus || [];
+  const visibleMenuItems = menuItems.filter(item => !hiddenMenus.includes(item.href));
 
   return (
     <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground flex-col h-screen sticky top-0 shadow-xl z-20">
@@ -51,7 +48,7 @@ export function Sidebar() {
       <div className="px-4 py-4">
         <h3 className="text-xs uppercase font-bold text-sidebar-foreground/50 tracking-wider mb-2">General</h3>
         <nav className="space-y-1">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const isReallyActive = item.href === "/" ? pathname === "/" : isActive;
 

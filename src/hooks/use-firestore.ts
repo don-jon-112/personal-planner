@@ -3,6 +3,8 @@ import {
   collection, 
   doc, 
   getDocs, 
+  getDoc,
+  setDoc,
   addDoc, 
   updateDoc, 
   deleteDoc,
@@ -105,6 +107,43 @@ export function useUpdateBatch(collectionName: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });
+    },
+  });
+}
+
+// Generic Hook to Fetch a Single Document
+export function useDocument<T>(collectionName: string, docId: string) {
+  return useQuery({
+    queryKey: [collectionName, docId],
+    queryFn: async () => {
+      const docRef = doc(db, collectionName, docId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as T;
+      } else {
+        return null;
+      }
+    },
+  });
+}
+
+// Generic Hook to Set (Create or Overwrite/Merge) a Single Document
+export function useSetDocument(collectionName: string) {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const docRef = doc(db, collectionName, id);
+      // use merge: true to avoid overwriting fields not specified
+      await setDoc(docRef, {
+        ...data,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      return { id, ...data };
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [collectionName] });
+      queryClient.invalidateQueries({ queryKey: [collectionName, variables.id] });
     },
   });
 }
