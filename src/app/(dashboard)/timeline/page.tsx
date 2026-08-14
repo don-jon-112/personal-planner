@@ -97,16 +97,16 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { 
       style={style} 
       className={cn("flex border-b hover:bg-muted/10 bg-background", isDragging && "z-50 relative")}
     >
-      <div className="w-[250px] sticky left-0 z-20 bg-background border-r shrink-0 flex items-center px-2 py-2">
+      <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2">
         <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1">
           <GripVertical className="w-4 h-4" />
         </div>
         <span className="text-sm font-medium truncate pl-4 text-secondary-foreground">{task.name}</span>
       </div>
-      <div className="w-[120px] sticky left-[250px] z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
+      <div className="w-[120px] md:sticky md:left-[250px] md:z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
         {task.pic}
       </div>
-      <div className="w-[120px] sticky left-[370px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
+      <div className="w-[120px] md:sticky md:left-[370px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger className="focus:outline-none">
             <span className={cn(
@@ -125,10 +125,10 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { 
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="w-[60px] sticky left-[490px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
+      <div className="w-[60px] md:sticky md:left-[490px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
         {task.md}
       </div>
-      <div className="w-[50px] sticky left-[550px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
+      <div className="w-[50px] md:sticky md:left-[550px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
             <MoreHorizontal className="w-4 h-4" />
@@ -221,7 +221,7 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
         className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="w-[250px] sticky left-0 z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
+        <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
           <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1" onClick={(e) => e.stopPropagation()}>
             <GripVertical className="w-4 h-4" />
           </div>
@@ -238,13 +238,13 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
             {percentage}%
           </span>
         </div>
-        <div className="w-[120px] sticky left-[250px] z-20 bg-muted border-r shrink-0 flex items-center px-4 py-2">
+        <div className="w-[120px] md:sticky md:left-[250px] md:z-20 bg-muted border-r shrink-0 flex items-center px-4 py-2">
         </div>
-        <div className="w-[120px] sticky left-[370px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <div className="w-[120px] md:sticky md:left-[370px] md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
         </div>
-        <div className="w-[60px] sticky left-[490px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <div className="w-[60px] md:sticky md:left-[490px] md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
         </div>
-        <div className="w-[50px] sticky left-[550px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <div className="w-[50px] md:sticky md:left-[550px] md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
           <DropdownMenu>
             <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded" onClick={(e) => e.stopPropagation()}>
               <MoreHorizontal className="w-4 h-4" />
@@ -480,20 +480,21 @@ export default function TimelinePage() {
           <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline">
-            <PieChart className="w-4 h-4 mr-2" />
-            Analytics
+          <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
+            <PieChart className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Analytics</span>
           </Button>
-          <Button onClick={() => setIsHolidaysDialogOpen(true)} variant="outline">
-            Holidays
+          <Button onClick={() => setIsHolidaysDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
+            <span className="hidden sm:inline">Holidays</span>
+            <span className="sm:hidden">Hol</span>
           </Button>
-          <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline">
-            <Plus className="w-4 h-4 mr-2" />
-            New Epic
+          <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline" className="px-3 sm:px-4">
+            <Plus className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">New Epic</span>
           </Button>
-          <Button onClick={() => { setEditingTask(null); setIsTaskDialogOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Task
+          <Button onClick={() => { setEditingTask(null); setIsTaskDialogOpen(true); }} className="px-3 sm:px-4">
+            <Plus className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">New Task</span>
           </Button>
           <EpicDialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen} epicToEdit={editingEpic} />
           <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} />
@@ -517,7 +518,7 @@ export default function TimelinePage() {
               <div className="flex flex-col sticky top-0 z-30 shadow-sm">
                 {/* Month Row */}
                 <div className="flex bg-muted border-b">
-                  <div className="w-[600px] sticky left-0 z-40 bg-muted border-r shrink-0" />
+                  <div className="w-[600px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0" />
                   <div className="flex">
                     {(() => {
                       const months: { name: string, days: number }[] = [];
@@ -547,11 +548,11 @@ export default function TimelinePage() {
 
                 {/* Days Row */}
                 <div className="flex bg-muted border-b">
-                  <div className="w-[250px] sticky left-0 z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
-                  <div className="w-[120px] sticky left-[250px] z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
-                  <div className="w-[120px] sticky left-[370px] z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">Status</div>
-                  <div className="w-[60px] sticky left-[490px] z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
-                  <div className="w-[50px] sticky left-[550px] z-40 bg-muted border-r shrink-0 px-2 py-2"></div>
+                  <div className="w-[250px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
+                  <div className="w-[120px] md:sticky md:left-[250px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
+                  <div className="w-[120px] md:sticky md:left-[370px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">Status</div>
+                  <div className="w-[60px] md:sticky md:left-[490px] md:z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
+                  <div className="w-[50px] md:sticky md:left-[550px] md:z-40 bg-muted border-r shrink-0 px-2 py-2"></div>
                   
                   <div className="flex">
                     {dates.map((date) => {
