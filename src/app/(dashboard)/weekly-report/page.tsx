@@ -64,6 +64,22 @@ export default function WeeklyReportPage() {
   
   const [editingReport, setEditingReport] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  const filteredReports = useMemo(() => {
+    let result = orderedReports;
+    if (searchQuery.trim() !== "") {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r => 
+        (r.task || "").toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter !== "All") {
+      result = result.filter(r => r.status === statusFilter);
+    }
+    return result;
+  }, [orderedReports, searchQuery, statusFilter]);
 
   const handleEdit = (report: any) => {
     setEditingReport(report);
@@ -128,10 +144,29 @@ export default function WeeklyReportPage() {
       </PanelHeader>
 
       <PanelContent className="space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="relative w-full max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input type="search" placeholder="Search reports..." className="pl-8 bg-muted/50 border-border" />
+            <Input 
+              type="search" 
+              placeholder="Search reports..." 
+              className="pl-8 bg-muted/50 border-border"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            {['All', 'Draft', 'Submitted'].map(status => (
+              <Button 
+                key={status} 
+                variant={statusFilter === status ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1 sm:flex-none"
+                onClick={() => setStatusFilter(status)}
+              >
+                {status}
+              </Button>
+            ))}
           </div>
         </div>
 
@@ -152,14 +187,14 @@ export default function WeeklyReportPage() {
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8">Loading...</TableCell>
                 </TableRow>
-              ) : orderedReports.length === 0 ? (
+              ) : filteredReports.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No reports found.</TableCell>
                 </TableRow>
               ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={orderedReports.map(r => r.id)} strategy={verticalListSortingStrategy}>
-                    {orderedReports.map((report) => (
+                  <SortableContext items={filteredReports.map((r: any) => r.id)} strategy={verticalListSortingStrategy}>
+                    {filteredReports.map((report: any) => (
                       <SortableTableRow
                         key={report.id}
                         report={report}

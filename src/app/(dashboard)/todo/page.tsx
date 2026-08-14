@@ -51,6 +51,8 @@ export default function TodoPage() {
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -69,6 +71,18 @@ export default function TodoPage() {
 
   const sortedTodos = useMemo(() => {
     let sortableItems = [...localTodos];
+    
+    if (searchQuery.trim() !== "") {
+      const q = searchQuery.toLowerCase();
+      sortableItems = sortableItems.filter(t => 
+        (t.task || "").toLowerCase().includes(q)
+      );
+    }
+
+    if (statusFilter !== "All") {
+      sortableItems = sortableItems.filter(t => t.status === statusFilter);
+    }
+
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
         let aVal = a[sortConfig.key] || "";
@@ -156,10 +170,29 @@ export default function TodoPage() {
       </PanelHeader>
 
       <PanelContent className="space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="relative w-full max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input type="search" placeholder="Search tasks..." className="pl-8 bg-muted/50 border-border" />
+            <Input 
+              type="search" 
+              placeholder="Search tasks..." 
+              className="pl-8 bg-muted/50 border-border"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            {['All', 'TODO', 'ON PROGRESS', 'DONE'].map(status => (
+              <Button 
+                key={status} 
+                variant={statusFilter === status ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1 sm:flex-none"
+                onClick={() => setStatusFilter(status)}
+              >
+                {status}
+              </Button>
+            ))}
           </div>
         </div>
 

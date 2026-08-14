@@ -156,11 +156,11 @@ export default function SettingsPage() {
                       </div>
                       
                       <div className="flex items-center gap-4">
-                        <span className="text-xs font-medium flex items-center gap-1 min-w-[60px] justify-end">
+                        <span className="text-xs font-medium flex items-center gap-1 sm:min-w-[60px] justify-end">
                           {isHidden ? (
-                            <><EyeOff className="w-3 h-3 text-muted-foreground" /> <span className="text-muted-foreground">Hidden</span></>
+                            <><EyeOff className="w-4 h-4 sm:w-3 sm:h-3 text-muted-foreground" /> <span className="text-muted-foreground hidden sm:inline">Hidden</span></>
                           ) : (
-                            <><Eye className="w-3 h-3 text-primary" /> <span className="text-primary">Visible</span></>
+                            <><Eye className="w-4 h-4 sm:w-3 sm:h-3 text-primary" /> <span className="text-primary hidden sm:inline">Visible</span></>
                           )}
                         </span>
                         <Switch 
