@@ -3,11 +3,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronRight, PieChart } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
 import { HolidaysDialog } from "./holidays-dialog";
+import { ChartsDialog } from "./charts-dialog";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -304,6 +305,7 @@ export default function TimelinePage() {
   const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isHolidaysDialogOpen, setIsHolidaysDialogOpen] = useState(false);
+  const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
   
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -478,6 +480,10 @@ export default function TimelinePage() {
           <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline">
+            <PieChart className="w-4 h-4 mr-2" />
+            Analytics
+          </Button>
           <Button onClick={() => setIsHolidaysDialogOpen(true)} variant="outline">
             Holidays
           </Button>
@@ -492,6 +498,7 @@ export default function TimelinePage() {
           <EpicDialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen} epicToEdit={editingEpic} />
           <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} />
           <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
+          <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} />
         </div>
       </PanelHeader>
 
