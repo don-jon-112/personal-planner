@@ -24,7 +24,6 @@ import {
   DragEndEvent,
   DragOverEvent,
   DragOverlay,
-  defaultDropAnimationSideEffects,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -460,7 +459,7 @@ export default function TimelinePage() {
                     })}
                   </div>
                 </SortableContext>
-                <DragOverlay dropAnimation={defaultDropAnimationSideEffects({ sideEffects: ['default'] })}>
+                <DragOverlay>
                   {activeId ? (
                     <div className="bg-primary/10 border-2 border-primary rounded p-4 shadow-xl opacity-90 font-bold text-primary">
                       Dragging item...
