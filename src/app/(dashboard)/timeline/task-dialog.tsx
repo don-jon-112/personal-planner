@@ -19,7 +19,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   epicId: z.string().min(1, "Epic is required"),
   pic: z.string().min(1, "PIC is required"),
-  md: z.coerce.number().min(1, "MD must be at least 1"),
+  md: z.number().min(1, "MD must be at least 1"),
   startDate: z.string().min(1, "Start Date is required"),
 });
 
@@ -118,7 +118,7 @@ export function TaskDialog({
             </div>
             <div className="space-y-2 flex-1">
               <Label>MD (Man Days)</Label>
-              <Input type="number" min="1" {...form.register("md")} />
+              <Input type="number" min="1" {...form.register("md", { valueAsNumber: true })} />
             </div>
           </div>
 
