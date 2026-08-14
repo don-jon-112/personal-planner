@@ -129,7 +129,7 @@ export default function TodoPage() {
       });
     }
     return sortableItems;
-  }, [localTodos, sortConfig]);
+  }, [localTodos, sortConfig, searchQuery, statusFilters, priorityFilters]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
