@@ -472,14 +472,14 @@ export default function TimelinePage() {
 
   return (
     <Panel className="h-full border-t-4 border-t-primary flex flex-col">
-      <PanelHeader className="flex flex-row items-start justify-between border-b-0 pb-2">
-        <div>
+      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-2 gap-4">
+        <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
             <CalendarClock className="w-6 h-6 text-primary" /> Timeline
           </PanelTitle>
           <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row w-full sm:w-auto">
           <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
             <PieChart className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Analytics</span>
