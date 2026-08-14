@@ -45,6 +45,16 @@ function getDatesInRange(startDate: Date, endDate: Date) {
   return dates;
 }
 
+function getPicColor(name: string) {
+  if (!name) return "hsl(var(--primary))";
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 65%, 50%)`;
+}
+
 // -------------------------------------------------------------
 // UI COMPONENTS
 // -------------------------------------------------------------
@@ -107,7 +117,7 @@ function TaskRow({ task, dates, onEdit, onDelete }: { task: any, dates: Date[], 
               key={date.toISOString()} 
               className={cn(
                 "w-[40px] shrink-0 border-r",
-                isWeekend ? "bg-muted/30" : ""
+                isWeekend ? "bg-black/80" : ""
               )}
             />
           );
@@ -120,10 +130,11 @@ function TaskRow({ task, dates, onEdit, onDelete }: { task: any, dates: Date[], 
           
           return (
             <div 
-              className="absolute top-2 h-[60%] bg-primary/80 rounded shadow-sm border border-primary/20 pointer-events-none"
+              className="absolute top-2 h-[60%] rounded shadow-sm pointer-events-none border border-black/10"
               style={{
                 left: `${startIndex * 40}px`,
                 width: `${task.md * 40}px`,
+                backgroundColor: getPicColor(task.pic),
               }}
             />
           );
@@ -177,9 +188,12 @@ function EpicGroup({ epic, tasks, dates, onEditEpic, onDeleteEpic, onEditTask, o
         
         {/* Empty cells for epic row */}
         <div className="flex">
-          {dates.map((date: Date) => (
-            <div key={date.toISOString()} className={cn("w-[40px] shrink-0 border-r", (date.getDay() === 0 || date.getDay() === 6) && "bg-muted/50")} />
-          ))}
+          {dates.map((date: Date) => {
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            return (
+              <div key={date.toISOString()} className={cn("w-[40px] shrink-0 border-r", isWeekend && "bg-black/90")} />
+            );
+          })}
         </div>
       </div>
       
@@ -404,31 +418,63 @@ export default function TimelinePage() {
           <div className="flex-1 overflow-auto bg-card relative custom-scrollbar">
             <div className="min-w-max flex flex-col">
               
-              {/* Header Row */}
-              <div className="flex sticky top-0 z-30 bg-muted/80 backdrop-blur-md border-b shadow-sm">
-                <div className="w-[250px] sticky left-0 z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-4 py-3 font-semibold text-sm uppercase tracking-wider">Epic / Task</div>
-                <div className="w-[120px] sticky left-[250px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-4 py-3 font-semibold text-sm uppercase tracking-wider">PIC</div>
-                <div className="w-[60px] sticky left-[370px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-2 py-3 font-semibold text-sm uppercase tracking-wider text-center">MD</div>
-                <div className="w-[50px] sticky left-[430px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-2 py-3"></div>
-                
-                <div className="flex">
-                  {dates.map((date) => {
-                    const isToday = date.toDateString() === new Date().toDateString();
-                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                    return (
-                      <div 
-                        key={date.toISOString()} 
-                        className={cn(
-                          "w-[40px] shrink-0 border-r flex flex-col items-center justify-center py-1 text-xs select-none",
-                          isToday && "bg-primary/10 text-primary font-bold",
-                          isWeekend && !isToday && "bg-muted/30"
-                        )}
-                      >
-                        <span className={cn("font-medium", isToday ? "text-primary" : "text-muted-foreground")}>{date.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
-                        <span>{date.getDate()}</span>
-                      </div>
-                    );
-                  })}
+              <div className="flex flex-col sticky top-0 z-30 shadow-sm">
+                {/* Month Row */}
+                <div className="flex bg-muted/90 backdrop-blur-md border-b">
+                  <div className="w-[480px] sticky left-0 z-40 bg-muted/90 backdrop-blur-md border-r shrink-0" />
+                  <div className="flex">
+                    {(() => {
+                      const months: { name: string, days: number }[] = [];
+                      let currentMonth: string | null = null;
+                      let daysInMonth = 0;
+                      dates.forEach((d, i) => {
+                        const m = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                        if (m !== currentMonth) {
+                          if (currentMonth) months.push({ name: currentMonth, days: daysInMonth });
+                          currentMonth = m;
+                          daysInMonth = 1;
+                        } else {
+                          daysInMonth++;
+                        }
+                        if (i === dates.length - 1) {
+                          months.push({ name: m, days: daysInMonth });
+                        }
+                      });
+                      return months.map(m => (
+                        <div key={m.name} style={{ width: m.days * 40 }} className="shrink-0 border-r text-center text-xs font-bold py-1 text-muted-foreground uppercase tracking-wider">
+                          {m.name}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* Days Row */}
+                <div className="flex bg-muted/80 backdrop-blur-md border-b">
+                  <div className="w-[250px] sticky left-0 z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
+                  <div className="w-[120px] sticky left-[250px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
+                  <div className="w-[60px] sticky left-[370px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
+                  <div className="w-[50px] sticky left-[430px] z-40 bg-muted/90 backdrop-blur-md border-r shrink-0 px-2 py-2"></div>
+                  
+                  <div className="flex">
+                    {dates.map((date) => {
+                      const isToday = date.toDateString() === new Date().toDateString();
+                      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                      return (
+                        <div 
+                          key={date.toISOString()} 
+                          className={cn(
+                            "w-[40px] shrink-0 border-r flex flex-col items-center justify-center py-1 text-xs select-none",
+                            isWeekend ? "bg-black text-white" : "",
+                            isToday && !isWeekend && "bg-primary/10 text-primary font-bold"
+                          )}
+                        >
+                          <span className={cn("font-medium", isWeekend ? "text-white/80" : (isToday ? "text-primary" : "text-muted-foreground"))}>{date.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                          <span>{date.getDate()}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
