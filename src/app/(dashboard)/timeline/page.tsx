@@ -71,7 +71,7 @@ function getDayStatus(date: Date, holidays: any[] = []) {
 // UI COMPONENTS
 // -------------------------------------------------------------
 
-function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates: Date[], holidays: any[], onEdit: any, onDelete: any }) {
+function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { task: any, dates: Date[], holidays: any[], onEdit: any, onDelete: any, onUpdateStatus: any }) {
   const {
     attributes,
     listeners,
@@ -105,10 +105,29 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates
       <div className="w-[120px] sticky left-[250px] z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
         {task.pic}
       </div>
-      <div className="w-[60px] sticky left-[370px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
+      <div className="w-[120px] sticky left-[370px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="focus:outline-none">
+            <span className={cn(
+              "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
+              task.status === "DONE" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+              task.status === "ON PROGRESS" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+              "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+            )}>
+              {task.status || "TODO"}
+            </span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center">
+            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "TODO")}>TODO</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "ON PROGRESS")}>ON PROGRESS</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "DONE")}>DONE</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="w-[60px] sticky left-[490px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
         {task.md}
       </div>
-      <div className="w-[50px] sticky left-[430px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
+      <div className="w-[50px] sticky left-[550px] z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
             <MoreHorizontal className="w-4 h-4" />
@@ -173,7 +192,7 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus }: any) {
   const {
     attributes,
     listeners,
@@ -201,9 +220,11 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
         </div>
         <div className="w-[120px] sticky left-[250px] z-20 bg-muted border-r shrink-0 flex items-center px-4 py-2">
         </div>
-        <div className="w-[60px] sticky left-[370px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <div className="w-[120px] sticky left-[370px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
         </div>
-        <div className="w-[50px] sticky left-[430px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
+        <div className="w-[60px] sticky left-[490px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
+        </div>
+        <div className="w-[50px] sticky left-[550px] z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
           <DropdownMenu>
             <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
               <MoreHorizontal className="w-4 h-4" />
@@ -236,7 +257,8 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
               dates={dates} 
               holidays={holidays}
               onEdit={onEditTask} 
-              onDelete={onDeleteTask} 
+              onDelete={onDeleteTask}
+              onUpdateStatus={onUpdateTaskStatus}
             />
           ))}
         </div>
@@ -253,11 +275,25 @@ export default function TimelinePage() {
   const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
   const { data: holidays } = useCollection<any>("timelineHolidays");
+  const { mutateAsync: updateEpic } = useUpdateDocument("timelineEpics");
+  const { mutateAsync: updateTask } = useUpdateDocument("timelineTasks");
+  const { mutateAsync: deleteEpic } = useDeleteDocument("timelineEpics");
+  const { mutateAsync: deleteTask } = useDeleteDocument("timelineTasks");
 
-  const { mutate: deleteEpic } = useDeleteDocument("timelineEpics");
-  const { mutate: updateEpic } = useUpdateDocument("timelineEpics");
-  const { mutate: deleteTask } = useDeleteDocument("timelineTasks");
-  const { mutate: updateTask } = useUpdateDocument("timelineTasks");
+  const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isHolidaysDialogOpen, setIsHolidaysDialogOpen] = useState(false);
+  
+  const [editingEpic, setEditingEpic] = useState<any>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
+
+  const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
+    try {
+      await updateTask({ id: taskId, data: { status: newStatus } });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const [orderedEpics, setOrderedEpics] = useState<any[]>([]);
   const [localTasks, setLocalTasks] = useState<any[]>([]);
@@ -274,11 +310,7 @@ export default function TimelinePage() {
     }
   }, [rawTasks]);
 
-  const [editingEpic, setEditingEpic] = useState<any>(null);
-  const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<any>(null);
-  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
-  const [isHolidaysDialogOpen, setIsHolidaysDialogOpen] = useState(false);
+
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const dates = useMemo(() => {
@@ -457,7 +489,7 @@ export default function TimelinePage() {
               <div className="flex flex-col sticky top-0 z-30 shadow-sm">
                 {/* Month Row */}
                 <div className="flex bg-muted border-b">
-                  <div className="w-[480px] sticky left-0 z-40 bg-muted border-r shrink-0" />
+                  <div className="w-[600px] sticky left-0 z-40 bg-muted border-r shrink-0" />
                   <div className="flex">
                     {(() => {
                       const months: { name: string, days: number }[] = [];
@@ -489,8 +521,9 @@ export default function TimelinePage() {
                 <div className="flex bg-muted border-b">
                   <div className="w-[250px] sticky left-0 z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
                   <div className="w-[120px] sticky left-[250px] z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
-                  <div className="w-[60px] sticky left-[370px] z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
-                  <div className="w-[50px] sticky left-[430px] z-40 bg-muted border-r shrink-0 px-2 py-2"></div>
+                  <div className="w-[120px] sticky left-[370px] z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">Status</div>
+                  <div className="w-[60px] sticky left-[490px] z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
+                  <div className="w-[50px] sticky left-[550px] z-40 bg-muted border-r shrink-0 px-2 py-2"></div>
                   
                   <div className="flex">
                     {dates.map((date) => {
@@ -537,6 +570,7 @@ export default function TimelinePage() {
                           onDeleteEpic={(e: any) => confirm("Delete Epic and all tasks?") && deleteEpic(e.id)}
                           onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
                           onDeleteTask={(t: any) => confirm("Delete Task?") && deleteTask(t.id)}
+                          onUpdateTaskStatus={handleUpdateTaskStatus}
                         />
                       );
                     })}

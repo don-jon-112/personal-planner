@@ -19,6 +19,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   epicId: z.string().min(1, "Epic is required"),
   pic: z.string().min(1, "PIC is required"),
+  status: z.string().min(1, "Status is required"),
   md: z.number().min(1, "MD must be at least 1"),
   startDate: z.string().min(1, "Start Date is required"),
 });
@@ -48,6 +49,7 @@ export function TaskDialog({
       name: "",
       epicId: "",
       pic: "",
+      status: "TODO",
       md: 1,
       startDate: new Date().toISOString().split("T")[0],
     },
@@ -59,6 +61,7 @@ export function TaskDialog({
         name: "",
         epicId: epics?.[0]?.id || "",
         pic: "",
+        status: "TODO",
         md: 1,
         startDate: new Date().toISOString().split("T")[0],
       });
@@ -106,9 +109,22 @@ export function TaskDialog({
             </select>
           </div>
 
-          <div className="space-y-2">
-            <Label>PIC (Person In Charge)</Label>
-            <Input {...form.register("pic")} placeholder="e.g., Alice" />
+          <div className="flex gap-4">
+            <div className="space-y-2 flex-1">
+              <Label>PIC</Label>
+              <Input {...form.register("pic")} placeholder="e.g., Alice" />
+            </div>
+            <div className="space-y-2 flex-1">
+              <Label>Status</Label>
+              <select 
+                {...form.register("status")} 
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="TODO">TODO</option>
+                <option value="ON PROGRESS">ON PROGRESS</option>
+                <option value="DONE">DONE</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex gap-4">
