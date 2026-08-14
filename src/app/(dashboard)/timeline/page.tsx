@@ -127,7 +127,7 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates
               key={date.toISOString()} 
               className={cn(
                 "w-[40px] shrink-0 border-r",
-                isOffDay ? "bg-black/80" : ""
+                isOffDay ? "bg-black/80 relative z-10" : "relative"
               )}
             />
           );
@@ -156,7 +156,7 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates
 
           return (
             <div 
-              className="absolute top-2 h-[60%] rounded shadow-sm pointer-events-none border border-black/10"
+              className="absolute top-2 h-[60%] rounded shadow-sm pointer-events-none border border-black/10 z-0"
               style={{
                 left: `${startIndex * 40}px`,
                 width: `${barWidthDays * 40}px`,
