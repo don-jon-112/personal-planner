@@ -56,13 +56,15 @@ function getPicColor(name: string) {
   return `hsl(${hue}, 65%, 50%)`;
 }
 
-function isNonWorkingDay(date: Date, holidays: any[] = []) {
-  if (date.getDay() === 0 || date.getDay() === 6) return true;
+function getDayStatus(date: Date, holidays: any[] = []) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const dd = String(date.getDate()).padStart(2, '0');
   const dateStr = `${yyyy}-${mm}-${dd}`;
-  return holidays.some((h: any) => h.date === dateStr);
+  
+  if (holidays.some((h: any) => h.date === dateStr)) return 'holiday';
+  if (date.getDay() === 0 || date.getDay() === 6) return 'weekend';
+  return false;
 }
 
 // -------------------------------------------------------------
@@ -121,13 +123,14 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates
       {/* Grid Cells */}
       <div className="flex relative">
         {dates.map((date, i) => {
-          const isOffDay = isNonWorkingDay(date, holidays);
+          const status = getDayStatus(date, holidays);
           return (
             <div 
               key={date.toISOString()} 
               className={cn(
-                "w-[40px] shrink-0 border-r",
-                isOffDay ? "bg-black/80 relative z-10" : "relative"
+                "w-[40px] shrink-0 border-r relative",
+                status === 'holiday' ? "bg-red-400/80 z-10" : 
+                status === 'weekend' ? "bg-black/80 z-10" : ""
               )}
             />
           );
@@ -144,7 +147,7 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete }: { task: any, dates
           // Loop through dates to find the end index based on MD (working days)
           while (workingDays < task.md && currentIndex < dates.length) {
             const d = dates[currentIndex];
-            if (!isNonWorkingDay(d, holidays)) {
+            if (!getDayStatus(d, holidays)) {
                workingDays++;
             }
             if (workingDays < task.md) {
@@ -215,9 +218,9 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
         {/* Empty cells for epic row */}
         <div className="flex">
           {dates.map((date: Date) => {
-            const isOffDay = isNonWorkingDay(date, holidays);
+            const status = getDayStatus(date, holidays);
             return (
-              <div key={date.toISOString()} className={cn("w-[40px] shrink-0 border-r", isOffDay && "bg-black/90")} />
+              <div key={date.toISOString()} className={cn("w-[40px] shrink-0 border-r", status === 'holiday' ? "bg-red-400/90" : status === 'weekend' ? "bg-black/90" : "")} />
             );
           })}
         </div>
@@ -492,17 +495,17 @@ export default function TimelinePage() {
                   <div className="flex">
                     {dates.map((date) => {
                       const isToday = date.toDateString() === new Date().toDateString();
-                      const isOffDay = isNonWorkingDay(date, holidays);
+                      const status = getDayStatus(date, holidays);
                       return (
                         <div 
                           key={date.toISOString()} 
                           className={cn(
                             "w-[40px] shrink-0 border-r flex flex-col items-center justify-center py-1 text-xs select-none",
-                            isOffDay ? "bg-black text-white" : "",
-                            isToday && !isOffDay && "bg-primary/10 text-primary font-bold"
+                            status === 'holiday' ? "bg-red-400 text-white" : status === 'weekend' ? "bg-black text-white" : "",
+                            isToday && !status && "bg-primary/10 text-primary font-bold"
                           )}
                         >
-                          <span className={cn("font-medium", isOffDay ? "text-white/80" : (isToday ? "text-primary" : "text-muted-foreground"))}>{date.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                          <span className={cn("font-medium", status ? "text-white/90" : (isToday ? "text-primary" : "text-muted-foreground"))}>{date.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
                           <span>{date.getDate()}</span>
                         </div>
                       );
