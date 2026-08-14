@@ -137,13 +137,13 @@ export default function TodoPage() {
 
   return (
     <Panel className="h-full border-t-4 border-t-primary">
-      <PanelHeader className="flex flex-row items-start justify-between border-b-0 pb-0">
-        <div>
+      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-0 gap-4">
+        <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground">Todo Plan</PanelTitle>
           <PanelDescription className="mt-1">Manage your daily tasks and backlog.</PanelDescription>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleCreate} className="shadow-sm">
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button onClick={handleCreate} className="shadow-sm w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             New Todo
           </Button>

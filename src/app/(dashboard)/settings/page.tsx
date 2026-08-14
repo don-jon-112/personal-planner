@@ -112,8 +112,8 @@ export default function SettingsPage() {
 
   return (
     <Panel className="h-full border-t-4 border-t-primary flex flex-col">
-      <PanelHeader className="flex flex-row items-start justify-between border-b-0 pb-2">
-        <div>
+      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-2 gap-4">
+        <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
             <SettingsIcon className="w-6 h-6 text-primary" /> Settings
           </PanelTitle>
@@ -188,7 +188,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/20">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border bg-muted/20 gap-4">
                 <div>
                   <p className="font-medium text-sm">Upload Local Changes</p>
                   <p className="text-xs text-muted-foreground">Push all changes you made while offline to Firebase.</p>
@@ -197,13 +197,14 @@ export default function SettingsPage() {
                   onClick={handleSyncToFirebase} 
                   disabled={isSyncingUp || isSyncingDown}
                   size="sm"
+                  className="w-full sm:w-auto"
                 >
                   <CloudUpload className="w-4 h-4 mr-2" />
                   {isSyncingUp ? "Uploading..." : "Sync TO Firebase"}
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/20">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border bg-muted/20 gap-4">
                 <div>
                   <p className="font-medium text-sm">Download Cloud Data</p>
                   <p className="text-xs text-muted-foreground">Pull the latest data from Firebase to this device.</p>
@@ -213,13 +214,14 @@ export default function SettingsPage() {
                   disabled={isSyncingUp || isSyncingDown}
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto"
                 >
                   <CloudDownload className="w-4 h-4 mr-2" />
                   {isSyncingDown ? "Downloading..." : "Sync FROM Firebase"}
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/20">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border bg-muted/20 gap-4">
                 <div>
                   <p className="font-medium text-sm">Always Online Mode</p>
                   <p className="text-xs text-muted-foreground">If enabled, the app will always sync in the background (uses Firebase quota).</p>
@@ -228,6 +230,7 @@ export default function SettingsPage() {
                   onClick={toggleNetworkMode}
                   variant={isOnline ? "default" : "secondary"}
                   size="sm"
+                  className="w-full sm:w-auto"
                 >
                   {isOnline ? <Server className="w-4 h-4 mr-2" /> : <ServerOff className="w-4 h-4 mr-2" />}
                   {isOnline ? "Online Mode" : "Offline Mode"}
