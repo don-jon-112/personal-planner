@@ -58,14 +58,18 @@ export function TaskDialog({
 
   useEffect(() => {
     if (open) {
-      form.reset(taskToEdit || {
-        name: "",
-        epicId: epics?.[0]?.id || "",
-        pic: "",
-        status: "TODO",
-        md: 1,
-        startDate: new Date().toISOString().split("T")[0],
-      });
+      if (taskToEdit && taskToEdit.id) {
+        form.reset(taskToEdit);
+      } else {
+        form.reset({
+          name: "",
+          epicId: taskToEdit?.epicId || epics?.[0]?.id || "",
+          pic: "",
+          status: "TODO",
+          md: 1,
+          startDate: new Date().toISOString().split("T")[0],
+        });
+      }
     }
   }, [taskToEdit, open, form, epics]);
 

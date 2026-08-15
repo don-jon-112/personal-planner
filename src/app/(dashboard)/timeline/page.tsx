@@ -237,7 +237,7 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic }: any) {
   const {
     attributes,
     listeners,
@@ -288,6 +288,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpi
               <MoreHorizontal className="w-4 h-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddTaskToEpic(epic); }}>Add Task</DropdownMenuItem>
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditEpic(epic); }}>Edit Epic</DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteEpic(epic); }}>Delete Epic</DropdownMenuItem>
             </DropdownMenuContent>
@@ -667,6 +668,7 @@ export default function TimelinePage() {
                           pics={pics || []}
                           onEditEpic={(e: any) => { setEditingEpic(e); setIsEpicDialogOpen(true); }}
                           onDeleteEpic={(e: any) => confirm("Delete Epic and all tasks?") && deleteEpic(e.id)}
+                          onAddTaskToEpic={(e: any) => { setEditingTask({ epicId: e.id }); setIsTaskDialogOpen(true); }}
                           onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
                           onDeleteTask={(t: any) => confirm("Delete Task?") && deleteTask(t.id)}
                           onUpdateTaskStatus={handleUpdateTaskStatus}
