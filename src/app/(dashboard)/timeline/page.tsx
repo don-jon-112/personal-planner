@@ -536,17 +536,19 @@ export default function TimelinePage() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row w-full sm:w-auto">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="px-3 sm:px-4">
-                <Filter className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">
-                  {selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}
-                </span>
-                <span className="sm:hidden">
-                  {selectedPicFilter === "ALL" ? "Filter" : selectedPicFilter.substring(0,4)}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
+            <DropdownMenuTrigger 
+              render={
+                <Button variant="outline" className="px-3 sm:px-4">
+                  <Filter className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">
+                    {selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}
+                  </span>
+                  <span className="sm:hidden">
+                    {selectedPicFilter === "ALL" ? "Filter" : selectedPicFilter.substring(0,4)}
+                  </span>
+                </Button>
+              }
+            />
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
               <DropdownMenuSeparator />
