@@ -8,6 +8,7 @@ import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
 import { HolidaysDialog } from "./holidays-dialog";
+import { PicsDialog } from "./pics-dialog";
 import { ChartsDialog } from "./charts-dialog";
 import { cn } from "@/lib/utils";
 import {
@@ -47,7 +48,10 @@ function getDatesInRange(startDate: Date, endDate: Date) {
   return dates;
 }
 
-function getPicColor(name: string) {
+function getPicColor(name: string, pics: any[] = []) {
+  const pic = pics.find(p => p.name === name);
+  if (pic && pic.color) return pic.color;
+
   if (!name) return "hsl(var(--primary))";
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -104,7 +108,7 @@ function MarqueeText({ text, className }: { text: string, className?: string }) 
   );
 }
 
-function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { task: any, dates: Date[], holidays: any[], onEdit: any, onDelete: any, onUpdateStatus: any }) {
+function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus }: { task: any, dates: Date[], holidays: any[], pics: any[], onEdit: any, onDelete: any, onUpdateStatus: any }) {
   const {
     attributes,
     listeners,
@@ -215,7 +219,7 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { 
               style={{
                 left: `${startIndex * 40}px`,
                 width: `${barWidthDays * 40}px`,
-                backgroundColor: getPicColor(task.pic),
+                backgroundColor: getPicColor(task.pic, pics),
               }}
             />
           );
@@ -225,7 +229,7 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { 
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus }: any) {
   const {
     attributes,
     listeners,
@@ -303,6 +307,7 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
                 task={task} 
                 dates={dates} 
                 holidays={holidays}
+                pics={pics}
                 onEdit={onEditTask} 
                 onDelete={onDeleteTask}
                 onUpdateStatus={onUpdateTaskStatus}
@@ -323,6 +328,7 @@ export default function TimelinePage() {
   const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
   const { data: holidays } = useCollection<any>("timelineHolidays");
+  const { data: pics } = useCollection<any>("timelinePics");
   const { mutateAsync: updateEpic } = useUpdateDocument("timelineEpics");
   const { mutateAsync: updateTask } = useUpdateDocument("timelineTasks");
   const { mutateAsync: deleteEpic } = useDeleteDocument("timelineEpics");
@@ -331,6 +337,7 @@ export default function TimelinePage() {
   const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isHolidaysDialogOpen, setIsHolidaysDialogOpen] = useState(false);
+  const [isPicsDialogOpen, setIsPicsDialogOpen] = useState(false);
   const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
   
   const [editingEpic, setEditingEpic] = useState<any>(null);
@@ -516,6 +523,10 @@ export default function TimelinePage() {
             <span className="hidden sm:inline">Holidays</span>
             <span className="sm:hidden">Hol</span>
           </Button>
+          <Button onClick={() => setIsPicsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
+            <span className="hidden sm:inline">PICs</span>
+            <span className="sm:hidden">PICs</span>
+          </Button>
           <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline" className="px-3 sm:px-4">
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">New Epic</span>
@@ -527,6 +538,7 @@ export default function TimelinePage() {
           <EpicDialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen} epicToEdit={editingEpic} />
           <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} />
           <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
+          <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
           <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} />
         </div>
       </PanelHeader>
@@ -623,6 +635,7 @@ export default function TimelinePage() {
                           tasks={epicTasks}
                           dates={dates}
                           holidays={holidays}
+                          pics={pics || []}
                           onEditEpic={(e: any) => { setEditingEpic(e); setIsEpicDialogOpen(true); }}
                           onDeleteEpic={(e: any) => confirm("Delete Epic and all tasks?") && deleteEpic(e.id)}
                           onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
