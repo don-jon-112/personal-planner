@@ -351,10 +351,12 @@ export default function TimelinePage() {
       const taskDates = localTasks.map(t => new Date(t.startDate).getTime()).filter(t => !isNaN(t));
       if (taskDates.length > 0) {
         const minDate = new Date(Math.min(...taskDates));
+        minDate.setHours(0, 0, 0, 0);
         minDate.setDate(minDate.getDate() - 5); // Add some padding
         if (minDate < start) start = minDate;
         
         const maxDate = new Date(Math.max(...taskDates));
+        maxDate.setHours(0, 0, 0, 0);
         // Add max MD to maxDate roughly (assume max 30)
         maxDate.setDate(maxDate.getDate() + 30);
         if (maxDate > end) end = maxDate;
