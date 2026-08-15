@@ -544,7 +544,7 @@ export default function TimelinePage() {
                     {selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}
                   </span>
                   <span className="sm:hidden">
-                    {selectedPicFilter === "ALL" ? "Filter" : selectedPicFilter.substring(0,4)}
+                    {selectedPicFilter === "ALL" ? "Filter" : (selectedPicFilter || "").substring(0,4)}
                   </span>
                 </Button>
               }
@@ -558,7 +558,7 @@ export default function TimelinePage() {
               >
                 All PICs
               </DropdownMenuCheckboxItem>
-              {pics?.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((pic: any) => (
+              {(pics || []).sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
                 <DropdownMenuCheckboxItem 
                   key={pic.id}
                   checked={selectedPicFilter === pic.name}
