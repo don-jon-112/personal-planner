@@ -19,6 +19,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
@@ -546,23 +547,25 @@ export default function TimelinePage() {
               </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem 
-                checked={selectedPicFilter === "ALL"}
-                onCheckedChange={() => setSelectedPicFilter("ALL")}
-              >
-                All PICs
-              </DropdownMenuCheckboxItem>
-              {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 <DropdownMenuCheckboxItem 
-                  key={pic.id}
-                  checked={selectedPicFilter === pic.name}
-                  onCheckedChange={() => setSelectedPicFilter(pic.name)}
+                  checked={selectedPicFilter === "ALL"}
+                  onCheckedChange={() => setSelectedPicFilter("ALL")}
                 >
-                  {pic.name}
+                  All PICs
                 </DropdownMenuCheckboxItem>
-              ))}
+                {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
+                  <DropdownMenuCheckboxItem 
+                    key={pic.id}
+                    checked={selectedPicFilter === pic.name}
+                    onCheckedChange={() => setSelectedPicFilter(pic.name)}
+                  >
+                    {pic.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
