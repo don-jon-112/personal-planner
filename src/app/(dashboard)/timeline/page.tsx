@@ -72,6 +72,38 @@ function getDayStatus(date: Date, holidays: any[] = []) {
 // UI COMPONENTS
 // -------------------------------------------------------------
 
+function MarqueeText({ text, className }: { text: string, className?: string }) {
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const textRef = React.useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (textRef.current) {
+        setIsOverflowing(textRef.current.scrollWidth > textRef.current.clientWidth);
+      }
+    };
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, [text]);
+
+  return (
+    <div className={cn("relative overflow-hidden flex items-center w-full group/marquee", className)}>
+      <span 
+        ref={textRef} 
+        className={cn("w-full truncate block transition-opacity", isOverflowing && "group-hover/marquee:opacity-0")}
+      >
+        {text}
+      </span>
+      {isOverflowing && (
+        <span className="absolute left-0 hidden group-hover/marquee:block whitespace-nowrap animate-marquee">
+          {text}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { task: any, dates: Date[], holidays: any[], onEdit: any, onDelete: any, onUpdateStatus: any }) {
   const {
     attributes,
@@ -97,11 +129,11 @@ function TaskRow({ task, dates, holidays, onEdit, onDelete, onUpdateStatus }: { 
       style={style} 
       className={cn("flex border-b hover:bg-muted/10 bg-background", isDragging && "z-50 relative")}
     >
-      <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2">
-        <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1">
+      <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2 overflow-hidden">
+        <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1 z-10 bg-background">
           <GripVertical className="w-4 h-4" />
         </div>
-        <span className="text-sm font-medium truncate pl-4 text-secondary-foreground">{task.name}</span>
+        <MarqueeText text={task.name} className="text-sm font-medium text-secondary-foreground pl-2" />
       </div>
       <div className="w-[120px] md:sticky md:left-[250px] md:z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
         {task.pic}
@@ -221,7 +253,7 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
         className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
+        <div className="w-[550px] md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
           <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1" onClick={(e) => e.stopPropagation()}>
             <GripVertical className="w-4 h-4" />
           </div>
@@ -237,12 +269,6 @@ function EpicGroup({ epic, tasks, dates, holidays, onEditEpic, onDeleteEpic, onE
           )}>
             {percentage}%
           </span>
-        </div>
-        <div className="w-[120px] md:sticky md:left-[250px] md:z-20 bg-muted border-r shrink-0 flex items-center px-4 py-2">
-        </div>
-        <div className="w-[120px] md:sticky md:left-[370px] md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
-        </div>
-        <div className="w-[60px] md:sticky md:left-[490px] md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
         </div>
         <div className="w-[50px] md:sticky md:left-[550px] md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
           <DropdownMenu>
