@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronRight, PieChart, Filter } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
@@ -536,7 +536,7 @@ export default function TimelinePage() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row w-full sm:w-auto">
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="outline" className="px-3 sm:px-4" />}>
+            <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 sm:px-4")}>
               <Filter className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">
                 {selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}
