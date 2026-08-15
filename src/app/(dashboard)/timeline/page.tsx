@@ -101,12 +101,10 @@ function TaskText({ text, className }: { text: string, className?: string }) {
   return (
     <TooltipProvider delay={200}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="w-full min-w-0 flex-1 overflow-hidden cursor-default">
-            <span ref={textRef} className={cn("w-full truncate block", className)}>
-              {text}
-            </span>
-          </div>
+        <TooltipTrigger render={<div className="w-full min-w-0 flex-1 overflow-hidden cursor-default" />}>
+          <span ref={textRef} className={cn("w-full truncate block", className)}>
+            {text}
+          </span>
         </TooltipTrigger>
         {isOverflowing && (
           <TooltipContent side="top" align="start" className="z-[9999] max-w-[400px]">
