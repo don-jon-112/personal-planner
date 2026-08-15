@@ -96,7 +96,7 @@ export function PicsDialog({
               <p className="text-sm text-muted-foreground">No custom PICs defined.</p>
             ) : (
               <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                {pics?.sort((a, b) => a.name.localeCompare(b.name)).map((pic) => (
+                {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
                   <div key={pic.id} className="flex items-center justify-between bg-muted/30 p-2 rounded border">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 rounded-full border shadow-sm" style={{ backgroundColor: pic.color }} />

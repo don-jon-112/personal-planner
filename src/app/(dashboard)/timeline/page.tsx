@@ -558,7 +558,7 @@ export default function TimelinePage() {
               >
                 All PICs
               </DropdownMenuCheckboxItem>
-              {(pics || []).sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
+              {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
                 <DropdownMenuCheckboxItem 
                   key={pic.id}
                   checked={selectedPicFilter === pic.name}
