@@ -13,6 +13,7 @@ interface ChartsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tasks: any[];
+  pics?: any[];
 }
 
 const COLORS = ["#3b82f6", "#22c55e", "#eab308", "#f97316", "#ef4444", "#a855f7", "#ec4899", "#14b8a6"];
@@ -22,7 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
   "DONE": "#22c55e", // green-500
 };
 
-export function ChartsDialog({ open, onOpenChange, tasks }: ChartsDialogProps) {
+export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDialogProps) {
   
   // Calculate Task Status Distribution
   const statusData = useMemo(() => {
@@ -58,14 +59,17 @@ export function ChartsDialog({ open, onOpenChange, tasks }: ChartsDialogProps) {
       picMap[pic] = (picMap[pic] || 0) + md;
     });
 
-    const result = Object.keys(picMap).map((pic, index) => ({
-      name: pic,
-      value: picMap[pic],
-      color: COLORS[index % COLORS.length]
-    })).sort((a, b) => b.value - a.value); // sort by highest MD
+    const result = Object.keys(picMap).map((picName, index) => {
+      const definedPic = pics.find(p => p.name === picName);
+      return {
+        name: picName,
+        value: picMap[picName],
+        color: definedPic?.color || COLORS[index % COLORS.length]
+      };
+    }).sort((a, b) => b.value - a.value); // sort by highest MD
 
     return result;
-  }, [tasks]);
+  }, [tasks, pics]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
