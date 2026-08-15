@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronRight, PieChart } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronRight, PieChart, Filter } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -16,6 +16,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
@@ -532,16 +535,38 @@ export default function TimelinePage() {
           <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row w-full sm:w-auto">
-          <select 
-            value={selectedPicFilter}
-            onChange={(e) => setSelectedPicFilter(e.target.value)}
-            className="flex h-10 w-full sm:w-auto min-w-[120px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-          >
-            <option value="ALL">All PICs</option>
-            {pics?.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((pic: any) => (
-              <option key={pic.id} value={pic.name}>{pic.name}</option>
-            ))}
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="px-3 sm:px-4">
+                <Filter className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">
+                  {selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}
+                </span>
+                <span className="sm:hidden">
+                  {selectedPicFilter === "ALL" ? "Filter" : selectedPicFilter.substring(0,4)}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem 
+                checked={selectedPicFilter === "ALL"}
+                onCheckedChange={() => setSelectedPicFilter("ALL")}
+              >
+                All PICs
+              </DropdownMenuCheckboxItem>
+              {pics?.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((pic: any) => (
+                <DropdownMenuCheckboxItem 
+                  key={pic.id}
+                  checked={selectedPicFilter === pic.name}
+                  onCheckedChange={() => setSelectedPicFilter(pic.name)}
+                >
+                  {pic.name}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
             <PieChart className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Analytics</span>
