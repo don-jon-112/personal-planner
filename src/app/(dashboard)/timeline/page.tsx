@@ -361,6 +361,14 @@ export default function TimelinePage() {
 
   const [orderedEpics, setOrderedEpics] = useState<any[]>([]);
   const [localTasks, setLocalTasks] = useState<any[]>([]);
+  const [selectedPicFilter, setSelectedPicFilter] = useState<string>("ALL");
+
+  const filteredOrderedEpics = useMemo(() => {
+    if (selectedPicFilter === "ALL") return orderedEpics;
+    return orderedEpics.filter(epic => 
+      localTasks.some(t => t.epicId === epic.id && t.pic === selectedPicFilter)
+    );
+  }, [orderedEpics, localTasks, selectedPicFilter]);
 
   useEffect(() => {
     if (rawEpics) {
@@ -523,6 +531,16 @@ export default function TimelinePage() {
           <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row w-full sm:w-auto">
+          <select 
+            value={selectedPicFilter}
+            onChange={(e) => setSelectedPicFilter(e.target.value)}
+            className="flex h-10 w-full sm:w-auto min-w-[120px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <option value="ALL">All PICs</option>
+            {pics?.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((pic: any) => (
+              <option key={pic.id} value={pic.name}>{pic.name}</option>
+            ))}
+          </select>
           <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
             <PieChart className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Analytics</span>
@@ -632,10 +650,13 @@ export default function TimelinePage() {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
-                <SortableContext items={orderedEpics.map(e => e.id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={filteredOrderedEpics.map(e => e.id)} strategy={verticalListSortingStrategy}>
                   <div className="flex flex-col">
-                    {orderedEpics.map((epic) => {
-                      const epicTasks = localTasks.filter(t => t.epicId === epic.id);
+                    {filteredOrderedEpics.map((epic) => {
+                      let epicTasks = localTasks.filter(t => t.epicId === epic.id);
+                      if (selectedPicFilter !== "ALL") {
+                        epicTasks = epicTasks.filter(t => t.pic === selectedPicFilter);
+                      }
                       return (
                         <EpicGroup
                           key={epic.id}
