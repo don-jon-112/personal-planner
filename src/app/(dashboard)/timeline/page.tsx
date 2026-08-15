@@ -579,10 +579,10 @@ export default function TimelinePage() {
             <p>No Epics found. Create an Epic to get started!</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto bg-card relative custom-scrollbar">
+          <div className="flex-1 overflow-auto bg-card relative custom-scrollbar max-h-[calc(100vh-220px)]">
             <div className="min-w-max flex flex-col">
               
-              <div className="flex flex-col sticky top-0 z-30 shadow-sm">
+              <div className="flex flex-col sticky top-0 z-30 shadow-sm bg-background">
                 {/* Month Row */}
                 <div className="flex bg-muted border-b">
                   <div className="w-[600px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0" />
