@@ -18,6 +18,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -76,7 +82,7 @@ function getDayStatus(date: Date, holidays: any[] = []) {
 // UI COMPONENTS
 // -------------------------------------------------------------
 
-function MarqueeText({ text, className }: { text: string, className?: string }) {
+function TaskText({ text, className }: { text: string, className?: string }) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const textRef = React.useRef<HTMLSpanElement>(null);
 
@@ -87,24 +93,28 @@ function MarqueeText({ text, className }: { text: string, className?: string }) 
       }
     };
     checkOverflow();
+    setTimeout(checkOverflow, 100);
     window.addEventListener('resize', checkOverflow);
     return () => window.removeEventListener('resize', checkOverflow);
   }, [text]);
 
   return (
-    <div className={cn("relative overflow-hidden flex items-center w-full group/marquee", className)}>
-      <span 
-        ref={textRef} 
-        className={cn("w-full truncate block transition-opacity", isOverflowing && "group-hover/marquee:opacity-0")}
-      >
-        {text}
-      </span>
-      {isOverflowing && (
-        <span className="absolute left-0 hidden group-hover/marquee:block whitespace-nowrap animate-marquee">
-          {text}
-        </span>
-      )}
-    </div>
+    <TooltipProvider delay={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="w-full min-w-0 flex-1 overflow-hidden cursor-default">
+            <span ref={textRef} className={cn("w-full truncate block", className)}>
+              {text}
+            </span>
+          </div>
+        </TooltipTrigger>
+        {isOverflowing && (
+          <TooltipContent side="top" align="start" className="z-[9999] max-w-[400px]">
+            <p className="text-sm font-medium break-words">{text}</p>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -137,7 +147,7 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
         <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1 z-10 bg-background">
           <GripVertical className="w-4 h-4" />
         </div>
-        <MarqueeText text={task.name} className="text-sm font-medium text-secondary-foreground pl-2" />
+        <TaskText text={task.name} className="text-sm font-medium text-secondary-foreground pl-2" />
       </div>
       <div className="w-[120px] md:sticky md:left-[250px] md:z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
         {task.pic}
