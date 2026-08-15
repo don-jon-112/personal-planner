@@ -20,6 +20,7 @@ const ALL_COLLECTIONS = [
   "timelineHolidays",
   "timelineEpics",
   "timelineTasks",
+  "timelinePics",
   "goliveChecks",
   "weeklyReports"
 ];
