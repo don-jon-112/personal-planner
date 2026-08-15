@@ -523,8 +523,8 @@ export default function TimelinePage() {
   };
 
   return (
-    <Panel className="h-full border-t-4 border-t-primary flex flex-col">
-      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-2 gap-4">
+    <Panel className="h-[calc(100dvh-104px)] min-h-0 border-t-4 border-t-primary flex flex-col">
+      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-2 gap-4 shrink-0">
         <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
             <CalendarClock className="w-6 h-6 text-primary" /> Timeline
@@ -579,7 +579,7 @@ export default function TimelinePage() {
             <p>No Epics found. Create an Epic to get started!</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto bg-card relative custom-scrollbar max-h-[calc(100vh-220px)]">
+          <div className="flex-1 overflow-auto bg-card relative custom-scrollbar">
             <div className="min-w-max flex flex-col">
               
               <div className="flex flex-col sticky top-0 z-30 shadow-sm bg-background">
