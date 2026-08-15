@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 interface ChartsDialogProps {
   open: boolean;
@@ -70,6 +70,46 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
 
     return result;
   }, [tasks, pics]);
+
+  // Calculate MD by PIC per Month
+  const picMonthData = useMemo(() => {
+    if (!tasks || tasks.length === 0) return { data: [], pics: [] };
+
+    const monthMap: Record<string, Record<string, number>> = {};
+    const uniquePics = new Set<string>();
+
+    tasks.forEach(t => {
+      const pic = t.pic || "Unassigned";
+      const md = t.md || 0;
+      if (!md) return; // ignore 0 MD
+
+      let monthKey = "Unknown";
+      if (t.startDate) {
+        const date = new Date(t.startDate);
+        if (!isNaN(date.getTime())) {
+          monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        }
+      }
+
+      if (!monthMap[monthKey]) monthMap[monthKey] = {};
+      monthMap[monthKey][pic] = (monthMap[monthKey][pic] || 0) + md;
+      uniquePics.add(pic);
+    });
+
+    // Convert to array and sort chronologically
+    const result = Object.keys(monthMap).map(monthKey => {
+      return {
+        month: monthKey,
+        sortDate: monthKey === "Unknown" ? 0 : new Date(monthKey).getTime(),
+        ...monthMap[monthKey]
+      };
+    }).sort((a, b) => a.sortDate - b.sortDate);
+
+    return { 
+      data: result, 
+      pics: Array.from(uniquePics) 
+    };
+  }, [tasks]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -142,6 +182,37 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center text-muted-foreground">No workload available</div>
+            )}
+          </div>
+
+          {/* Monthly Workload Chart */}
+          <div className="flex flex-col items-center p-4 bg-muted/30 rounded-xl border md:col-span-2">
+            <h3 className="font-semibold mb-4 text-center">Monthly Workload by PIC (MD)</h3>
+            {picMonthData.data.length > 0 ? (
+              <div className="w-full h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={picMonthData.data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" opacity={0.1} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      formatter={(value: any) => [`${value} MD`]}
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      cursor={{fill: 'currentColor', opacity: 0.05}}
+                    />
+                    <Legend verticalAlign="bottom" height={36}/>
+                    {picMonthData.pics.map((picName, index) => {
+                      const definedPic = pics.find(p => p.name === picName);
+                      const color = definedPic?.color || COLORS[index % COLORS.length];
+                      return (
+                        <Bar key={picName} dataKey={picName} stackId="a" fill={color} />
+                      );
+                    })}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">No monthly workload available</div>
             )}
           </div>
 
