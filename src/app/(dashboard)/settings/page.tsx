@@ -8,7 +8,7 @@ import { menuItems } from "@/config/menu";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { CloudUpload, CloudDownload, Server, ServerOff } from "lucide-react";
-import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection } from "firebase/firestore";
+import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection, terminate, clearIndexedDbPersistence } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -41,6 +41,31 @@ export default function SettingsPage() {
     const mode = localStorage.getItem('syncMode');
     setIsOnline(mode === 'online');
   }, [menuSettings]);
+
+  useEffect(() => {
+    const checkPendingSync = async () => {
+      if (localStorage.getItem('pendingSyncDown') === 'true') {
+        localStorage.removeItem('pendingSyncDown');
+        setIsSyncingDown(true);
+        try {
+          await enableNetwork(db);
+          const fetchPromises = ALL_COLLECTIONS.map(col => getDocs(collection(db, col)));
+          await Promise.all(fetchPromises);
+          await queryClient.invalidateQueries();
+          if (localStorage.getItem('syncMode') !== 'online') {
+            await disableNetwork(db);
+          }
+          alert("Successfully downloaded latest data FROM Firebase! Local data has been overwritten.");
+        } catch (e) {
+          console.error(e);
+          alert("Error fetching from Firebase after reload.");
+        } finally {
+          setIsSyncingDown(false);
+        }
+      }
+    };
+    checkPendingSync();
+  }, [queryClient]);
 
   const toggleNetworkMode = async () => {
     try {
@@ -82,21 +107,22 @@ export default function SettingsPage() {
   };
 
   const handleSyncFromFirebase = async () => {
+    if (!window.confirm("Are you sure you want to overwrite all local data with Cloud data? This will clear your local database and you will lose any unsynced changes.")) {
+      return;
+    }
     try {
       setIsSyncingDown(true);
-      await enableNetwork(db);
       
-      // Explicitly fetch all collections so Firestore caches them locally
-      const fetchPromises = ALL_COLLECTIONS.map(col => getDocs(collection(db, col)));
-      await Promise.all(fetchPromises);
-
-      await queryClient.invalidateQueries();
-      if (!isOnline) await disableNetwork(db);
-      alert("Successfully downloaded latest data FROM Firebase!");
+      // Terminate and clear local database
+      await terminate(db);
+      await clearIndexedDbPersistence(db);
+      
+      // Set flag and reload to re-initialize safely
+      localStorage.setItem('pendingSyncDown', 'true');
+      window.location.reload();
     } catch (e) {
       console.error(e);
-      alert("Error fetching from Firebase.");
-    } finally {
+      alert("Error clearing local database.");
       setIsSyncingDown(false);
     }
   };
