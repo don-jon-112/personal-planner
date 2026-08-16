@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronRight, PieChart, Filter } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -241,7 +241,7 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger, expandAllTrigger }: any) {
   const {
     attributes,
     listeners,
@@ -264,6 +264,12 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpi
       setIsExpanded(false);
     }
   }, [collapseAllTrigger]);
+
+  useEffect(() => {
+    if (expandAllTrigger > 0) {
+      setIsExpanded(true);
+    }
+  }, [expandAllTrigger]);
 
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter((t: any) => t.status === "DONE").length;
@@ -360,6 +366,7 @@ export default function TimelinePage() {
   const [isPicsDialogOpen, setIsPicsDialogOpen] = useState(false);
   const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
   const [collapseAllTrigger, setCollapseAllTrigger] = useState(0);
+  const [expandAllTrigger, setExpandAllTrigger] = useState(0);
   
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -588,10 +595,6 @@ export default function TimelinePage() {
             <span className="hidden sm:inline">PICs</span>
             <span className="sm:hidden">PICs</span>
           </Button>
-          <Button onClick={() => setCollapseAllTrigger(prev => prev + 1)} variant="outline" className="px-3 sm:px-4">
-            <span className="hidden sm:inline">Collapse All</span>
-            <span className="sm:hidden">Collapse</span>
-          </Button>
           <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline" className="px-3 sm:px-4">
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">New Epic</span>
@@ -604,7 +607,7 @@ export default function TimelinePage() {
           <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} />
           <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
           <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
-          <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} />
+          <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={pics} />
         </div>
       </PanelHeader>
 
@@ -657,7 +660,10 @@ export default function TimelinePage() {
                   <div className="w-[120px] md:sticky md:left-[250px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
                   <div className="w-[120px] md:sticky md:left-[370px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">Status</div>
                   <div className="w-[60px] md:sticky md:left-[490px] md:z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
-                  <div className="w-[50px] md:sticky md:left-[550px] md:z-40 bg-muted border-r shrink-0 px-2 py-2"></div>
+                  <div className="w-[50px] md:sticky md:left-[550px] md:z-40 bg-muted border-r shrink-0 px-1 py-1 flex items-center justify-center gap-0.5">
+                    <button onClick={() => setCollapseAllTrigger(prev => prev + 1)} title="Collapse All" className="p-1 hover:bg-muted-foreground/10 rounded"><ChevronUp className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground"/></button>
+                    <button onClick={() => setExpandAllTrigger(prev => prev + 1)} title="Expand All" className="p-1 hover:bg-muted-foreground/10 rounded"><ChevronDown className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground"/></button>
+                  </div>
                   
                   <div className="flex">
                     {dates.map((date) => {
@@ -711,6 +717,7 @@ export default function TimelinePage() {
                           onDeleteTask={(t: any) => confirm("Delete Task?") && deleteTask(t.id)}
                           onUpdateTaskStatus={handleUpdateTaskStatus}
                           collapseAllTrigger={collapseAllTrigger}
+                          expandAllTrigger={expandAllTrigger}
                         />
                       );
                     })}
