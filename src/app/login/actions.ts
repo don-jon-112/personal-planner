@@ -4,8 +4,9 @@ import { cookies } from 'next/headers'
 
 export async function login(password: string) {
   const correctPassword = process.env.SITE_PASSWORD
+  const guestPassword = process.env.GUESS_PASSWORD
 
-  if (password === correctPassword) {
+  if (password === correctPassword || password === guestPassword) {
     const cookieStore = await cookies()
     cookieStore.set('site_password', password, {
       httpOnly: true,
