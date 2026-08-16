@@ -7,6 +7,9 @@ import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, 
 import { useCollection } from "@/hooks/use-firestore";
 import { ChartsDialog } from "../(dashboard)/timeline/charts-dialog";
 import { cn } from "@/lib/utils";
+import { enableNetwork, disableNetwork, getDocs, collection, terminate, clearIndexedDbPersistence } from "firebase/firestore";
+import { db } from "@/firebase/config";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -235,6 +238,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, collapseAllTrigger, exp
 }
 
 export default function GuestTimelinePage() {
+  const queryClient = useQueryClient();
   const { data: rawEpics, isLoading: isLoadingEpics, refetch: refetchEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks, refetch: refetchTasks } = useCollection<any>("timelineTasks");
   const { data: holidays, refetch: refetchHolidays } = useCollection<any>("timelineHolidays");
@@ -242,15 +246,42 @@ export default function GuestTimelinePage() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  useEffect(() => {
+    const checkPendingSync = async () => {
+      if (localStorage.getItem('pendingSyncDown') === 'true') {
+        localStorage.removeItem('pendingSyncDown');
+        setIsRefreshing(true);
+        try {
+          await enableNetwork(db);
+          // Just fetch the timeline collections
+          const timelineCols = ["timelineEpics", "timelineTasks", "timelineHolidays", "timelinePics"];
+          const fetchPromises = timelineCols.map(col => getDocs(collection(db, col)));
+          await Promise.all(fetchPromises);
+          await queryClient.invalidateQueries();
+          if (localStorage.getItem('syncMode') !== 'online') {
+            await disableNetwork(db);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsRefreshing(false);
+        }
+      }
+    };
+    checkPendingSync();
+  }, [queryClient]);
+
   const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await Promise.all([
-      refetchEpics(),
-      refetchTasks(),
-      refetchHolidays(),
-      refetchPics()
-    ]);
-    setIsRefreshing(false);
+    try {
+      setIsRefreshing(true);
+      await terminate(db);
+      await clearIndexedDbPersistence(db);
+      localStorage.setItem('pendingSyncDown', 'true');
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+      setIsRefreshing(false);
+    }
   };
 
   const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
