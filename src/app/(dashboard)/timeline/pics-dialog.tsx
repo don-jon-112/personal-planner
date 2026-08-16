@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useAddDocument, useCollection, useDeleteDocument } from "@/hooks/use-firestore";
+import { useAddDocument, useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -19,6 +19,7 @@ import { Trash2 } from "lucide-react";
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   color: z.string().min(1, "Color is required"),
+  showInAnalytics: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
