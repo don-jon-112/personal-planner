@@ -235,10 +235,23 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, collapseAllTrigger, exp
 }
 
 export default function GuestTimelinePage() {
-  const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
-  const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
-  const { data: holidays } = useCollection<any>("timelineHolidays");
-  const { data: pics } = useCollection<any>("timelinePics");
+  const { data: rawEpics, isLoading: isLoadingEpics, refetch: refetchEpics } = useCollection<any>("timelineEpics");
+  const { data: rawTasks, isLoading: isLoadingTasks, refetch: refetchTasks } = useCollection<any>("timelineTasks");
+  const { data: holidays, refetch: refetchHolidays } = useCollection<any>("timelineHolidays");
+  const { data: pics, refetch: refetchPics } = useCollection<any>("timelinePics");
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      refetchEpics(),
+      refetchTasks(),
+      refetchHolidays(),
+      refetchPics()
+    ]);
+    setIsRefreshing(false);
+  };
 
   const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
   const [collapseAllTrigger, setCollapseAllTrigger] = useState(0);
@@ -337,14 +350,14 @@ export default function GuestTimelinePage() {
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => window.location.reload()} variant="outline" className="px-3 sm:px-4">
-            <RefreshCw className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Refresh</span>
-            <span className="sm:hidden">Sync</span>
-          </Button>
           <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
             <PieChart className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Analytics</span>
+          </Button>
+          <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" className="px-3 sm:px-4">
+            <RefreshCw className={cn("w-4 h-4 sm:mr-2", isRefreshing && "animate-spin")} />
+            <span className="hidden sm:inline">Refresh</span>
+            <span className="sm:hidden">Sync</span>
           </Button>
           <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={pics} />
         </div>
