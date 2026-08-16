@@ -60,6 +60,7 @@ export function TaskDialog({
     if (open) {
       if (taskToEdit && taskToEdit.id) {
         form.reset(taskToEdit);
+        setIsTbdDate(taskToEdit.startDate === "TBD");
       } else {
         form.reset({
           name: "",
@@ -69,9 +70,12 @@ export function TaskDialog({
           md: 1,
           startDate: new Date().toISOString().split("T")[0],
         });
+        setIsTbdDate(false);
       }
     }
   }, [taskToEdit, open, form, epics]);
+
+  const [isTbdDate, setIsTbdDate] = useState(false);
 
   async function onSubmit(data: FormValues) {
     try {
@@ -122,6 +126,7 @@ export function TaskDialog({
                 className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">Select PIC</option>
+                <option value="TBD">TBD</option>
                 {pics?.sort((a, b) => a.name.localeCompare(b.name)).map((pic) => (
                   <option key={pic.id} value={pic.name}>{pic.name}</option>
                 ))}
@@ -142,11 +147,32 @@ export function TaskDialog({
 
           <div className="flex gap-4">
             <div className="space-y-2 flex-1">
-              <Label>Start Date</Label>
-              <Input type="date" {...form.register("startDate")} />
+              <div className="flex items-center justify-between h-[20px]">
+                <Label>Start Date</Label>
+                <div className="flex items-center gap-1">
+                  <input 
+                    type="checkbox" 
+                    id="tbdDate" 
+                    checked={isTbdDate} 
+                    onChange={(e) => {
+                      setIsTbdDate(e.target.checked);
+                      if (e.target.checked) form.setValue("startDate", "TBD");
+                      else form.setValue("startDate", new Date().toISOString().split("T")[0]);
+                    }} 
+                  />
+                  <label htmlFor="tbdDate" className="text-xs cursor-pointer">TBD</label>
+                </div>
+              </div>
+              {!isTbdDate ? (
+                <Input type="date" {...form.register("startDate")} />
+              ) : (
+                <Input type="text" value="TBD" disabled />
+              )}
             </div>
             <div className="space-y-2 flex-1">
-              <Label>MD (Man Days)</Label>
+              <div className="h-[20px] flex items-end">
+                <Label>MD (Man Days)</Label>
+              </div>
               <Input type="number" min="1" {...form.register("md", { valueAsNumber: true })} />
             </div>
           </div>

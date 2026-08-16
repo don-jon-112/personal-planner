@@ -36,6 +36,7 @@ export function PicsDialog({
 
   const { data: pics, isLoading } = useCollection<any>("timelinePics");
   const { mutateAsync: addPic, isPending: isAdding } = useAddDocument("timelinePics");
+  const { mutateAsync: updatePic } = useUpdateDocument("timelinePics");
   const { mutate: deletePic } = useDeleteDocument("timelinePics");
 
   const form = useForm<FormValues>({
@@ -43,12 +44,13 @@ export function PicsDialog({
     defaultValues: {
       name: "",
       color: "#1ABB9C", // default primary color
+      showInAnalytics: true,
     },
   });
 
   async function onSubmit(data: FormValues) {
     try {
-      await addPic(data);
+      await addPic({ ...data, showInAnalytics: true });
       form.reset({
         name: "",
         color: "#1ABB9C",
@@ -67,21 +69,19 @@ export function PicsDialog({
         
         <div className="space-y-6 pt-2">
           {/* Form to add new PIC */}
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 border-b pb-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="border-b pb-6">
             <div className="flex gap-4 items-end">
               <div className="space-y-2 flex-1">
                 <Label>PIC Name</Label>
                 <Input {...form.register("name")} placeholder="e.g., Alice" />
               </div>
-              <div className="space-y-2 flex-[0.5]">
+              <div className="space-y-2">
                 <Label>Color</Label>
                 <div className="flex items-center gap-2">
                   <Input type="color" {...form.register("color")} className="w-12 h-10 p-1 cursor-pointer" />
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isAdding}>
+              <Button type="submit" disabled={isAdding} className="h-10">
                 {isAdding ? "Adding..." : "Add PIC"}
               </Button>
             </div>
@@ -98,18 +98,29 @@ export function PicsDialog({
               <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                 {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
                   <div key={pic.id} className="flex items-center justify-between bg-muted/30 p-2 rounded border">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1">
                       <div className="w-6 h-6 rounded-full border shadow-sm" style={{ backgroundColor: pic.color }} />
-                      <p className="text-sm font-medium">{pic.name}</p>
+                      <p className="text-sm font-medium truncate max-w-[150px]">{pic.name}</p>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => confirm("Delete this PIC?") && deletePic(pic.id)}
-                      className="text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5" title="Show in Analytics">
+                        <input 
+                          type="checkbox" 
+                          checked={pic.showInAnalytics !== false} 
+                          onChange={(e) => updatePic({ id: pic.id, data: { showInAnalytics: e.target.checked } })}
+                          className="cursor-pointer"
+                        />
+                        <span className="text-xs text-muted-foreground hidden sm:inline">Analytic</span>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => confirm("Delete this PIC?") && deletePic(pic.id)}
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

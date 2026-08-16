@@ -241,7 +241,7 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger }: any) {
   const {
     attributes,
     listeners,
@@ -258,6 +258,13 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpi
   };
 
   const [isExpanded, setIsExpanded] = useState(true);
+  
+  useEffect(() => {
+    if (collapseAllTrigger > 0) {
+      setIsExpanded(false);
+    }
+  }, [collapseAllTrigger]);
+
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter((t: any) => t.status === "DONE").length;
   const percentage = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
@@ -276,7 +283,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpi
           <button className="mr-1 text-muted-foreground hover:text-foreground focus:outline-none p-1">
             {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
-          <span className="font-bold text-sm uppercase tracking-wider truncate text-foreground flex-1">{epic.name}</span>
+          <TaskText text={epic.name} className="font-bold text-sm uppercase tracking-wider text-foreground" />
           <span className={cn(
             "text-[10px] font-bold px-2 py-0.5 rounded-full ml-2",
             percentage === 100 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
@@ -352,6 +359,7 @@ export default function TimelinePage() {
   const [isHolidaysDialogOpen, setIsHolidaysDialogOpen] = useState(false);
   const [isPicsDialogOpen, setIsPicsDialogOpen] = useState(false);
   const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
+  const [collapseAllTrigger, setCollapseAllTrigger] = useState(0);
   
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -580,6 +588,10 @@ export default function TimelinePage() {
             <span className="hidden sm:inline">PICs</span>
             <span className="sm:hidden">PICs</span>
           </Button>
+          <Button onClick={() => setCollapseAllTrigger(prev => prev + 1)} variant="outline" className="px-3 sm:px-4">
+            <span className="hidden sm:inline">Collapse All</span>
+            <span className="sm:hidden">Collapse</span>
+          </Button>
           <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline" className="px-3 sm:px-4">
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">New Epic</span>
@@ -698,6 +710,7 @@ export default function TimelinePage() {
                           onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
                           onDeleteTask={(t: any) => confirm("Delete Task?") && deleteTask(t.id)}
                           onUpdateTaskStatus={handleUpdateTaskStatus}
+                          collapseAllTrigger={collapseAllTrigger}
                         />
                       );
                     })}

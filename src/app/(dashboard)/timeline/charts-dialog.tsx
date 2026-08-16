@@ -25,15 +25,26 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDialogProps) {
   
+  // Filter out TBD tasks and PICs not meant for analytics
+  const validTasks = useMemo(() => {
+    if (!tasks) return [];
+    return tasks.filter(t => {
+      if (t.pic === "TBD" || t.startDate === "TBD") return false;
+      const picObj = pics?.find(p => p.name === t.pic);
+      if (picObj && picObj.showInAnalytics === false) return false;
+      return true;
+    });
+  }, [tasks, pics]);
+
   // Calculate Task Status Distribution
   const statusData = useMemo(() => {
-    if (!tasks || tasks.length === 0) return [];
+    if (validTasks.length === 0) return [];
     
     let todoCount = 0;
     let inProgressCount = 0;
     let doneCount = 0;
 
-    tasks.forEach(t => {
+    validTasks.forEach(t => {
       const s = t.status || "TODO";
       if (s === "TODO") todoCount++;
       else if (s === "ON PROGRESS") inProgressCount++;
@@ -45,15 +56,15 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
       { name: "ON PROGRESS", value: inProgressCount, color: STATUS_COLORS["ON PROGRESS"] },
       { name: "DONE", value: doneCount, color: STATUS_COLORS["DONE"] },
     ].filter(d => d.value > 0);
-  }, [tasks]);
+  }, [validTasks]);
 
   // Calculate MD by PIC Distribution
   const picData = useMemo(() => {
-    if (!tasks || tasks.length === 0) return [];
+    if (validTasks.length === 0) return [];
 
     const picMap: Record<string, number> = {};
     
-    tasks.forEach(t => {
+    validTasks.forEach(t => {
       const pic = t.pic || "Unassigned";
       const md = t.md || 0;
       picMap[pic] = (picMap[pic] || 0) + md;
@@ -69,16 +80,16 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
     }).sort((a, b) => b.value - a.value); // sort by highest MD
 
     return result;
-  }, [tasks, pics]);
+  }, [validTasks, pics]);
 
   // Calculate MD by PIC per Month
   const picMonthData = useMemo(() => {
-    if (!tasks || tasks.length === 0) return { data: [], pics: [] };
+    if (validTasks.length === 0) return { data: [], pics: [] };
 
     const monthMap: Record<string, Record<string, number>> = {};
     const uniquePics = new Set<string>();
 
-    tasks.forEach(t => {
+    validTasks.forEach(t => {
       const pic = t.pic || "Unassigned";
       const md = t.md || 0;
       if (!md) return; // ignore 0 MD
@@ -109,7 +120,7 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
       data: result, 
       pics: Array.from(uniquePics) 
     };
-  }, [tasks]);
+  }, [validTasks]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
