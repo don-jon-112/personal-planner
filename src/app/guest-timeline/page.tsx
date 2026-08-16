@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter } from "lucide-react";
+import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw } from "lucide-react";
 import { useCollection } from "@/hooks/use-firestore";
 import { ChartsDialog } from "../(dashboard)/timeline/charts-dialog";
 import { cn } from "@/lib/utils";
@@ -337,6 +337,11 @@ export default function GuestTimelinePage() {
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button onClick={() => window.location.reload()} variant="outline" className="px-3 sm:px-4">
+            <RefreshCw className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Refresh</span>
+            <span className="sm:hidden">Sync</span>
+          </Button>
           <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
             <PieChart className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Analytics</span>
