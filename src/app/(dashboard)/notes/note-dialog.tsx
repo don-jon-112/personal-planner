@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -55,6 +55,19 @@ export function NoteDialog({
       isFavorite: false,
     },
   });
+
+  // Reset form when noteToEdit changes (e.g., clicking edit on different notes without closing dialog)
+  useEffect(() => {
+    if (open) {
+      form.reset(noteToEdit || {
+        title: "",
+        category: "",
+        content: "",
+        isPinned: false,
+        isFavorite: false,
+      });
+    }
+  }, [noteToEdit, open, form]);
 
   async function onSubmit(data: FormValues) {
     try {

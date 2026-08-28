@@ -3,6 +3,8 @@ import {
   collection, 
   doc, 
   getDocs, 
+  getDoc,
+  setDoc,
   addDoc, 
   updateDoc, 
   deleteDoc,
@@ -38,11 +40,15 @@ export function useAddDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async (newData: any) => {
-      const docRef = await addDoc(collection(db, collectionName), {
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
+      const docRef = doc(collection(db, collectionName));
+      const writePromise = setDoc(docRef, {
         ...newData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      if (mode !== 'online') return { id: docRef.id, ...newData };
+      await writePromise;
       return { id: docRef.id, ...newData };
     },
     onSuccess: () => {
@@ -57,11 +63,14 @@ export function useUpdateDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
-      await updateDoc(docRef, {
+      const writePromise = updateDoc(docRef, {
         ...data,
         updatedAt: serverTimestamp(),
       });
+      if (mode !== 'online') return { id, ...data };
+      await writePromise;
       return { id, ...data };
     },
     onSuccess: () => {
@@ -76,8 +85,11 @@ export function useDeleteDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async (id: string) => {
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
-      await deleteDoc(docRef);
+      const writePromise = deleteDoc(docRef);
+      if (mode !== 'online') return id;
+      await writePromise;
       return id;
     },
     onSuccess: () => {
@@ -92,6 +104,7 @@ export function useUpdateBatch(collectionName: string) {
   
   return useMutation({
     mutationFn: async (updates: { id: string; data: any }[]) => {
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const batch = writeBatch(db);
       updates.forEach((update) => {
         const docRef = doc(db, collectionName, update.id);
@@ -100,11 +113,53 @@ export function useUpdateBatch(collectionName: string) {
           updatedAt: serverTimestamp(),
         });
       });
-      await batch.commit();
+      const writePromise = batch.commit();
+      if (mode !== 'online') return updates;
+      await writePromise;
       return updates;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });
+    },
+  });
+}
+
+// Generic Hook to Fetch a Single Document
+export function useDocument<T>(collectionName: string, docId: string) {
+  return useQuery({
+    queryKey: [collectionName, docId],
+    queryFn: async () => {
+      const docRef = doc(db, collectionName, docId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as T;
+      } else {
+        return null;
+      }
+    },
+  });
+}
+
+// Generic Hook to Set (Create or Overwrite/Merge) a Single Document
+export function useSetDocument(collectionName: string) {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
+      const docRef = doc(db, collectionName, id);
+      // use merge: true to avoid overwriting fields not specified
+      const writePromise = setDoc(docRef, {
+        ...data,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      if (mode !== 'online') return { id, ...data };
+      await writePromise;
+      return { id, ...data };
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [collectionName] });
+      queryClient.invalidateQueries({ queryKey: [collectionName, variables.id] });
     },
   });
 }

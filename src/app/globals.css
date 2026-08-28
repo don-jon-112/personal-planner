@@ -131,6 +131,16 @@
   }
 }
 
+@layer utilities {
+  @keyframes marquee {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+  }
+  .animate-marquee {
+    animation: marquee 7s linear infinite;
+  }
+}
+
 @plugin "@tailwindcss/typography";
 
 /* Strip inline colors in dark mode for WYSIWYG content to ensure readability */
@@ -171,4 +181,17 @@
 .dark .ql-snow .ql-color-picker .ql-picker-item.ql-selected, 
 .dark .ql-snow .ql-color-picker .ql-picker-item:hover {
   border-color: var(--foreground) !important;
+}
+
+/* Note Content Fixes */
+.wysiwyg-content, .ql-editor {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+.wysiwyg-content table, .ql-editor table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
 }

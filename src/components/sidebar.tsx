@@ -9,24 +9,40 @@ import {
   FileText, 
   CheckCircle, 
   Bug, 
-  Settings 
+  Settings,
+  CalendarClock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Weekly Report", href: "/weekly-report", icon: CalendarDays },
-  { name: "Todo Plan", href: "/todo", icon: CheckSquare },
-  { name: "Notes", href: "/notes", icon: FileText },
-  { name: "Go Live Check", href: "/golive", icon: CheckCircle },
-  { name: "Bug & Report", href: "/bugs", icon: Bug },
-];
+import { menuItems } from "@/config/menu";
+import { useDocument } from "@/hooks/use-firestore";
+import { useEffect, useState } from "react";
+import { Cloud, CloudOff } from "lucide-react";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: menuSettings } = useDocument<any>("appSettings", "menu");
+  
+  const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    const checkMode = () => {
+      setIsOnline(localStorage.getItem('syncMode') === 'online');
+    };
+    checkMode();
+    window.addEventListener('storage', checkMode);
+    window.addEventListener('syncModeChanged', checkMode);
+    return () => {
+      window.removeEventListener('storage', checkMode);
+      window.removeEventListener('syncModeChanged', checkMode);
+    };
+  }, []);
+
+  const hiddenMenus = menuSettings?.hiddenMenus || [];
+  const visibleMenuItems = menuItems.filter(item => !hiddenMenus.includes(item.href));
 
   return (
-    <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col h-screen sticky top-0 shadow-xl z-20">
+    <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground flex-col h-screen sticky top-0 shadow-xl z-20">
       {/* Site Title */}
       <div className="p-4 flex items-center gap-3 border-b border-sidebar-accent/50">
         <div className="w-8 h-8 rounded-full bg-sidebar-foreground text-sidebar flex items-center justify-center font-bold">
@@ -41,7 +57,14 @@ export function Sidebar() {
           <span className="text-white font-bold">JO</span>
         </div>
         <div>
-          <p className="text-xs text-sidebar-foreground/70">Welcome,</p>
+          <p className="text-xs text-sidebar-foreground/70 flex items-center gap-1">
+            Welcome,
+            {isOnline ? (
+              <span title="Online Mode"><Cloud className="w-3 h-3 text-green-500" /></span>
+            ) : (
+              <span title="Offline Mode"><CloudOff className="w-3 h-3 text-muted-foreground" /></span>
+            )}
+          </p>
           <h2 className="text-sm font-semibold">Jonathan</h2>
         </div>
       </div>
@@ -49,7 +72,7 @@ export function Sidebar() {
       <div className="px-4 py-4">
         <h3 className="text-xs uppercase font-bold text-sidebar-foreground/50 tracking-wider mb-2">General</h3>
         <nav className="space-y-1">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const isReallyActive = item.href === "/" ? pathname === "/" : isActive;
 

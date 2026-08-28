@@ -10,10 +10,25 @@ export function proxy(request: NextRequest) {
   // Check if they have the correct password cookie
   const password = request.cookies.get('site_password')?.value
 
-  if (password !== process.env.SITE_PASSWORD) {
-    // Redirect to login page if unauthorized
-    return NextResponse.redirect(new URL('/login', request.url))
+  const isMasterPassword = password === process.env.SITE_PASSWORD
+  const isGuestPassword = password === process.env.GUESS_PASSWORD
+
+  if (isMasterPassword) {
+    // Master has access to everything
+    return NextResponse.next()
   }
+
+  if (isGuestPassword) {
+    // Guest only has access to /guest-timeline
+    if (request.nextUrl.pathname.startsWith('/guest-timeline')) {
+      return NextResponse.next()
+    }
+    // Redirect guest to their designated page if they try to access anything else
+    return NextResponse.redirect(new URL('/guest-timeline', request.url))
+  }
+
+  // Redirect to login page if unauthorized
+  return NextResponse.redirect(new URL('/login', request.url))
 
   return NextResponse.next()
 }

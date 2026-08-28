@@ -89,7 +89,7 @@ export function TodoDialog({
       if (todoToEdit?.id) {
         await updateTodo({ id: todoToEdit.id, data });
       } else {
-        await addTodo({ ...data, orderIndex: Date.now() });
+        await addTodo({ ...data, orderIndex: -Date.now() });
       }
       setOpen(false);
       if (!todoToEdit) form.reset();
