@@ -82,11 +82,29 @@ function getDayStatus(date: Date, holidays: any[] = []) {
   return false;
 }
 
-function exportTimelineToExcel(epics: any[], tasks: any[]) {
+function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], holidays: any[] = [], pics: any[] = []) {
   if (!epics || epics.length === 0) {
     alert("No epics or tasks to export.");
     return;
   }
+
+  // Group dates by Month for Month Header
+  const months: { name: string; days: number }[] = [];
+  let currentMonth: string | null = null;
+  let daysInMonth = 0;
+  dates.forEach((d, i) => {
+    const m = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    if (m !== currentMonth) {
+      if (currentMonth) months.push({ name: currentMonth, days: daysInMonth });
+      currentMonth = m;
+      daysInMonth = 1;
+    } else {
+      daysInMonth++;
+    }
+    if (i === dates.length - 1) {
+      months.push({ name: m, days: daysInMonth });
+    }
+  });
 
   let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
   <head>
@@ -96,7 +114,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[]) {
       <x:ExcelWorkbook>
         <x:ExcelWorksheets>
           <x:ExcelWorksheet>
-            <x:Name>Timeline</x:Name>
+            <x:Name>Timeline Gantt</x:Name>
             <x:WorksheetOptions>
               <x:DisplayGridlines/>
             </x:WorksheetOptions>
@@ -106,29 +124,41 @@ function exportTimelineToExcel(epics: any[], tasks: any[]) {
     </xml>
     <![endif]-->
     <style>
-      table { border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
-      th { background-color: #1e293b; color: #ffffff; font-weight: bold; border: 1px solid #94a3b8; padding: 8px 12px; text-align: left; }
-      td { border: 1px solid #cbd5e1; padding: 6px 12px; }
-      .epic-row { background-color: #e2e8f0; font-weight: bold; font-size: 11pt; }
+      table { border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 10pt; }
+      th { background-color: #1e293b; color: #ffffff; font-weight: bold; border: 1px solid #94a3b8; padding: 6px; text-align: center; }
+      td { border: 1px solid #cbd5e1; padding: 4px 6px; }
+      .epic-row { background-color: #e2e8f0; font-weight: bold; font-size: 10pt; }
       .task-row { background-color: #ffffff; }
       .status-done { background-color: #dcfce7; color: #166534; font-weight: bold; text-align: center; }
       .status-progress { background-color: #dbeafe; color: #1e40af; font-weight: bold; text-align: center; }
       .status-todo { background-color: #f1f5f9; color: #475569; font-weight: bold; text-align: center; }
       .center { text-align: center; }
       .number { text-align: right; }
+      .date-col { width: 28px; text-align: center; font-size: 9pt; }
+      .weekend-col { background-color: #e2e8f0; color: #64748b; }
+      .holiday-col { background-color: #fca5a5; color: #991b1b; }
     </style>
   </head>
   <body>
     <table>
       <thead>
         <tr>
+          <th colspan="7" style="background-color: #0f172a; text-align: left; font-size: 11pt;">Project Timeline & Schedule</th>
+          ${months.map(m => `<th colspan="${m.days}" style="background-color: #334155;">${m.name}</th>`).join('')}
+        </tr>
+        <tr>
           <th>No</th>
           <th>Type</th>
-          <th>Epic / Task Name</th>
+          <th style="min-width: 220px; text-align: left;">Epic / Task Name</th>
           <th>PIC</th>
           <th>Status</th>
-          <th>Man-Days (MD)</th>
+          <th>MD</th>
           <th>Start Date</th>
+          ${dates.map(d => {
+            const status = getDayStatus(d, holidays);
+            const cls = status === 'holiday' ? 'holiday-col' : status === 'weekend' ? 'weekend-col' : '';
+            return `<th class="date-col ${cls}">${d.getDate()}</th>`;
+          }).join('')}
         </tr>
       </thead>
       <tbody>`;
@@ -150,20 +180,60 @@ function exportTimelineToExcel(epics: any[], tasks: any[]) {
       <td class="${epicStatus === 'DONE' ? 'status-done' : epicStatus === 'ON PROGRESS' ? 'status-progress' : 'status-todo'}">${epicStatus} (${pct}%)</td>
       <td class="number">-</td>
       <td class="center">-</td>
+      ${dates.map(d => {
+        const status = getDayStatus(d, holidays);
+        const style = status === 'holiday' ? 'background-color: #fca5a5;' : status === 'weekend' ? 'background-color: #cbd5e1;' : 'background-color: #e2e8f0;';
+        return `<td style="${style}"></td>`;
+      }).join('')}
     </tr>`;
 
     epicTasks.forEach(task => {
       const st = task.status || 'TODO';
       const stClass = st === 'DONE' ? 'status-done' : st === 'ON PROGRESS' ? 'status-progress' : 'status-todo';
+      const picColor = getPicColor(task.pic, pics);
+
+      const taskStart = new Date(task.startDate);
+      taskStart.setHours(0,0,0,0);
+      const startIndex = dates.findIndex(d => d.getTime() === taskStart.getTime());
+
+      let activeDateSet = new Set<number>();
+      if (startIndex !== -1 && task.md > 0) {
+        let workingDays = 0;
+        let currIdx = startIndex;
+        while (workingDays < task.md && currIdx < dates.length) {
+          activeDateSet.add(currIdx);
+          const d = dates[currIdx];
+          if (!getDayStatus(d, holidays)) {
+            workingDays++;
+          }
+          if (workingDays < task.md) {
+            currIdx++;
+          }
+        }
+      }
 
       html += `<tr class="task-row">
         <td class="center">${rowNum++}</td>
         <td class="center">TASK</td>
-        <td style="padding-left: 24px;">${task.name || ''}</td>
+        <td style="padding-left: 20px;">${task.name || ''}</td>
         <td class="center">${task.pic || '-'}</td>
         <td class="${stClass}">${st}</td>
         <td class="number">${task.md || 0}</td>
         <td class="center">${task.startDate || '-'}</td>
+        ${dates.map((d, i) => {
+          const isActive = activeDateSet.has(i);
+          const status = getDayStatus(d, holidays);
+
+          if (isActive) {
+            return `<td style="background-color: ${picColor}; color: #ffffff; text-align: center; font-weight: bold;">■</td>`;
+          } else if (status === 'holiday') {
+            return `<td style="background-color: #fca5a5;"></td>`;
+          } else if (status === 'weekend') {
+            return `<td style="background-color: #e2e8f0;"></td>`;
+          } else {
+            return `<td></td>`;
+          }
+        }).join('')}
       </tr>`;
     });
   });
@@ -174,7 +244,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[]) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const dateStr = new Date().toISOString().slice(0, 10);
-  link.setAttribute("download", `Timeline_Export_${dateStr}.xls`);
+  link.setAttribute("download", `Timeline_Gantt_Export_${dateStr}.xls`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -681,7 +751,7 @@ export default function TimelinePage() {
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks)} variant="outline" className="px-3 sm:px-4">
+          <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, pics)} variant="outline" className="px-3 sm:px-4">
             <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Export Excel</span>
             <span className="sm:hidden">Excel</span>
