@@ -89,7 +89,7 @@ service cloud.firestore {
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | *(Optional)* Firebase Analytics Measurement ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `measurementId` |
 | `SITE_PASSWORD` | Admin Full Access Password | **Custom Choice**: Set any strong password you want to use for Admin login. |
 | `GUESS_PASSWORD` | Guest Read-Only Password | **Custom Choice**: Set any password you want to share with guests for read-only timeline access. |
-| `NEXT_PUBLIC_JIRA_BASE_URL` | *(Optional)* JIRA Instance Base URL | **Your Company JIRA URL**: e.g., `https://your-company.atlassian.net/browse/` *(Defaults to `https://astraapps.astra.co.id/jira-software/browse/` if omitted)* |
+| `NEXT_PUBLIC_JIRA_BASE_URL` | *(Optional)* JIRA Instance Base URL | **Your Company JIRA URL**: e.g., `https://your-company.atlassian.net/browse/` |
 
 3. **Click Deploy**:
    - Vercel will build and host your application. You will get a live URL (e.g. `https://your-planner.vercel.app`).
