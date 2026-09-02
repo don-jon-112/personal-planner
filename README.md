@@ -22,49 +22,37 @@ A modern, responsive, offline-first personal management and timeline planner bui
 
 ---
 
-## 🚀 Step-by-Step Setup Guide
+## ⚡ Quick Deployment Guide (No Local Setup / Cloning Needed!)
 
-Follow this guide to fork, set up Firebase, deploy to Vercel, and run the project locally.
-
----
-
-### 1. Fork & Clone Repository
-
-1. **Fork the Repository**:
-   Click the **Fork** button at the top-right of this GitHub repository to create a copy under your GitHub account.
-
-2. **Clone your Forked Repository**:
-   ```bash
-   git clone https://github.com/<YOUR_GITHUB_USERNAME>/personal-planner.git
-   cd personal-planner
-   ```
-
-3. **Install Dependencies**:
-   ```bash
-   npm install
-   ```
+You can deploy your own instance of Personal Planner in under 5 minutes without cloning or coding locally.
 
 ---
 
-### 2. Firebase Setup & Security Rules
+### Step 1: Fork the Repository
+
+1. Click the **Fork** button at the top-right of this GitHub repository.
+2. Click **Create Fork** to copy this project into your own GitHub account.
+
+---
+
+### Step 2: Firebase Setup & Firestore Rules
 
 1. **Create a Firebase Project**:
    - Go to [Firebase Console](https://console.firebase.google.com/).
-   - Click **Add Project** and follow the instructions to create a new project.
+   - Click **Add Project** and follow the prompts to create your project.
 
-2. **Register Web App**:
+2. **Add a Web App**:
    - In Project Overview, click the **Web icon (`</>`)** to register a web app.
-   - Note down your **Firebase SDK Configuration** keys (`apiKey`, `projectId`, `authDomain`, etc.).
+   - Copy your **Firebase Configuration** keys (`apiKey`, `projectId`, `authDomain`, etc.).
 
 3. **Enable Firestore Database**:
-   - In the left sidebar, navigate to **Build > Firestore Database**.
-   - Click **Create Database**.
-   - Choose a region close to your users (e.g., `asia-southeast1`).
+   - Go to **Build > Firestore Database** in the left sidebar.
+   - Click **Create Database** and choose your preferred location (e.g., `asia-southeast1`).
    - Start in **Production Mode** or **Test Mode**.
 
 4. **Set Firestore Security Rules**:
-   - In Firestore Database, navigate to the **Rules** tab.
-   - Replace the rules with the following configuration and click **Publish**:
+   - In Firestore Database, click the **Rules** tab.
+   - Paste the following rule and click **Publish**:
 
 ```javascript
 rules_version = '2';
@@ -77,81 +65,55 @@ service cloud.firestore {
 }
 ```
 
-> 💡 *Note: You can refine security rules later based on user authentication requirements.*
-
 ---
 
-### 3. Environment Variables Configuration
+### Step 3: Deploy to Vercel & Setup Environment Variables
 
-Create a `.env.local` file in the root directory of your project:
-
-```env
-# -------------------------------------------------------------
-# FIREBASE CONFIGURATION
-# -------------------------------------------------------------
-NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSy...
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789012
-NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789012:web:abcdef123456
-NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
-
-# -------------------------------------------------------------
-# APPLICATION AUTHENTICATION
-# -------------------------------------------------------------
-SITE_PASSWORD=your_admin_password_here
-GUESS_PASSWORD=your_guest_password_here
-```
-
----
-
-### 4. Deploying to Vercel
-
-1. **Import Project to Vercel**:
-   - Log in to [Vercel Dashboard](https://vercel.com/new).
-   - Click **Add New > Project** and import your forked `personal-planner` repository.
+1. **Import to Vercel**:
+   - Log in to [Vercel](https://vercel.com/new).
+   - Click **Add New > Project** and select your forked `personal-planner` repository.
    - Vercel will automatically detect **Next.js** as the Framework Preset.
 
-2. **Configure Environment Variables in Vercel**:
-   - Expand the **Environment Variables** section on the Vercel deployment page.
-   - Add all key-value pairs from your `.env.local` file:
-     - `NEXT_PUBLIC_FIREBASE_API_KEY`
-     - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
-     - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-     - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
-     - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-     - `NEXT_PUBLIC_FIREBASE_APP_ID`
-     - `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID`
-     - `SITE_PASSWORD`
-     - `GUESS_PASSWORD`
+2. **Add Environment Variables in Vercel**:
+   - Expand the **Environment Variables** section before clicking Deploy.
+   - Add the following keys with values from your Firebase Console & your desired app passwords:
 
-3. **Deploy**:
-   - Click **Deploy**. Vercel will build and deploy your project automatically.
+| Environment Variable | Value Description |
+|---|---|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Your Firebase `apiKey` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Your Firebase `authDomain` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Your Firebase `projectId` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Your Firebase `storageBucket` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Your Firebase `messagingSenderId` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Your Firebase `appId` |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | *(Optional)* Your Firebase `measurementId` |
+| `SITE_PASSWORD` | Password for Admin full access |
+| `GUESS_PASSWORD` | Password for Guest read-only access |
 
----
-
-### 5. Running Locally
-
-Start the development server locally:
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+3. **Click Deploy**:
+   - Vercel will build and host your application. You will get a live URL (e.g. `https://your-planner.vercel.app`).
 
 ---
 
-### 6. Pushing Changes to Your Own Repository
+## 💻 (Optional) Local Development
 
-To save updates or new features to your forked repository on GitHub:
+If you want to edit code or test locally on your computer:
 
-```bash
-git add .
-git commit -m "feat: add new feature"
-git push origin main
-```
+1. **Clone your forked repository**:
+   ```bash
+   git clone https://github.com/<YOUR_USERNAME>/personal-planner.git
+   cd personal-planner
+   npm install
+   ```
+
+2. **Create `.env.local` file**:
+   Add the environment variables listed in the table above into a `.env.local` file.
+
+3. **Run local dev server**:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
