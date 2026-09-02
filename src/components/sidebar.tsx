@@ -54,7 +54,7 @@ export function Sidebar() {
       {/* Profile Quick Info */}
       <div className="p-4 flex items-center gap-4 border-b border-sidebar-accent/50">
         <div className="w-12 h-12 rounded-full border-2 border-sidebar-accent/50 p-0.5 overflow-hidden flex items-center justify-center bg-primary">
-          <span className="text-white font-bold">JO</span>
+          <span className="text-white font-bold">AD</span>
         </div>
         <div>
           <p className="text-xs text-sidebar-foreground/70 flex items-center gap-1">
@@ -65,7 +65,7 @@ export function Sidebar() {
               <span title="Offline Mode"><CloudOff className="w-3 h-3 text-muted-foreground" /></span>
             )}
           </p>
-          <h2 className="text-sm font-semibold">Jonathan</h2>
+          <h2 className="text-sm font-semibold">Admin</h2>
         </div>
       </div>
 

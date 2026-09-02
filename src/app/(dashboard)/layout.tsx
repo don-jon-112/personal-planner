@@ -17,9 +17,9 @@ export default function DashboardLayout({
           <div className="flex-1" /> {/* Spacer */}
           <div className="flex items-center gap-4 text-sm font-medium">
             <ThemeToggle />
-            <span className="text-muted-foreground hidden sm:inline">Welcome, <strong className="text-foreground">Jonathan</strong></span>
+            <span className="text-muted-foreground hidden sm:inline">Welcome, <strong className="text-foreground">Admin</strong></span>
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white flex-shrink-0">
-              JO
+              AD
             </div>
           </div>
         </header>
