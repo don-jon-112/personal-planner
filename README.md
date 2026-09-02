@@ -110,6 +110,7 @@ Add the following environment variables in your **Vercel Project Settings** (or 
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | No | Google Analytics Measurement ID | `G-XXXXXXXXXX` (optional) |
 | `SITE_PASSWORD` | **Yes** | Master Admin access password | Any secret password (e.g. `AdminPassword2026!`) |
 | `GUESS_PASSWORD` | **Yes** | Guest / Client access password | Any password (e.g. `ClientView2026!`) |
+| `NEXT_PUBLIC_JIRA_BASE_URL` | No | JIRA Instance Base URL for bug ticket links | e.g. `https://your-company.atlassian.net/browse/` |
 
 ### 🔒 Access Roles Explained
 - **`SITE_PASSWORD`**: Provides full access to the complete dashboard (Todo, Epics, Gantt Timeline, PICs, Bugs, Notes, Settings, Import & Export).

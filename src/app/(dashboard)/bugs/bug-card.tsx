@@ -3,7 +3,7 @@
 import React from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { MoreHorizontal, User } from "lucide-react";
+import { ExternalLink, MoreHorizontal, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -81,6 +81,34 @@ export function BugCard({ bug, handleEdit, deleteBug }: BugCardProps) {
         <p className="text-xs text-muted-foreground line-clamp-2">
           {bug.details}
         </p>
+      )}
+
+      {bug.jiraTicketNumber && (
+        <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} className="pt-0.5">
+          {(() => {
+            const rawBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL;
+            if (rawBase) {
+              const base = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+              const jiraUrl = `${base}${encodeURIComponent(bug.jiraTicketNumber)}`;
+              return (
+                <a
+                  href={jiraUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>{bug.jiraTicketNumber}</span>
+                </a>
+              );
+            }
+            return (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded">
+                {bug.jiraTicketNumber}
+              </span>
+            );
+          })()}
+        </div>
       )}
 
       <div className="flex items-center justify-between pt-1">

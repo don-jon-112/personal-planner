@@ -28,6 +28,7 @@ const formSchema = z.object({
   priority: z.enum(["High", "Medium", "Low"]),
   status: z.enum(["Open", "In Progress", "Resolved", "Closed"]),
   pic: z.string().optional(),
+  jiraTicketNumber: z.string().optional(),
   details: z.string().optional(),
 });
 
@@ -54,6 +55,7 @@ export function BugDialog({
     priority: "Medium" as const,
     status: "Open" as const,
     pic: "",
+    jiraTicketNumber: "",
     details: "",
   };
 
@@ -69,6 +71,7 @@ export function BugDialog({
         priority: bugToEdit.priority || "Medium",
         status: bugToEdit.status || "Open",
         pic: bugToEdit.pic || "",
+        jiraTicketNumber: bugToEdit.jiraTicketNumber || "",
         details: bugToEdit.details || "",
       });
     } else {
@@ -146,9 +149,16 @@ export function BugDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>PIC / Assigned To</Label>
-            <Input {...form.register("pic")} placeholder="e.g. Frontend Team, John" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>PIC / Assigned To</Label>
+              <Input {...form.register("pic")} placeholder="e.g. Frontend Team, John" />
+            </div>
+
+            <div className="space-y-2">
+              <Label>JIRA Ticket Number</Label>
+              <Input {...form.register("jiraTicketNumber")} placeholder="e.g. PROJ-123" />
+            </div>
           </div>
 
           <div className="flex justify-end pt-4">
