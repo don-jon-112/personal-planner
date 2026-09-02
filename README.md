@@ -87,6 +87,7 @@ service cloud.firestore {
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Your Firebase `messagingSenderId` |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Your Firebase `appId` |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | *(Optional)* Your Firebase `measurementId` |
+| `NEXT_PUBLIC_JIRA_BASE_URL` | *(Optional)* Base URL for JIRA ticket links (Defaults to `https://astraapps.astra.co.id/jira-software/browse/`) |
 | `SITE_PASSWORD` | Password for Admin full access |
 | `GUESS_PASSWORD` | Password for Guest read-only access |
 

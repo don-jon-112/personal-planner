@@ -225,15 +225,22 @@ export default function BugsPage() {
                       <TableCell className="font-medium text-secondary-foreground">{bug.summary}</TableCell>
                       <TableCell>
                         {bug.jiraTicketNumber ? (
-                          <a
-                            href={`https://astraapps.astra.co.id/jira-software/browse/${encodeURIComponent(bug.jiraTicketNumber)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-md transition-colors"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>{bug.jiraTicketNumber}</span>
-                          </a>
+                          (() => {
+                            const rawBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL || "https://astraapps.astra.co.id/jira-software/browse/";
+                            const base = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+                            const jiraUrl = `${base}${encodeURIComponent(bug.jiraTicketNumber)}`;
+                            return (
+                              <a
+                                href={jiraUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-md transition-colors"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>{bug.jiraTicketNumber}</span>
+                              </a>
+                            );
+                          })()
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
