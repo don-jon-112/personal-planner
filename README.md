@@ -78,18 +78,18 @@ service cloud.firestore {
    - Expand the **Environment Variables** section before clicking Deploy.
    - Add the following keys with values from your Firebase Console & your desired app passwords:
 
-| Environment Variable | Value Description |
-|---|---|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Your Firebase `apiKey` |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Your Firebase `authDomain` |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Your Firebase `projectId` |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Your Firebase `storageBucket` |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Your Firebase `messagingSenderId` |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Your Firebase `appId` |
-| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | *(Optional)* Your Firebase `measurementId` |
-| `NEXT_PUBLIC_JIRA_BASE_URL` | *(Optional)* Base URL for JIRA ticket links (Defaults to `https://astraapps.astra.co.id/jira-software/browse/`) |
-| `SITE_PASSWORD` | Password for Admin full access |
-| `GUESS_PASSWORD` | Password for Guest read-only access |
+| Environment Variable | Description | Where to Obtain / How to Get |
+|---|---|---|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API Key | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `apiKey` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `authDomain` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Project ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `projectId` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `storageBucket` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase App ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `appId` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | *(Optional)* Firebase Messaging Sender ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `messagingSenderId` |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | *(Optional)* Firebase Analytics Measurement ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `measurementId` |
+| `SITE_PASSWORD` | Admin Full Access Password | **Custom Choice**: Set any strong password you want to use for Admin login. |
+| `GUESS_PASSWORD` | Guest Read-Only Password | **Custom Choice**: Set any password you want to share with guests for read-only timeline access. |
+| `NEXT_PUBLIC_JIRA_BASE_URL` | *(Optional)* JIRA Instance Base URL | **Your Company JIRA URL**: e.g., `https://your-company.atlassian.net/browse/` *(Defaults to `https://astraapps.astra.co.id/jira-software/browse/` if omitted)* |
 
 3. **Click Deploy**:
    - Vercel will build and host your application. You will get a live URL (e.g. `https://your-planner.vercel.app`).
