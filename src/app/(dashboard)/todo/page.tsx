@@ -13,7 +13,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Search, MoreHorizontal, Plus, ArrowUpDown, Filter } from "lucide-react";
+import { Search, Plus, ArrowUpDown, Filter, CheckSquare, Layers, Upload } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,273 +42,675 @@ import {
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 import { useCollection, useDeleteDocument, useUpdateBatch } from "@/hooks/use-firestore";
-import { TodoDialog } from "./todo-dialog";
+import { TaskDialog } from "../timeline/task-dialog";
+import { EpicDialog } from "../timeline/epic-dialog";
+import { ImportDialog } from "./import-dialog";
 import { SortableTodoRow } from "./sortable-todo-row";
-
+import { SortableEpicRow } from "./sortable-epic-row";
+import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
 
 export default function TodoPage() {
-  const { data: todos, isLoading } = useCollection<any>("todos");
-  const { mutate: deleteTodo } = useDeleteDocument("todos");
-  const { mutate: batchUpdate } = useUpdateBatch("todos");
-  
-  const [localTodos, setLocalTodos] = useState<any[]>([]);
-  const [editingTodo, setEditingTodo] = useState<any>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
+
+  // Firestore Collections
+  const { data: tasks = [], isLoading: isTasksLoading } = useCollection<any>("timelineTasks");
+  const { data: epics = [], isLoading: isEpicsLoading } = useCollection<any>("timelineEpics");
+  const { data: pics = [] } = useCollection<any>("timelinePics");
+  const { data: holidays = [] } = useCollection<any>("timelineHolidays");
+
+  const overlapMap = useMemo(() => {
+    return computeAllTaskOverlaps(tasks, holidays, epics);
+  }, [tasks, holidays, epics]);
+
+  const { mutate: deleteTask } = useDeleteDocument("timelineTasks");
+  const { mutate: batchUpdateTasks } = useUpdateBatch("timelineTasks");
+
+  const { mutate: deleteEpic } = useDeleteDocument("timelineEpics");
+  const { mutate: batchUpdateEpics } = useUpdateBatch("timelineEpics");
+
+  // Local state for optimistic drag & drop
+  const [localTasks, setLocalTasks] = useState<any[]>([]);
+  const [localEpics, setLocalEpics] = useState<any[]>([]);
+
+  // Dialog states
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+
+  const [editingEpic, setEditingEpic] = useState<any>(null);
+  const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
+
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+
+  // Filter & Search states
+  const [taskSearchQuery, setTaskSearchQuery] = useState("");
+  const [epicSearchQuery, setEpicSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [priorityFilters, setPriorityFilters] = useState<string[]>([]);
+  const [picFilters, setPicFilters] = useState<string[]>([]);
+  const [epicFilters, setEpicFilters] = useState<string[]>([]);
+
+  // Sorting state
+  const [taskSortConfig, setTaskSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+  const [epicSortConfig, setEpicSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+
+  // Sync firestore collections to local state
+  useEffect(() => {
+    if (tasks) setLocalTasks(tasks);
+  }, [tasks]);
+
+  useEffect(() => {
+    if (epics) setLocalEpics(epics);
+  }, [epics]);
 
   const toggleStatusFilter = (status: string) => {
-    setStatusFilters(prev => 
-      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    setStatusFilters((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
     );
   };
 
-  const togglePriorityFilter = (priority: string) => {
-    setPriorityFilters(prev => 
-      prev.includes(priority) ? prev.filter(p => p !== priority) : [...prev, priority]
+  const togglePicFilter = (pic: string) => {
+    setPicFilters((prev) =>
+      prev.includes(pic) ? prev.filter((p) => p !== pic) : [...prev, pic]
     );
   };
 
-  const STATUS_MAP: Record<string, string> = {
-    "TODO": "Todo",
-    "ON PROGRESS": "Doing",
-    "DONE": "Done",
-    "CANCELLED": "Cancelled"
+  const toggleEpicFilter = (epicId: string) => {
+    setEpicFilters((prev) =>
+      prev.includes(epicId) ? prev.filter((e) => e !== epicId) : [...prev, epicId]
+    );
   };
 
-  const requestSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
+  const requestTaskSort = (key: string) => {
+    let direction: "asc" | "desc" = "asc";
+    if (taskSortConfig && taskSortConfig.key === key && taskSortConfig.direction === "asc") {
+      direction = "desc";
     }
-    setSortConfig({ key, direction });
+    setTaskSortConfig({ key, direction });
   };
 
-  // Sync local todos when firestore data changes (for optimistic updates)
-  useEffect(() => {
-    if (todos) {
-      setLocalTodos(todos);
+  const requestEpicSort = (key: string) => {
+    let direction: "asc" | "desc" = "asc";
+    if (epicSortConfig && epicSortConfig.key === key && epicSortConfig.direction === "asc") {
+      direction = "desc";
     }
-  }, [todos]);
+    setEpicSortConfig({ key, direction });
+  };
 
-  const sortedTodos = useMemo(() => {
-    let sortableItems = [...localTodos];
-    
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
-      sortableItems = sortableItems.filter(t => 
-        (t.task || "").toLowerCase().includes(q)
-      );
+  // Filtered & Sorted Tasks
+  const processedTasks = useMemo(() => {
+    let list = [...localTasks];
+
+    // Search filter
+    if (taskSearchQuery.trim() !== "") {
+      const q = taskSearchQuery.toLowerCase();
+      list = list.filter((t) => {
+        const name = (t.name || "").toLowerCase();
+        const pic = (t.pic || "").toLowerCase();
+        const epicName = (epics.find((e) => e.id === t.epicId)?.name || "").toLowerCase();
+        return name.includes(q) || pic.includes(q) || epicName.includes(q);
+      });
     }
 
+    // Status filter
     if (statusFilters.length > 0) {
-      sortableItems = sortableItems.filter(t => {
-        const tStatus = String(t.status || "").toLowerCase();
-        return statusFilters.some(sf => {
-          const mapped = STATUS_MAP[sf] || sf;
-          return tStatus === mapped.toLowerCase() || tStatus === sf.toLowerCase() || tStatus.replace(/\s+/g, '') === mapped.toLowerCase().replace(/\s+/g, '') || tStatus.replace(/\s+/g, '') === sf.toLowerCase().replace(/\s+/g, '');
-        });
+      list = list.filter((t) => {
+        const s = String(t.status || "TODO").toUpperCase();
+        return statusFilters.includes(s);
       });
     }
 
-    if (priorityFilters.length > 0) {
-      sortableItems = sortableItems.filter(t => {
-        const tPriority = String(t.priority || "").toLowerCase();
-        return priorityFilters.some(pf => tPriority === pf.toLowerCase());
+    // PIC filter
+    if (picFilters.length > 0) {
+      list = list.filter((t) => picFilters.includes(t.pic || ""));
+    }
+
+    // Epic filter
+    if (epicFilters.length > 0) {
+      list = list.filter((t) => {
+        if (epicFilters.includes("BACKLOG") && (!t.epicId || t.epicId === "")) return true;
+        return epicFilters.includes(t.epicId || "");
       });
     }
 
-    if (sortConfig !== null) {
-      sortableItems.sort((a, b) => {
-        let aVal = a[sortConfig.key] || "";
-        let bVal = b[sortConfig.key] || "";
-        
-        // Custom priority sort
-        if (sortConfig.key === 'priority') {
-          const pMap: Record<string, number> = { "High": 3, "Medium": 2, "Low": 1 };
-          aVal = pMap[aVal as string] || 0;
-          bVal = pMap[bVal as string] || 0;
+    // Sort
+    if (taskSortConfig !== null) {
+      list.sort((a, b) => {
+        let aVal = a[taskSortConfig.key] || "";
+        let bVal = b[taskSortConfig.key] || "";
+
+        if (taskSortConfig.key === "epic") {
+          aVal = epics.find((e) => e.id === a.epicId)?.name || "";
+          bVal = epics.find((e) => e.id === b.epicId)?.name || "";
+        } else if (taskSortConfig.key === "md") {
+          aVal = Number(a.md) || 0;
+          bVal = Number(b.md) || 0;
         }
 
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        if (aVal < bVal) return taskSortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return taskSortConfig.direction === "asc" ? 1 : -1;
         return 0;
       });
     } else {
-      // Default sort by orderIndex (ascending)
-      sortableItems.sort((a, b) => {
-        const orderA = a.orderIndex ?? Date.now();
-        const orderB = b.orderIndex ?? Date.now();
+      // Default sort by order / orderIndex
+      list.sort((a, b) => {
+        const orderA = a.order ?? a.orderIndex ?? Date.now();
+        const orderB = b.order ?? b.orderIndex ?? Date.now();
         return orderA - orderB;
       });
     }
-    return sortableItems;
-  }, [localTodos, sortConfig, searchQuery, statusFilters, priorityFilters]);
+
+    return list;
+  }, [localTasks, epics, taskSearchQuery, statusFilters, picFilters, epicFilters, taskSortConfig]);
+
+  // Filtered & Sorted Epics
+  const processedEpics = useMemo(() => {
+    let list = [...localEpics];
+
+    if (epicSearchQuery.trim() !== "") {
+      const q = epicSearchQuery.toLowerCase();
+      list = list.filter((e) => (e.name || "").toLowerCase().includes(q));
+    }
+
+    if (epicSortConfig !== null) {
+      list.sort((a, b) => {
+        let aVal = a[epicSortConfig.key] || "";
+        let bVal = b[epicSortConfig.key] || "";
+
+        if (epicSortConfig.key === "taskCount") {
+          aVal = tasks.filter((t) => t.epicId === a.id).length;
+          bVal = tasks.filter((t) => t.epicId === b.id).length;
+        } else if (epicSortConfig.key === "totalMd") {
+          aVal = tasks.filter((t) => t.epicId === a.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+          bVal = tasks.filter((t) => t.epicId === b.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+        }
+
+        if (aVal < bVal) return epicSortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return epicSortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    } else {
+      list.sort((a, b) => {
+        const orderA = a.order ?? Date.now();
+        const orderB = b.order ?? Date.now();
+        return orderA - orderB;
+      });
+    }
+
+    return list;
+  }, [localEpics, tasks, epicSearchQuery, epicSortConfig]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleTaskDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
     if (over && active.id !== over.id) {
-      const oldIndex = sortedTodos.findIndex((t) => t.id === active.id);
-      const newIndex = sortedTodos.findIndex((t) => t.id === over.id);
-      
-      const newOrder = arrayMove(sortedTodos, oldIndex, newIndex);
-      
-      // Optimistically update UI
-      setLocalTodos(newOrder);
+      const oldIndex = processedTasks.findIndex((t) => t.id === active.id);
+      const newIndex = processedTasks.findIndex((t) => t.id === over.id);
+      const newOrder = arrayMove(processedTasks, oldIndex, newIndex);
+      setLocalTasks(newOrder);
 
-      // Recalculate orderIndex for everything (simple integer spacing)
       const updates = newOrder.map((item, index) => ({
         id: item.id,
-        data: { orderIndex: index * 1000 }
+        data: { order: index * 1000 },
       }));
-      
-      batchUpdate(updates);
+      batchUpdateTasks(updates);
     }
   };
 
-  const isDragDisabled = sortConfig !== null; // Disable DND if custom sorted
+  const handleEpicDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = processedEpics.findIndex((e) => e.id === active.id);
+      const newIndex = processedEpics.findIndex((e) => e.id === over.id);
+      const newOrder = arrayMove(processedEpics, oldIndex, newIndex);
+      setLocalEpics(newOrder);
 
-  const handleEdit = (todo: any) => {
-    setEditingTodo(todo);
-    setIsDialogOpen(true);
+      const updates = newOrder.map((item, index) => ({
+        id: item.id,
+        data: { order: index * 1000 },
+      }));
+      batchUpdateEpics(updates);
+    }
   };
 
-  const handleCreate = () => {
-    setEditingTodo(null);
-    setIsDialogOpen(true);
+  const handleEditTask = (task: any) => {
+    setEditingTask(task);
+    setIsTaskDialogOpen(true);
   };
+
+  const handleCreateTask = () => {
+    setEditingTask(null);
+    setIsTaskDialogOpen(true);
+  };
+
+  const handleEditEpic = (epic: any) => {
+    setEditingEpic(epic);
+    setIsEpicDialogOpen(true);
+  };
+
+  const handleCreateEpic = () => {
+    setEditingEpic(null);
+    setIsEpicDialogOpen(true);
+  };
+
+  const totalFilterCount = statusFilters.length + picFilters.length + epicFilters.length;
+  const isTaskDragDisabled = taskSortConfig !== null;
+  const isEpicDragDisabled = epicSortConfig !== null;
 
   return (
-    <Panel className="h-full border-t-4 border-t-primary">
-      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-0 gap-4">
+    <Panel className="h-full border-t-4 border-t-primary flex flex-col">
+      {/* Header */}
+      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-1 gap-4">
         <div className="w-full sm:w-auto">
-          <PanelTitle className="text-2xl font-bold text-secondary-foreground">Todo Plan</PanelTitle>
-          <PanelDescription className="mt-1">Manage your daily tasks and backlog.</PanelDescription>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Button onClick={handleCreate} className="shadow-sm w-full sm:w-auto">
-            <Plus className="w-4 h-4 mr-2" />
-            New Todo
-          </Button>
-          <TodoDialog 
-            open={isDialogOpen} 
-            onOpenChange={setIsDialogOpen} 
-            todoToEdit={editingTodo} 
-          />
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
+            <CheckSquare className="w-6 h-6 text-primary" /> Todo Plan
+          </PanelTitle>
+          <PanelDescription className="mt-1">
+            Manage your project tasks, backlogs, and epic breakdown.
+          </PanelDescription>
         </div>
       </PanelHeader>
 
-      <PanelContent className="space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              type="search" 
-              placeholder="Search tasks..." 
-              className="pl-8 bg-muted/50 border-border"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full sm:w-auto">
-                <Filter className="w-4 h-4 mr-2" />
-                Filter {(statusFilters.length + priorityFilters.length) > 0 && `(${statusFilters.length + priorityFilters.length})`}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                  {['TODO', 'ON PROGRESS', 'DONE', 'CANCELLED'].map((status) => (
-                    <DropdownMenuCheckboxItem
-                      key={status}
-                      checked={statusFilters.includes(status)}
-                      onCheckedChange={() => toggleStatusFilter(status)}
-                    >
-                      {status}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Filter by Priority</DropdownMenuLabel>
-                  {['Low', 'Medium', 'High'].map((priority) => (
-                    <DropdownMenuCheckboxItem
-                      key={priority}
-                      checked={priorityFilters.includes(priority)}
-                      onCheckedChange={() => togglePriorityFilter(priority)}
-                    >
-                      {priority}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+      {/* Dialogs */}
+      <TaskDialog
+        open={isTaskDialogOpen}
+        onOpenChange={setIsTaskDialogOpen}
+        taskToEdit={editingTask}
+      />
+      <EpicDialog
+        open={isEpicDialogOpen}
+        onOpenChange={setIsEpicDialogOpen}
+        epicToEdit={editingEpic}
+      />
+      <ImportDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+      />
+
+      <PanelContent className="space-y-5 flex-1 overflow-auto">
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-2 border-b pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab("tasks")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-150",
+              activeTab === "tasks"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            )}
+          >
+            <CheckSquare className="w-4 h-4" />
+            <span>Task List</span>
+            <span
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-bold",
+                activeTab === "tasks"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {tasks.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("epics")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-150",
+              activeTab === "epics"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            )}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Epic List</span>
+            <span
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-bold",
+                activeTab === "epics"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {epics.length}
+            </span>
+          </button>
         </div>
 
-        <div className="border border-border/50 rounded-md overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead onClick={() => requestSort('task')} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-2">Task Name <ArrowUpDown className="w-3 h-3" /></div>
-                </TableHead>
-                <TableHead onClick={() => requestSort('priority')} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-2">Priority <ArrowUpDown className="w-3 h-3" /></div>
-                </TableHead>
-                <TableHead onClick={() => requestSort('deadline')} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-2">Deadline <ArrowUpDown className="w-3 h-3" /></div>
-                </TableHead>
-                <TableHead onClick={() => requestSort('status')} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-2">Status <ArrowUpDown className="w-3 h-3" /></div>
-                </TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">Loading...</TableCell>
-                </TableRow>
-              ) : sortedTodos.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No tasks found.</TableCell>
-                </TableRow>
-              ) : (
-                <DndContext 
-                  sensors={sensors} 
-                  collisionDetection={closestCenter} 
-                  onDragEnd={handleDragEnd}
-                  modifiers={[restrictToVerticalAxis]}
+        {/* Tab 1: Task List */}
+        {activeTab === "tasks" && (
+          <div className="space-y-4">
+            {/* Search & Filter Toolbar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="relative w-full max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search task, epic, or PIC..."
+                  className="pl-8 bg-muted/40 border-border"
+                  value={taskSearchQuery}
+                  onChange={(e) => setTaskSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3 text-xs w-full sm:w-auto">
+                    <Filter className="w-4 h-4 mr-2" />
+                    Filter {totalFilterCount > 0 && `(${totalFilterCount})`}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                      {["TODO", "ON PROGRESS", "IN REVIEW", "DONE"].map((status) => (
+                        <DropdownMenuCheckboxItem
+                          key={status}
+                          checked={statusFilters.includes(status)}
+                          onCheckedChange={() => toggleStatusFilter(status)}
+                        >
+                          {status}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuGroup>
+
+                    {pics.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
+                          {pics.map((pic) => (
+                            <DropdownMenuCheckboxItem
+                              key={pic.id}
+                              checked={picFilters.includes(pic.name)}
+                              onCheckedChange={() => togglePicFilter(pic.name)}
+                            >
+                              {pic.name}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </DropdownMenuGroup>
+                      </>
+                    )}
+
+                    {epics.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel>Filter by Epic</DropdownMenuLabel>
+                          <DropdownMenuCheckboxItem
+                            checked={epicFilters.includes("BACKLOG")}
+                            onCheckedChange={() => toggleEpicFilter("BACKLOG")}
+                          >
+                            Backlog (No Epic)
+                          </DropdownMenuCheckboxItem>
+                          {epics.map((epic) => (
+                            <DropdownMenuCheckboxItem
+                              key={epic.id}
+                              checked={epicFilters.includes(epic.id)}
+                              onCheckedChange={() => toggleEpicFilter(epic.id)}
+                            >
+                              {epic.name}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </DropdownMenuGroup>
+                      </>
+                    )}
+
+                    {totalFilterCount > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-xs text-destructive text-center justify-center cursor-pointer"
+                          onClick={() => {
+                            setStatusFilters([]);
+                            setPicFilters([]);
+                            setEpicFilters([]);
+                          }}
+                        >
+                          Clear all filters
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsImportDialogOpen(true)} 
+                  className="shadow-xs w-full sm:w-auto h-9 text-xs"
                 >
-                  <SortableContext 
-                    items={sortedTodos.map(t => t.id)} 
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {sortedTodos.map((item) => (
-                      <SortableTodoRow 
-                        key={item.id}
-                        item={item}
-                        handleEdit={handleEdit}
-                        deleteTodo={deleteTodo}
-                        isDragDisabled={isDragDisabled}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  <Upload className="w-4 h-4 mr-1.5" />
+                  Import Data
+                </Button>
+
+                <Button onClick={handleCreateTask} className="shadow-sm w-full sm:w-auto h-9 text-xs">
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  New Task
+                </Button>
+              </div>
+            </div>
+
+            {/* Task Table */}
+            <div className="border border-border/60 rounded-lg overflow-hidden bg-card shadow-sm">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead className="w-[40px] pl-3"></TableHead>
+                    <TableHead
+                      onClick={() => requestTaskSort("name")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Task Name <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestTaskSort("epic")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Epic <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestTaskSort("pic")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        PIC <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestTaskSort("startDate")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Start Date <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestTaskSort("md")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        MD <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestTaskSort("status")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Status <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isTasksLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                        Loading tasks...
+                      </TableCell>
+                    </TableRow>
+                  ) : processedTasks.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                        <p className="text-base font-medium">No tasks found.</p>
+                        <p className="text-xs text-muted-foreground/70 mt-1">
+                          Click "New Task" above to create your first task.
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleTaskDragEnd}
+                      modifiers={[restrictToVerticalAxis]}
+                    >
+                      <SortableContext
+                        items={processedTasks.map((t) => t.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {processedTasks.map((item) => (
+                          <SortableTodoRow
+                            key={item.id}
+                            item={item}
+                            epics={epics}
+                            pics={pics}
+                            overlapInfo={overlapMap.get(item.id)}
+                            handleEdit={handleEditTask}
+                            deleteTask={deleteTask}
+                            isDragDisabled={isTaskDragDisabled}
+                          />
+                        ))}
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Epic List */}
+        {activeTab === "epics" && (
+          <div className="space-y-4">
+            {/* Search Toolbar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="relative w-full max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search epics..."
+                  className="pl-8 bg-muted/40 border-border"
+                  value={epicSearchQuery}
+                  onChange={(e) => setEpicSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsImportDialogOpen(true)} 
+                  className="shadow-xs w-full sm:w-auto h-9 text-xs"
+                >
+                  <Upload className="w-4 h-4 mr-1.5" />
+                  Import Data
+                </Button>
+
+                <Button onClick={handleCreateEpic} className="shadow-sm w-full sm:w-auto h-9 text-xs">
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  New Epic
+                </Button>
+              </div>
+            </div>
+
+            {/* Epic Table */}
+            <div className="border border-border/60 rounded-lg overflow-hidden bg-card shadow-sm">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead className="w-[40px] pl-3"></TableHead>
+                    <TableHead
+                      onClick={() => requestEpicSort("name")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Epic Name <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestEpicSort("taskCount")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Tasks Completed <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestEpicSort("totalMd")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Total MD <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isEpicsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                        Loading epics...
+                      </TableCell>
+                    </TableRow>
+                  ) : processedEpics.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                        <p className="text-base font-medium">No epics found.</p>
+                        <p className="text-xs text-muted-foreground/70 mt-1">
+                          Click "New Epic" above to create an epic.
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleEpicDragEnd}
+                      modifiers={[restrictToVerticalAxis]}
+                    >
+                      <SortableContext
+                        items={processedEpics.map((e) => e.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {processedEpics.map((epic) => (
+                          <SortableEpicRow
+                            key={epic.id}
+                            epic={epic}
+                            tasks={tasks}
+                            handleEdit={handleEditEpic}
+                            deleteEpic={deleteEpic}
+                            isDragDisabled={isEpicDragDisabled}
+                          />
+                        ))}
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </PanelContent>
     </Panel>
   );

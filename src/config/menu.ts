@@ -4,14 +4,36 @@ import {
   CheckSquare, 
   FileText, 
   Bug, 
-  CalendarClock
+  CalendarClock,
+  FolderKanban,
+  Users
 } from "lucide-react";
 
-export const menuItems = [
+export interface SubMenuItem {
+  name: string;
+  href: string;
+  icon?: any;
+}
+
+export interface MenuItem {
+  name: string;
+  href?: string;
+  icon: any;
+  children?: SubMenuItem[];
+}
+
+export const menuItems: MenuItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Weekly Report", href: "/weekly-report", icon: CalendarDays },
-  { name: "Todo Plan", href: "/todo", icon: CheckSquare },
   { name: "Notes", href: "/notes", icon: FileText },
-  { name: "Timeline", href: "/timeline", icon: CalendarClock },
+  {
+    name: "Project Plan",
+    icon: FolderKanban,
+    children: [
+      { name: "Task Plan", href: "/todo", icon: CheckSquare },
+      { name: "Timeline", href: "/timeline", icon: CalendarClock },
+      { name: "PICs", href: "/pics", icon: Users },
+    ],
+  },
   { name: "Bug & Report", href: "/bugs", icon: Bug },
 ];

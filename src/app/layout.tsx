@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/components/query-provider";
+import { ConfirmProvider } from "@/components/confirm-dialog-provider";
 
 import { Nunito, Nunito_Sans } from "next/font/google";
 
@@ -41,7 +42,9 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <TooltipProvider>
-              {children}
+              <ConfirmProvider>
+                {children}
+              </ConfirmProvider>
             </TooltipProvider>
           </ThemeProvider>
         </QueryProvider>

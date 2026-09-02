@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/confirm-dialog-provider";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -30,6 +31,7 @@ export function HolidaysDialog({
   open?: boolean,
   onOpenChange?: (open: boolean) => void
 }) {
+  const confirm = useConfirm();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
@@ -100,7 +102,16 @@ export function HolidaysDialog({
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      onClick={() => confirm("Delete this holiday?") && deleteHoliday(holiday.id)}
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "Hapus Hari Libur?",
+                          description: `Apakah Anda yakin ingin menghapus "${holiday.name}" (${new Date(holiday.date).toLocaleDateString()})?`,
+                          confirmText: "Hapus",
+                          cancelText: "Batal",
+                          variant: "destructive",
+                        });
+                        if (ok) deleteHoliday(holiday.id);
+                      }}
                       className="text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="w-4 h-4" />

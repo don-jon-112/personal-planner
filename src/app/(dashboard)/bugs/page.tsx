@@ -13,7 +13,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Search, MoreHorizontal, Plus, LayoutGrid, List, ExternalLink } from "lucide-react";
+import { Search, MoreHorizontal, Plus, LayoutGrid, List } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +30,7 @@ import {
   DragStartEvent,
 } from "@dnd-kit/core";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
+import { useConfirm } from "@/components/confirm-dialog-provider";
 import { BugDialog } from "./bug-dialog";
 import { KanbanColumn } from "./kanban-column";
 import { BugCard } from "./bug-card";
@@ -42,6 +43,7 @@ const COLUMNS = [
 ];
 
 export default function BugsPage() {
+  const confirm = useConfirm();
   const { data: rawBugs, isLoading } = useCollection<any>("bugReports");
   const { mutate: deleteBug } = useDeleteDocument("bugReports");
   const { mutate: updateBug } = useUpdateDocument("bugReports");
@@ -93,8 +95,7 @@ export default function BugsPage() {
     return (
       bug.summary?.toLowerCase().includes(query) ||
       bug.pic?.toLowerCase().includes(query) ||
-      bug.details?.toLowerCase().includes(query) ||
-      bug.jiraTicketNumber?.toLowerCase().includes(query)
+      bug.details?.toLowerCase().includes(query)
     );
   });
 
@@ -124,7 +125,7 @@ export default function BugsPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               type="search" 
-              placeholder="Search bugs by summary, PIC, or JIRA ticket..." 
+              placeholder="Search bugs by summary or PIC..." 
               className="pl-8 bg-muted/50 border-border" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -207,7 +208,6 @@ export default function BugsPage() {
               <TableHeader className="bg-muted/30">
                 <TableRow>
                   <TableHead>Summary</TableHead>
-                  <TableHead>JIRA Ticket</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>PIC</TableHead>
@@ -217,41 +217,12 @@ export default function BugsPage() {
               <TableBody>
                 {filteredBugs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No bug reports found.</TableCell>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No bug reports found.</TableCell>
                   </TableRow>
                 ) : (
                   filteredBugs.map((bug: any) => (
                     <TableRow key={bug.id} className="hover:bg-muted/20">
                       <TableCell className="font-medium text-secondary-foreground">{bug.summary}</TableCell>
-                      <TableCell>
-                        {bug.jiraTicketNumber ? (
-                          (() => {
-                            const rawBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL;
-                            if (rawBase) {
-                              const base = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
-                              const jiraUrl = `${base}${encodeURIComponent(bug.jiraTicketNumber)}`;
-                              return (
-                                <a
-                                  href={jiraUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-md transition-colors"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                  <span>{bug.jiraTicketNumber}</span>
-                                </a>
-                              );
-                            }
-                            return (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-md">
-                                {bug.jiraTicketNumber}
-                              </span>
-                            );
-                          })()
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
                       <TableCell>
                         <span className={cn(
                           "px-2 py-1 rounded text-xs font-semibold",
@@ -282,8 +253,15 @@ export default function BugsPage() {
                             <DropdownMenuItem onClick={() => handleEdit(bug)}>Edit</DropdownMenuItem>
                             <DropdownMenuItem 
                               className="text-destructive"
-                              onClick={() => {
-                                if(confirm("Delete this bug report?")) {
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: "Hapus Laporan Bug?",
+                                  description: `Apakah Anda yakin ingin menghapus bug "${bug.summary}"?`,
+                                  confirmText: "Hapus Bug",
+                                  cancelText: "Batal",
+                                  variant: "destructive",
+                                });
+                                if (ok) {
                                   deleteBug(bug.id);
                                 }
                               }}

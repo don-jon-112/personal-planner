@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useConfirm } from "@/components/confirm-dialog-provider";
 
 export function SortableNoteItem({
   note,
@@ -25,6 +26,7 @@ export function SortableNoteItem({
   onTogglePin: (note: any) => void;
   onToggleFavorite: (note: any) => void;
 }) {
+  const confirm = useConfirm();
   const {
     attributes,
     listeners,
@@ -72,8 +74,15 @@ export function SortableNoteItem({
             <DropdownMenuItem onClick={() => onEdit(note)}>Edit</DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive"
-              onClick={() => {
-                if (confirm("Delete this note?")) {
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Hapus Catatan?",
+                  description: `Apakah Anda yakin ingin menghapus catatan "${note.title || "Untitled"}"?`,
+                  confirmText: "Hapus Catatan",
+                  cancelText: "Batal",
+                  variant: "destructive",
+                });
+                if (ok) {
                   onDelete(note);
                 }
               }}

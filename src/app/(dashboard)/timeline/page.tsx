@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -11,6 +11,8 @@ import { HolidaysDialog } from "./holidays-dialog";
 import { PicsDialog } from "./pics-dialog";
 import { ChartsDialog } from "./charts-dialog";
 import { cn } from "@/lib/utils";
+import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
+import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,15 +49,34 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { DateRangeFilter, DateRangeConfig, computeTimelineDates, getDatesInRange } from "./date-range-filter";
+
 // Helpers for dates
-function getDatesInRange(startDate: Date, endDate: Date) {
-  const dates = [];
-  let currentDate = new Date(startDate);
-  while (currentDate <= endDate) {
-    dates.push(new Date(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
+function getDayStatus(date: Date, holidays: any[] = []) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${yyyy}-${mm}-${dd}`;
+  
+  if (holidays.some((h: any) => h.date === dateStr)) return 'holiday';
+  if (date.getDay() === 0 || date.getDay() === 6) return 'weekend';
+  return false;
+}
+
+function getTaskEndDate(startDate: Date, md: number, holidays: any[] = []): Date {
+  let curr = new Date(startDate);
+  curr.setHours(0, 0, 0, 0);
+  let workingDays = 0;
+  
+  while (workingDays < md) {
+    if (!getDayStatus(curr, holidays)) {
+      workingDays++;
+    }
+    if (workingDays < md) {
+      curr.setDate(curr.getDate() + 1);
+    }
   }
-  return dates;
+  return curr;
 }
 
 function getPicColor(name: string, pics: any[] = []) {
@@ -71,20 +92,10 @@ function getPicColor(name: string, pics: any[] = []) {
   return `hsl(${hue}, 65%, 50%)`;
 }
 
-function getDayStatus(date: Date, holidays: any[] = []) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const dateStr = `${yyyy}-${mm}-${dd}`;
-  
-  if (holidays.some((h: any) => h.date === dateStr)) return 'holiday';
-  if (date.getDay() === 0 || date.getDay() === 6) return 'weekend';
-  return false;
-}
 
-function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], holidays: any[] = [], pics: any[] = []) {
+function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], holidays: any[] = [], pics: any[] = [], showAlert?: (msg: string) => void) {
   if (!epics || epics.length === 0) {
-    alert("No epics or tasks to export.");
+    if (showAlert) showAlert("Tidak ada data Epic atau Task untuk diexport.");
     return;
   }
 
@@ -130,6 +141,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
       .epic-row { background-color: #e2e8f0; font-weight: bold; font-size: 10pt; }
       .task-row { background-color: #ffffff; }
       .status-done { background-color: #dcfce7; color: #166534; font-weight: bold; text-align: center; }
+      .status-review { background-color: #f3e8ff; color: #7e22ce; font-weight: bold; text-align: center; }
       .status-progress { background-color: #dbeafe; color: #1e40af; font-weight: bold; text-align: center; }
       .status-todo { background-color: #f1f5f9; color: #475569; font-weight: bold; text-align: center; }
       .center { text-align: center; }
@@ -189,7 +201,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
 
     epicTasks.forEach(task => {
       const st = task.status || 'TODO';
-      const stClass = st === 'DONE' ? 'status-done' : st === 'ON PROGRESS' ? 'status-progress' : 'status-todo';
+      const stClass = st === 'DONE' ? 'status-done' : (st === 'IN REVIEW' || st === 'ON REVIEW') ? 'status-review' : st === 'ON PROGRESS' ? 'status-progress' : 'status-todo';
       const picColor = getPicColor(task.pic, pics);
 
       const taskStart = new Date(task.startDate);
@@ -288,7 +300,7 @@ function TaskText({ text, className }: { text: string, className?: string }) {
   );
 }
 
-function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus }: { task: any, dates: Date[], holidays: any[], pics: any[], onEdit: any, onDelete: any, onUpdateStatus: any }) {
+function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, onUpdateStatus }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult, onEdit: any, onDelete: any, onUpdateStatus: any }) {
   const {
     attributes,
     listeners,
@@ -307,6 +319,8 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
   const taskStart = new Date(task.startDate);
   taskStart.setHours(0,0,0,0);
 
+  const hasOverlap = Boolean(overlapInfo?.hasOverlap);
+
   return (
     <div 
       ref={setNodeRef} 
@@ -314,10 +328,42 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
       className={cn("flex border-b hover:bg-muted/10 bg-background", isDragging && "z-50 relative")}
     >
       <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2 overflow-hidden">
-        <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1 z-10 bg-background">
+        <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-1 p-1 z-10 bg-background">
           <GripVertical className="w-4 h-4" />
         </div>
-        <TaskText text={task.name} className="text-sm font-medium text-secondary-foreground pl-2" />
+        {hasOverlap && (
+          <TooltipProvider delay={100}>
+            <Tooltip>
+              <TooltipTrigger className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/40 hover:bg-amber-500/25 transition-colors shrink-0 mr-1.5 cursor-help shadow-2xs select-none animate-pulse">
+                <span>!!</span>
+                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" className="z-[9999] p-3 max-w-[320px] bg-popover/95 backdrop-blur-sm border-amber-500/40 shadow-xl">
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Jadwal Overlap ({task.pic})</span>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">
+                    PIC <strong>{task.pic}</strong> memiliki {overlapInfo?.overlappingTasks.length} task lain di rentang tanggal yang sama:
+                  </p>
+                  <div className="space-y-1 pt-1 border-t border-border/50 max-h-36 overflow-y-auto">
+                    {overlapInfo?.overlappingTasks.map((ot) => (
+                      <div key={ot.id} className="bg-muted/50 p-1.5 rounded text-[11px] border border-border/40">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-semibold text-foreground truncate">{ot.name}</span>
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-primary/10 text-primary font-bold">{ot.epicName}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{ot.startDate} s/d {ot.endDateStr} ({ot.md} MD) • {ot.status}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        <TaskText text={task.name} className="text-sm font-medium text-secondary-foreground pl-1" />
       </div>
       <div className="w-[120px] md:sticky md:left-[250px] md:z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
         {task.pic}
@@ -328,6 +374,7 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
             <span className={cn(
               "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
               task.status === "DONE" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+              task.status === "IN REVIEW" || task.status === "ON REVIEW" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" :
               task.status === "ON PROGRESS" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
               "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
             )}>
@@ -337,6 +384,7 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
           <DropdownMenuContent align="center">
             <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "TODO")}>TODO</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "ON PROGRESS")}>ON PROGRESS</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "IN REVIEW")}>IN REVIEW</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "DONE")}>DONE</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -373,35 +421,57 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
         })}
         {/* Task Bar */}
         {(() => {
-          // Find start index
-          const startIndex = dates.findIndex(d => d.getTime() === taskStart.getTime());
-          if (startIndex === -1) return null; // Outside of range
+          if (!dates || dates.length === 0) return null;
+          const visibleStart = dates[0].getTime();
+          const visibleEnd = dates[dates.length - 1].getTime();
           
-          let workingDays = 0;
-          let currentIndex = startIndex;
-          
-          // Loop through dates to find the end index based on MD (working days)
-          while (workingDays < task.md && currentIndex < dates.length) {
-            const d = dates[currentIndex];
-            if (!getDayStatus(d, holidays)) {
-               workingDays++;
-            }
-            if (workingDays < task.md) {
-               currentIndex++;
-            }
+          const taskEnd = getTaskEndDate(taskStart, task.md, holidays);
+          const taskEndTime = taskEnd.getTime();
+          const taskStartTime = taskStart.getTime();
+
+          // If task is completely outside visible range
+          if (taskEndTime < visibleStart || taskStartTime > visibleEnd) {
+            return null;
           }
-          
-          const barWidthDays = (currentIndex - startIndex + 1);
+
+          // Determine start index on visible grid
+          let startIndex = 0;
+          if (taskStartTime >= visibleStart) {
+            startIndex = dates.findIndex(d => d.getTime() === taskStartTime);
+            if (startIndex === -1) startIndex = 0;
+          }
+
+          // Determine end index on visible grid
+          let endIndex = dates.length - 1;
+          if (taskEndTime <= visibleEnd) {
+            endIndex = dates.findIndex(d => d.getTime() === taskEndTime);
+            if (endIndex === -1) endIndex = dates.length - 1;
+          }
+
+          if (startIndex > endIndex) return null;
+
+          const barWidthDays = (endIndex - startIndex + 1);
 
           return (
             <div 
-              className="absolute top-2 h-[60%] rounded shadow-sm pointer-events-none border border-black/10 z-0"
+              className={cn(
+                "absolute top-2 h-[60%] shadow-sm pointer-events-none border border-black/10 z-0 flex items-center justify-end px-1",
+                taskStartTime < visibleStart ? "rounded-l-none" : "rounded-l",
+                taskEndTime > visibleEnd ? "rounded-r-none" : "rounded-r",
+                hasOverlap && "ring-2 ring-amber-500/80 ring-offset-0"
+              )}
               style={{
                 left: `${startIndex * 40}px`,
                 width: `${barWidthDays * 40}px`,
                 backgroundColor: getPicColor(task.pic, pics),
               }}
-            />
+            >
+              {hasOverlap && barWidthDays >= 1 && (
+                <span className="text-[9px] font-black text-amber-200 bg-black/50 px-1 py-0.2 rounded shadow-2xs tracking-tighter" title="Overlap Task">
+                  !!
+                </span>
+              )}
+            </div>
           );
         })()}
       </div>
@@ -409,7 +479,7 @@ function TaskRow({ task, dates, holidays, pics, onEdit, onDelete, onUpdateStatus
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger, expandAllTrigger }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger, expandAllTrigger }: any) {
   const {
     attributes,
     listeners,
@@ -502,6 +572,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpi
                 dates={dates} 
                 holidays={holidays}
                 pics={pics}
+                overlapInfo={overlapMap?.get(task.id)}
                 onEdit={onEditTask} 
                 onDelete={onDeleteTask}
                 onUpdateStatus={onUpdateTaskStatus}
@@ -519,6 +590,9 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, onEditEpic, onDeleteEpi
 // -------------------------------------------------------------
 
 export default function TimelinePage() {
+  const confirm = useConfirm();
+  const alertModal = useAlertModal();
+
   const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
   const { data: holidays } = useCollection<any>("timelineHolidays");
@@ -538,6 +612,32 @@ export default function TimelinePage() {
   
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
+
+  const handleDeleteEpic = async (epic: any) => {
+    const ok = await confirm({
+      title: "Hapus Epic?",
+      description: `Apakah Anda yakin ingin menghapus Epic "${epic.name}" beserta seluruh task di dalamnya? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Hapus Epic",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
+      await deleteEpic(epic.id);
+    }
+  };
+
+  const handleDeleteTask = async (task: any) => {
+    const ok = await confirm({
+      title: "Hapus Task?",
+      description: `Apakah Anda yakin ingin menghapus task "${task.name}"?`,
+      confirmText: "Hapus Task",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
+      await deleteTask(task.id);
+    }
+  };
 
   const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
     try {
@@ -573,35 +673,15 @@ export default function TimelinePage() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const dates = useMemo(() => {
-    // Dynamic date range based on tasks, or default to current month
-    let start = new Date();
-    start.setDate(1); // First day of current month
-    start.setHours(0,0,0,0);
-    
-    let end = new Date();
-    end.setMonth(end.getMonth() + 2);
-    end.setDate(0); // Last day of next month
-    end.setHours(0,0,0,0);
+  const [rangeConfig, setRangeConfig] = useState<DateRangeConfig>({ preset: "auto" });
 
-    if (localTasks.length > 0) {
-      const taskDates = localTasks.map(t => new Date(t.startDate).getTime()).filter(t => !isNaN(t));
-      if (taskDates.length > 0) {
-        const minDate = new Date(Math.min(...taskDates));
-        minDate.setHours(0, 0, 0, 0);
-        minDate.setDate(minDate.getDate() - 5); // Add some padding
-        if (minDate < start) start = minDate;
-        
-        const maxDate = new Date(Math.max(...taskDates));
-        maxDate.setHours(0, 0, 0, 0);
-        // Add max MD to maxDate roughly (assume max 30)
-        maxDate.setDate(maxDate.getDate() + 30);
-        if (maxDate > end) end = maxDate;
-      }
-    }
-    
-    return getDatesInRange(start, end);
-  }, [localTasks]);
+  const dates = useMemo(() => {
+    return computeTimelineDates(rangeConfig, localTasks);
+  }, [rangeConfig, localTasks]);
+
+  const overlapMap = useMemo(() => {
+    return computeAllTaskOverlaps(localTasks, holidays, orderedEpics);
+  }, [localTasks, holidays, orderedEpics]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -719,6 +799,7 @@ export default function TimelinePage() {
           <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row w-full sm:w-auto">
+          <DateRangeFilter rangeConfig={rangeConfig} onChange={setRangeConfig} tasks={localTasks} />
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 sm:px-4")}>
               <Filter className="w-4 h-4 sm:mr-2" />
@@ -751,7 +832,7 @@ export default function TimelinePage() {
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, pics)} variant="outline" className="px-3 sm:px-4">
+          <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, pics, (msg) => alertModal({ title: "Export Excel", description: msg, variant: "info" }))} variant="outline" className="px-3 sm:px-4">
             <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Export Excel</span>
             <span className="sm:hidden">Excel</span>
@@ -764,10 +845,6 @@ export default function TimelinePage() {
             <span className="hidden sm:inline">Holidays</span>
             <span className="sm:hidden">Hol</span>
           </Button>
-          <Button onClick={() => setIsPicsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
-            <span className="hidden sm:inline">PICs</span>
-            <span className="sm:hidden">PICs</span>
-          </Button>
           <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline" className="px-3 sm:px-4">
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">New Epic</span>
@@ -777,7 +854,7 @@ export default function TimelinePage() {
             <span className="hidden sm:inline">New Task</span>
           </Button>
           <EpicDialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen} epicToEdit={editingEpic} />
-          <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} />
+          <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} />
           <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
           <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
           <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={pics} />
@@ -883,11 +960,12 @@ export default function TimelinePage() {
                           dates={dates}
                           holidays={holidays}
                           pics={pics || []}
+                          overlapMap={overlapMap}
                           onEditEpic={(e: any) => { setEditingEpic(e); setIsEpicDialogOpen(true); }}
-                          onDeleteEpic={(e: any) => confirm("Delete Epic and all tasks?") && deleteEpic(e.id)}
+                          onDeleteEpic={handleDeleteEpic}
                           onAddTaskToEpic={(e: any) => { setEditingTask({ epicId: e.id }); setIsTaskDialogOpen(true); }}
                           onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
-                          onDeleteTask={(t: any) => confirm("Delete Task?") && deleteTask(t.id)}
+                          onDeleteTask={handleDeleteTask}
                           onUpdateTaskStatus={handleUpdateTaskStatus}
                           collapseAllTrigger={collapseAllTrigger}
                           expandAllTrigger={expandAllTrigger}

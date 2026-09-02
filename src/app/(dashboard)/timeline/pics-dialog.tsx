@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/confirm-dialog-provider";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -31,6 +32,7 @@ export function PicsDialog({
   open?: boolean,
   onOpenChange?: (open: boolean) => void
 }) {
+  const confirm = useConfirm();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
@@ -122,7 +124,16 @@ export function PicsDialog({
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        onClick={() => confirm("Delete this PIC?") && deletePic(pic.id)}
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: "Hapus PIC?",
+                            description: `Apakah Anda yakin ingin menghapus PIC "${pic.name}"?`,
+                            confirmText: "Hapus PIC",
+                            cancelText: "Batal",
+                            variant: "destructive",
+                          });
+                          if (ok) deletePic(pic.id);
+                        }}
                         className="text-destructive hover:bg-destructive/10"
                       >
                         <Trash2 className="w-4 h-4" />

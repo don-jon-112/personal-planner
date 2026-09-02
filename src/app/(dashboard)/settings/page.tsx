@@ -11,6 +11,7 @@ import { CloudUpload, CloudDownload, Server, ServerOff } from "lucide-react";
 import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection, terminate, clearIndexedDbPersistence } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
+import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
 
 const ALL_COLLECTIONS = [
   "appSettings",
@@ -25,6 +26,8 @@ const ALL_COLLECTIONS = [
 ];
 
 export default function SettingsPage() {
+  const confirm = useConfirm();
+  const alertModal = useAlertModal();
   const queryClient = useQueryClient();
   const { data: menuSettings, isLoading } = useDocument<any>("appSettings", "menu");
   const { mutate: setMenuSettings } = useSetDocument("appSettings");
@@ -55,17 +58,25 @@ export default function SettingsPage() {
           if (localStorage.getItem('syncMode') !== 'online') {
             await disableNetwork(db);
           }
-          alert("Successfully downloaded latest data FROM Firebase! Local data has been overwritten.");
+          await alertModal({
+            title: "Download Berhasil",
+            description: "Berhasil mengunduh data terbaru dari Firebase. Data lokal telah diperbarui!",
+            variant: "success",
+          });
         } catch (e) {
           console.error(e);
-          alert("Error fetching from Firebase after reload.");
+          await alertModal({
+            title: "Gagal Mengunduh",
+            description: "Terjadi kesalahan saat mengambil data dari Firebase.",
+            variant: "error",
+          });
         } finally {
           setIsSyncingDown(false);
         }
       }
     };
     checkPendingSync();
-  }, [queryClient]);
+  }, [queryClient, alertModal]);
 
   const toggleNetworkMode = async () => {
     try {
@@ -82,14 +93,26 @@ export default function SettingsPage() {
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to change network mode.");
+      await alertModal({
+        title: "Gagal Mengubah Mode",
+        description: "Gagal mengubah mode jaringan.",
+        variant: "error",
+      });
     }
   };
 
   const handleSyncToFirebase = async () => {
-    if (!window.confirm("Are you sure you want to push all your local changes to Firebase? This will overwrite conflicting data on the server.")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Push Data ke Cloud Firebase?",
+      description: "Apakah Anda yakin ingin mengirim semua perubahan lokal ke Firebase? Data konflik di server akan ditimpa dengan data lokal.",
+      confirmText: "Push ke Firebase",
+      cancelText: "Batal",
+      variant: "warning",
+      icon: "warning",
+    });
+
+    if (!ok) return;
+
     try {
       setIsSyncingUp(true);
       await enableNetwork(db);
@@ -97,19 +120,35 @@ export default function SettingsPage() {
       // Brief delay to ensure connections settle
       await new Promise(r => setTimeout(r, 1000));
       if (!isOnline) await disableNetwork(db);
-      alert("Successfully synced local changes TO Firebase!");
+      await alertModal({
+        title: "Sinkronisasi Berhasil",
+        description: "Perubahan lokal berhasil disinkronkan ke Firebase!",
+        variant: "success",
+      });
     } catch (e) {
       console.error(e);
-      alert("Error syncing to Firebase.");
+      await alertModal({
+        title: "Gagal Sinkronisasi",
+        description: "Terjadi kesalahan saat sinkronisasi ke Firebase.",
+        variant: "error",
+      });
     } finally {
       setIsSyncingUp(false);
     }
   };
 
   const handleSyncFromFirebase = async () => {
-    if (!window.confirm("Are you sure you want to overwrite all local data with Cloud data? This will clear your local database and you will lose any unsynced changes.")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Overwrite Data dari Cloud?",
+      description: "Apakah Anda yakin ingin menimpa seluruh data lokal dengan data dari Cloud? Database lokal Anda akan dibersihkan dan perubahan lokal yang belum disinkronkan akan hilang.",
+      confirmText: "Timpa Data Lokal",
+      cancelText: "Batal",
+      variant: "destructive",
+      icon: "warning",
+    });
+
+    if (!ok) return;
+
     try {
       setIsSyncingDown(true);
       
@@ -122,7 +161,11 @@ export default function SettingsPage() {
       window.location.reload();
     } catch (e) {
       console.error(e);
-      alert("Error clearing local database.");
+      await alertModal({
+        title: "Gagal Membersihkan Database",
+        description: "Terjadi kesalahan saat membersihkan database lokal.",
+        variant: "error",
+      });
       setIsSyncingDown(false);
     }
   };
@@ -165,12 +208,57 @@ export default function SettingsPage() {
             ) : (
               <div className="space-y-4">
                 {menuItems.map((item) => {
-                  const isHidden = hiddenMenus.includes(item.href);
+                  if (item.children) {
+                    return (
+                      <div key={item.name} className="space-y-2">
+                        <div className="flex items-center gap-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          <item.icon className="w-3.5 h-3.5" />
+                          <span>{item.name}</span>
+                        </div>
+                        <div className="space-y-2 pl-3 border-l-2 border-primary/30">
+                          {item.children.map((subItem) => {
+                            const isHidden = hiddenMenus.includes(subItem.href);
+                            const SubIcon = subItem.icon || item.icon;
+
+                            return (
+                              <div key={subItem.href} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 rounded bg-background shadow-sm border">
+                                    <SubIcon className="w-4 h-4 text-primary" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-sm">{subItem.name}</p>
+                                    <p className="text-xs text-muted-foreground">{subItem.href}</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-4">
+                                  <span className="text-xs font-medium flex items-center gap-1 sm:min-w-[60px] justify-end">
+                                    {isHidden ? (
+                                      <><EyeOff className="w-4 h-4 sm:w-3 sm:h-3 text-muted-foreground" /> <span className="text-muted-foreground hidden sm:inline">Hidden</span></>
+                                    ) : (
+                                      <><Eye className="w-4 h-4 sm:w-3 sm:h-3 text-primary" /> <span className="text-primary hidden sm:inline">Visible</span></>
+                                    )}
+                                  </span>
+                                  <Switch 
+                                    checked={!isHidden} 
+                                    onCheckedChange={() => toggleMenu(subItem.href)}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const isHidden = hiddenMenus.includes(item.href || "");
                   // Cannot hide dashboard
                   const isDisabled = item.href === "/";
                   
                   return (
-                    <div key={item.href} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
+                    <div key={item.href || item.name} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded bg-background shadow-sm border">
                           <item.icon className="w-4 h-4 text-primary" />
@@ -191,7 +279,7 @@ export default function SettingsPage() {
                         </span>
                         <Switch 
                           checked={!isHidden} 
-                          onCheckedChange={() => toggleMenu(item.href)}
+                          onCheckedChange={() => toggleMenu(item.href || "")}
                           disabled={isDisabled}
                         />
                       </div>

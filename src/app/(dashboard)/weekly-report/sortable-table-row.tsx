@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useConfirm } from "@/components/confirm-dialog-provider";
 
 export function SortableTableRow({
   report,
@@ -20,6 +21,7 @@ export function SortableTableRow({
   onEdit: (report: any) => void;
   onDelete: (report: any) => void;
 }) {
+  const confirm = useConfirm();
   const {
     attributes,
     listeners,
@@ -98,8 +100,15 @@ export function SortableTableRow({
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive"
-              onClick={() => {
-                if (confirm("Delete this report?")) {
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Hapus Laporan?",
+                  description: `Apakah Anda yakin ingin menghapus laporan "${report.task}"?`,
+                  confirmText: "Hapus Laporan",
+                  cancelText: "Batal",
+                  variant: "destructive",
+                });
+                if (ok) {
                   onDelete(report);
                 }
               }}

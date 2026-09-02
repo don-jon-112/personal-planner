@@ -12,12 +12,12 @@ import { useCollection } from "@/hooks/use-firestore";
 import { formatDistanceToNow } from "date-fns";
 
 export default function Home() {
-  const { data: todos } = useCollection<any>("todos");
+  const { data: tasks } = useCollection<any>("timelineTasks");
   const { data: notes } = useCollection<any>("notes");
   const { data: bugs } = useCollection<any>("bugReports");
 
-  const totalTasks = todos?.length || 0;
-  const inProgressTasks = todos?.filter((t: any) => t.status === "In Progress" || t.status === "Pending" || t.status === "Doing").length || 0;
+  const totalTasks = tasks?.length || 0;
+  const inProgressTasks = tasks?.filter((t: any) => t.status === "ON PROGRESS" || t.status === "IN REVIEW" || t.status === "ON REVIEW" || t.status === "In Progress" || t.status === "In Review" || t.status === "Pending" || t.status === "Doing").length || 0;
   const totalNotes = notes?.length || 0;
   const activeBugs = bugs?.filter((b: any) => b.status !== "Closed" && b.status !== "Resolved" && b.status !== "Done").length || 0;
 
@@ -28,7 +28,7 @@ export default function Home() {
   };
 
   const activities = [
-    ...(todos || []).map((t: any) => ({ id: t.id, type: 'task', title: `Task: ${t.task}`, time: getTime(t) })),
+    ...(tasks || []).map((t: any) => ({ id: t.id, type: 'task', title: `Task: ${t.name || t.task}`, time: getTime(t) })),
     ...(notes || []).map((n: any) => ({ id: n.id, type: 'note', title: `Note: ${n.title}`, time: getTime(n) })),
     ...(bugs || []).map((b: any) => ({ id: b.id, type: 'bug', title: `Bug: ${b.summary}`, time: getTime(b) })),
   ].sort((a, b) => b.time - a.time).slice(0, 5);

@@ -1,58 +1,73 @@
-# 📋 Personal Planner App
+# 📅 Personal Planner & Timeline
 
-A modern, responsive, offline-first personal management and timeline planner built with **Next.js (App Router)**, **TailwindCSS**, **Shadcn UI**, and **Firebase (Firestore)**.
+A modern, fast, and feature-rich **Work Planner & Project Timeline Management Application** built with **Next.js (App Router)**, **Tailwind CSS**, and **Firebase Cloud Firestore**.
 
 ---
 
 ## ✨ Features
 
-- 📊 **Dashboard**: Summary metrics for tasks, notes, active bugs, and recent activity log.
-- 📅 **Weekly Report**: Structured weekly activity logging and report generation.
-- ✅ **Todo Plan**: Priority task lists with status tracking.
-- 📝 **Notes**: Personal note-taking system.
-- 🗓️ **Timeline (Gantt View)**:
-  - Interactive Gantt chart view with drag-and-drop support.
-  - PIC color customization.
-  - Export schedule to Excel (`.xls`) complete with full Gantt date grid, colors, and weekend/holiday highlighting.
-- 🐛 **Bug & Report**:
-  - Dual view: **Kanban Board** & **Table View**.
-  - Direct integration with **JIRA Ticket Numbers**.
-- 🔒 **Authentication & Guest Mode**: Admin full access & Guest timeline read-only access.
-- ⚡ **Offline-First Sync**: Powered by Firestore IndexedDB persistence to minimize Firebase quota usage. Manual and online sync toggles available in Settings.
+- 📋 **Todo & Epic Planner**: Manage tasks grouped by Epics with drag-and-drop ordering, status tracking, mandays estimation, and bulk Excel (`.xlsx`) import.
+- 📊 **Interactive Timeline & Gantt View**: Visual project schedule with zoom levels (Day, Week, Month), progress indicators, and custom date ranges.
+- 👥 **PIC & Workload Management**: Assign tasks to team members with customizable color badges and workload analytics.
+- 🌐 **Guest Timeline (Client / Read-Only View)**: Dedicated protected view for stakeholders and clients without exposing sensitive dashboard controls.
+- 📝 **Weekly Report Generator**: Generate structured weekly summaries ready to copy or export.
+- 🐛 **Bug Tracker**: Log, prioritize, and track issue resolutions alongside sprint tasks.
+- ⚡ **Offline-First Persistence**: Powered by IndexedDB cache with optional cloud sync to minimize Firebase quota usage.
+- 📱 **Progressive Web App (PWA)**: Installable as an app on Windows, macOS, Android, and iOS.
 
 ---
 
-## ⚡ Quick Deployment Guide (No Local Setup / Cloning Needed!)
+## 🛠️ Tech Stack
 
-You can deploy your own instance of Personal Planner in under 5 minutes without cloning or coding locally.
-
----
-
-### Step 1: Fork the Repository
-
-1. Click the **Fork** button at the top-right of this GitHub repository.
-2. Click **Create Fork** to copy this project into your own GitHub account.
+- **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
+- **UI & Styling**: [Tailwind CSS v4](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/), Lucide Icons
+- **Database & Sync**: [Firebase Cloud Firestore](https://firebase.google.com/) (with offline persistence)
+- **Drag & Drop**: [@dnd-kit](https://dndkit.com/)
+- **Spreadsheet Processing**: [SheetJS (xlsx)](https://sheetjs.com/)
+- **Deployment**: [Vercel](https://vercel.com/)
 
 ---
 
-### Step 2: Firebase Setup & Firestore Rules
+## 🚀 Quick Deployment Guide
 
-1. **Create a Firebase Project**:
-   - Go to [Firebase Console](https://console.firebase.google.com/).
-   - Click **Add Project** and follow the prompts to create your project.
+You can deploy your own instance in a few simple steps:
 
-2. **Add a Web App**:
-   - In Project Overview, click the **Web icon (`</>`)** to register a web app.
-   - Copy your **Firebase Configuration** keys (`apiKey`, `projectId`, `authDomain`, etc.).
+### Step 1: Fork or Save to Your GitHub
+1. Click the **Fork** button at the top right of this repository to copy it into your own GitHub account.
+2. (Optional) You can make your forked repository **Public** or **Private**.
 
-3. **Enable Firestore Database**:
-   - Go to **Build > Firestore Database** in the left sidebar.
-   - Click **Create Database** and choose your preferred location (e.g., `asia-southeast1`).
-   - Start in **Production Mode** or **Test Mode**.
+---
 
-4. **Set Firestore Security Rules**:
-   - In Firestore Database, click the **Rules** tab.
-   - Paste the following rule and click **Publish**:
+### Step 2: Setup Firebase
+
+The application uses **Firebase Cloud Firestore** as its database.
+
+#### 1. Create a Firebase Project
+1. Open the [Firebase Console](https://console.firebase.google.com/).
+2. Click **Add project** (or **Create a project**).
+3. Enter a project name (e.g. `my-work-planner`) and complete the creation steps.
+
+#### 2. Register a Web App
+1. In your Firebase Project Overview, click the **Web icon (`</>`)** to add a new web app.
+2. Give it a nickname (e.g. `Work Planner Web`) and click **Register app**.
+3. You will see your `firebaseConfig` keys:
+   - `apiKey`
+   - `authDomain`
+   - `projectId`
+   - `storageBucket`
+   - `messagingSenderId`
+   - `appId`
+   - `measurementId` (optional)
+   *(Keep this tab open or copy these values for Vercel Environment Variables).*
+
+#### 3. Enable Cloud Firestore
+1. In the Firebase left sidebar, go to **Build** -> **Firestore Database**.
+2. Click **Create database**.
+3. Select your preferred server location (e.g. `asia-southeast2` for Jakarta / `asia-east1` for Singapore/Tokyo).
+4. Start in **Production mode** (or Test mode).
+
+#### 4. Configure Firestore Security Rules
+Go to the **Rules** tab in Cloud Firestore and paste the following rules:
 
 ```javascript
 rules_version = '2';
@@ -64,66 +79,50 @@ service cloud.firestore {
   }
 }
 ```
+Click **Publish**.
+
+> 💡 **Note**: The app automatically creates all necessary Firestore collections (`timelineEpics`, `timelineTasks`, `timelinePics`, `bugs`, `notes`, `settings`) on first use.
 
 ---
 
-### Step 3: Deploy to Vercel & Setup Environment Variables
+### Step 3: Deploy to Vercel
 
-1. **Import to Vercel**:
-   - Log in to [Vercel](https://vercel.com/new).
-   - Click **Add New > Project** and select your forked `personal-planner` repository.
-   - Vercel will automatically detect **Next.js** as the Framework Preset.
-
-2. **Add Environment Variables in Vercel**:
-   - Expand the **Environment Variables** section before clicking Deploy.
-   - Add the following keys with values from your Firebase Console & your desired app passwords:
-
-| Environment Variable | Description | Where to Obtain / How to Get |
-|---|---|---|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API Key | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `apiKey` |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `authDomain` |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Project ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `projectId` |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `storageBucket` |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase App ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `appId` |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | *(Optional)* Firebase Messaging Sender ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `messagingSenderId` |
-| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | *(Optional)* Firebase Analytics Measurement ID | **Firebase Console** &rarr; Project Settings &rarr; General &rarr; *Your apps* &rarr; `measurementId` |
-| `SITE_PASSWORD` | Admin Full Access Password | **Custom Choice**: Set any strong password you want to use for Admin login. |
-| `GUESS_PASSWORD` | Guest Read-Only Password | **Custom Choice**: Set any password you want to share with guests for read-only timeline access. |
-| `NEXT_PUBLIC_JIRA_BASE_URL` | *(Optional)* JIRA Instance Base URL | **Your Company JIRA URL**: e.g., `https://your-company.atlassian.net/browse/` |
-
-3. **Click Deploy**:
-   - Vercel will build and host your application. You will get a live URL (e.g. `https://your-planner.vercel.app`).
+1. Log in to [Vercel](https://vercel.com/).
+2. Click **Add New...** -> **Project**.
+3. Select and **Import** your forked `personal-planner` repository from GitHub.
+4. **Framework Preset**: `Next.js` (detected automatically).
+5. Open the **Environment Variables** section and add the variables listed below.
 
 ---
 
-## 💻 (Optional) Local Development
+## 🔑 Environment Variables Reference
 
-If you want to edit code or test locally on your computer:
+Add the following environment variables in your **Vercel Project Settings** (or `.env.local` if running locally):
 
-1. **Clone your forked repository**:
-   ```bash
-   git clone https://github.com/<YOUR_USERNAME>/personal-planner.git
-   cd personal-planner
-   npm install
-   ```
+| Variable Name | Required | Description | Example / Source |
+| :--- | :---: | :--- | :--- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | **Yes** | Firebase Web API Key | `AIzaSy...` (from Firebase Config) |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | **Yes** | Firebase Auth Domain | `your-project-id.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | **Yes** | Firebase Project ID | `your-project-id` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | **Yes** | Firebase Storage Bucket URL | `your-project-id.firebasestorage.app` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | **Yes** | Firebase Messaging Sender ID | `1234567890` (numeric) |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | **Yes** | Firebase Web App ID | `1:1234567890:web:abcdef...` |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | No | Google Analytics Measurement ID | `G-XXXXXXXXXX` (optional) |
+| `SITE_PASSWORD` | **Yes** | Master Admin access password | Any secret password (e.g. `AdminPassword2026!`) |
+| `GUESS_PASSWORD` | **Yes** | Guest / Client access password | Any password (e.g. `ClientView2026!`) |
 
-2. **Create `.env.local` file**:
-   Add the environment variables listed in the table above into a `.env.local` file.
-
-3. **Run local dev server**:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000).
+### 🔒 Access Roles Explained
+- **`SITE_PASSWORD`**: Provides full access to the complete dashboard (Todo, Epics, Gantt Timeline, PICs, Bugs, Notes, Settings, Import & Export).
+- **`GUESS_PASSWORD`**: Restricted read-only view designed for clients and stakeholders, granting access strictly to the `/guest-timeline` page.
 
 ---
 
-## 🛠️ Built With
+### Step 4: Launch!
+1. Click **Deploy** in Vercel.
+2. Once the build completes, open your production URL (e.g., `https://your-planner.vercel.app`).
+3. Enter your `SITE_PASSWORD` to log in and start planning!
 
-- **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
-- **Styling**: [TailwindCSS 4](https://tailwindcss.com/)
-- **UI Components**: [Shadcn UI](https://ui.shadcn.com/), [Base UI](https://base-ui.com/)
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Database & Sync**: [Firebase Firestore](https://firebase.google.com/)
-- **Drag & Drop**: [@dnd-kit](https://dndkit.com/)
-- **Deployment**: [Vercel](https://vercel.com/)
+---
+
+## 📄 License
+This project is open-source and available under the [MIT License](LICENSE).
