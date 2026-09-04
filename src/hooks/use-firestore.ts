@@ -34,13 +34,17 @@ export function useCollection<T>(collectionName: string) {
   });
 }
 
-// Helper to strip undefined values so Firestore never throws "Unsupported field value: undefined"
+// Helper to strip undefined values recursively so Firestore never throws "Unsupported field value: undefined"
 function cleanUndefined(obj: any): any {
-  if (!obj || typeof obj !== 'object') return obj;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(cleanUndefined);
+  // Do not modify special objects (Date, RegExp, or Firestore FieldValues/Snapshots)
+  if (obj.constructor && obj.constructor.name !== 'Object') return obj;
+  
   const clean: any = {};
   for (const [key, val] of Object.entries(obj)) {
     if (val !== undefined) {
-      clean[key] = val;
+      clean[key] = cleanUndefined(val);
     }
   }
   return clean;
@@ -163,14 +167,15 @@ export function useSetDocument(collectionName: string) {
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
+      const sanitized = cleanUndefined(data);
       // use merge: true to avoid overwriting fields not specified
       const writePromise = setDoc(docRef, {
-        ...data,
+        ...sanitized,
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      if (mode !== 'online') return { id, ...data };
+      if (mode !== 'online') return { id, ...sanitized };
       await writePromise;
-      return { id, ...data };
+      return { id, ...sanitized };
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });
