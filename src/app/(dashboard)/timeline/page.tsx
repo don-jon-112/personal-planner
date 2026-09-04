@@ -863,14 +863,6 @@ export default function TimelinePage() {
                   <Calendar className="w-3.5 h-3.5 mr-2 text-primary" />
                   Manage Holidays
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setExpandAllTrigger((t) => t + 1)}>
-                  <ChevronDown className="w-3.5 h-3.5 mr-2" />
-                  Expand All Epics
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCollapseAllTrigger((t) => t + 1)}>
-                  <ChevronUp className="w-3.5 h-3.5 mr-2" />
-                  Collapse All Epics
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -892,10 +884,10 @@ export default function TimelinePage() {
                 <ChevronDown className="w-3 h-3 opacity-60" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuLabel>Client Sharing</DropdownMenuLabel>
+                <DropdownMenuLabel>Sharing</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => setIsShareDialogOpen(true)}>
                   <Share2 className="w-3.5 h-3.5 mr-2 text-primary" />
-                  <span>Share with Client...</span>
+                  <span>Share Link</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Export Roadmap</DropdownMenuLabel>

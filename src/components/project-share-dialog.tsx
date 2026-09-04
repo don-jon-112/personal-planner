@@ -126,12 +126,12 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] w-[calc(100vw-2rem)] max-w-full overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-            <Share2 className="w-5 h-5 text-primary" /> Share Project with Client
+            <Share2 className="w-5 h-5 text-primary" /> Share Link
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="break-words">
             Berikan akses pantau jadwal & timeline khusus untuk klien pada project{" "}
             <span className="font-semibold text-foreground">
               {activeProject?.name || "ini"}
@@ -139,26 +139,26 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 min-w-0">
           {/* Status Banner */}
           <div
-            className={`p-3 rounded-xl border flex items-center justify-between transition-colors ${
+            className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
               isEnabled
                 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
                 : "bg-muted/40 border-border text-muted-foreground"
             }`}
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
               {isEnabled ? (
-                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
               ) : (
-                <ShieldAlert className="w-5 h-5 opacity-70" />
+                <ShieldAlert className="w-5 h-5 opacity-70 shrink-0 mt-0.5 sm:mt-0" />
               )}
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold uppercase tracking-wider">
                   Status Link: {isEnabled ? "Aktif (Public)" : "Nonaktif (Dimatikan)"}
                 </p>
-                <p className="text-[11px] opacity-80">
+                <p className="text-[11px] opacity-80 leading-relaxed break-words">
                   {isEnabled
                     ? "Klien yang memiliki link dapat melihat timeline (View-Only)"
                     : "Akses dinonaktifkan. Klien tidak dapat membuka timeline"}
@@ -172,7 +172,7 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
               variant={isEnabled ? "default" : "outline"}
               onClick={handleToggleActive}
               disabled={isUpdating}
-              className="text-xs h-8 px-3"
+              className="text-xs h-8 px-3 shrink-0 self-start sm:self-auto"
             >
               {isUpdating ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -186,15 +186,15 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
 
           {/* Public Link Box */}
           {isEnabled && (
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
                 <span>Tautan Khusus Klien</span>
                 <span className="text-[10px] text-primary flex items-center gap-1">
                   <Lock className="w-3 h-3" /> Read-Only Secure
                 </span>
               </Label>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-muted/40 border rounded-lg px-3 py-2 text-xs font-mono truncate select-all">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex-1 min-w-0 bg-muted/40 border rounded-lg px-3 py-2 text-xs font-mono truncate select-all overflow-hidden text-ellipsis">
                   {shareUrl}
                 </div>
                 <Button
@@ -220,14 +220,14 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between pt-1 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-xs">
                 <a
                   href={shareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline flex items-center gap-1 font-medium"
+                  className="text-primary hover:underline flex items-center gap-1 font-medium truncate"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                   Pratinjau Tampilan Klien
                 </a>
 
@@ -235,9 +235,9 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
                   type="button"
                   onClick={handleRegenerateToken}
                   disabled={isUpdating}
-                  className="text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 text-[11px] cursor-pointer"
+                  className="text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 text-[11px] cursor-pointer self-start sm:self-auto"
                 >
-                  <RotateCw className="w-3 h-3" />
+                  <RotateCw className="w-3 h-3 shrink-0" />
                   Reset / Ganti Link Baru
                 </button>
               </div>
@@ -245,11 +245,11 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
           )}
 
           {/* Privacy Notice Card */}
-          <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1.5 text-xs text-muted-foreground">
+          <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1.5 text-xs text-muted-foreground min-w-0">
             <p className="font-semibold text-foreground flex items-center gap-1.5">
               🛡️ Privasi & Keamanan Data:
             </p>
-            <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed">
+            <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed break-words">
               <li>
                 Klien <strong>hanya dapat melihat</strong> task dan timeline project ini saja.
               </li>
