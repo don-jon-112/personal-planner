@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -80,15 +79,15 @@ export function ProjectSwitcher({ variant = "sidebar", className }: ProjectSwitc
           align={variant === "sidebar" ? "start" : "center"}
           className="w-64 p-1.5 shadow-xl border-border"
         >
-          <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1 flex items-center justify-between">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5 flex items-center justify-between">
             <span>Projects ({projects.length})</span>
             <Link
               href="/projects"
-              className="text-[10px] normal-case text-primary hover:underline flex items-center gap-1 font-medium"
+              className="text-[10px] normal-case text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer"
             >
               <Layers className="w-3 h-3" /> View All
             </Link>
-          </DropdownMenuLabel>
+          </div>
           <DropdownMenuSeparator />
 
           <div className="max-h-60 overflow-y-auto space-y-0.5 py-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import { Project } from "@/types/project";
 import { useCollection, useAddDocument, useUpdateDocument, useDeleteDocument } from "@/hooks/use-firestore";
 
@@ -82,12 +82,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }
   }, [projects]);
 
-  const setActiveProjectId = (id: string) => {
+  const setActiveProjectId = useCallback((id: string) => {
     setActiveProjectIdState(id);
     if (typeof window !== "undefined") {
       localStorage.setItem(LOCAL_STORAGE_KEY, id);
     }
-  };
+  }, []);
 
   const activeProject = useMemo(() => {
     return projects.find((p) => p.id === activeProjectId) || projects[0] || null;
@@ -123,14 +123,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
    * If the active project is the default project (or the first project created),
    * items with undefined or null projectId will also be treated as matching for backward compatibility.
    */
-  const isItemInActiveProject = (itemProjectId?: string) => {
+  const isItemInActiveProject = useCallback((itemProjectId?: string) => {
     if (!activeProject) return true;
     if (itemProjectId) {
       return itemProjectId === activeProject.id;
     }
     // Backward compatibility: items without projectId belong to the default project
     return !!activeProject.isDefault || activeProject.id === projects[0]?.id;
-  };
+  }, [activeProject, projects]);
 
   return (
     <ProjectContext.Provider
