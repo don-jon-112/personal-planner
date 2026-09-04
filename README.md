@@ -16,6 +16,7 @@ A modern, fast, and feature-rich **Work Planner & Project Timeline Management Ap
 - 🐛 **Bug Tracker**: Log, prioritize, and track issue resolutions alongside sprint tasks for the active project.
 - 📝 **Personal Scratchpad Notes**: Global notes system that acts as your personal "second brain" across all projects.
 - ⚡ **Offline-First Persistence with Cloud Sync**: Powered by IndexedDB cache to minimize Firebase quota usage, complete with 1-click cloud sync buttons.
+- 💾 **Local Database Backup & Restore (.json)**: Export complete database snapshots to structured JSON files on your local computer, and restore them directly to Cloud Firebase anytime with automated batch commit and integrity validation.
 - 📱 **Progressive Web App (PWA)**: Installable as an app on Windows, macOS, Android, and iOS.
 
 ---

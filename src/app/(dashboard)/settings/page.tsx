@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Settings as SettingsIcon, Eye, EyeOff } from "lucide-react";
 import { useDocument, useSetDocument } from "@/hooks/use-firestore";
 import { menuItems } from "@/config/menu";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { CloudUpload, CloudDownload, Server, ServerOff } from "lucide-react";
-import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection, terminate, clearIndexedDbPersistence } from "firebase/firestore";
+import { CloudUpload, CloudDownload, Server, ServerOff, Database, FileDown, FileUp, Loader2 } from "lucide-react";
+import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection, doc, writeBatch, terminate, clearIndexedDbPersistence } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
@@ -26,6 +26,21 @@ const ALL_COLLECTIONS = [
   "weeklyReports"
 ];
 
+// Helper to sanitize undefined values so Firestore never throws unsupported field errors
+function cleanUndefined(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(cleanUndefined);
+  if (obj.constructor && obj.constructor.name !== 'Object') return obj;
+  
+  const clean: any = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      clean[key] = cleanUndefined(val);
+    }
+  }
+  return clean;
+}
+
 export default function SettingsPage() {
   const confirm = useConfirm();
   const alertModal = useAlertModal();
@@ -37,6 +52,9 @@ export default function SettingsPage() {
   const [isSyncingUp, setIsSyncingUp] = useState(false);
   const [isSyncingDown, setIsSyncingDown] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (menuSettings?.hiddenMenus) {
@@ -178,6 +196,193 @@ export default function SettingsPage() {
       
     setHiddenMenus(newHidden);
     setMenuSettings({ id: "menu", data: { hiddenMenus: newHidden } });
+  };
+
+  const handleBackupToFile = async () => {
+    try {
+      setIsBackingUp(true);
+
+      const backupCollections: Record<string, any[]> = {};
+      let totalCount = 0;
+      const stats: Record<string, number> = {};
+
+      for (const col of ALL_COLLECTIONS) {
+        const snap = await getDocs(collection(db, col));
+        const items: any[] = [];
+        snap.forEach((d) => {
+          items.push({ id: d.id, ...d.data() });
+        });
+        backupCollections[col] = items;
+        stats[col] = items.length;
+        totalCount += items.length;
+      }
+
+      const backupPayload = {
+        appName: "Personal Planner",
+        version: "1.0",
+        exportedAt: new Date().toISOString(),
+        totalDocuments: totalCount,
+        summary: stats,
+        collections: backupCollections,
+      };
+
+      const jsonStr = JSON.stringify(backupPayload, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0];
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `personal-planner-backup-${dateStr}-${timeStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      await alertModal({
+        title: "Backup Berhasil!",
+        description: `Berhasil mengekspor ${totalCount} dokumen ke file "${link.download}". Simpan file ini di tempat yang aman sebagai arsip cadangan Anda.`,
+        variant: "success",
+      });
+    } catch (err: any) {
+      console.error("Backup error:", err);
+      await alertModal({
+        title: "Gagal Backup",
+        description: err?.message || "Terjadi kesalahan saat mengekspor database.",
+        variant: "error",
+      });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch (jsonErr) {
+        await alertModal({
+          title: "File Tidak Valid",
+          description: "File yang Anda pilih bukan format JSON yang valid.",
+          variant: "error",
+        });
+        return;
+      }
+
+      // Check format: support parsed.collections, parsed.data, or direct object
+      const collections = parsed.collections || parsed.data || parsed;
+      if (!collections || typeof collections !== "object") {
+        await alertModal({
+          title: "Format Backup Tidak Dikenali",
+          description: "File JSON ini tidak memiliki struktur backup yang sesuai.",
+          variant: "error",
+        });
+        return;
+      }
+
+      // Count items per collection
+      const stats: string[] = [];
+      let totalDocs = 0;
+
+      for (const col of ALL_COLLECTIONS) {
+        const items = collections[col];
+        if (Array.isArray(items) && items.length > 0) {
+          stats.push(`${col}: ${items.length}`);
+          totalDocs += items.length;
+        }
+      }
+
+      if (totalDocs === 0) {
+        await alertModal({
+          title: "File Kosong",
+          description: "Tidak ditemukan dokumen yang valid pada file backup ini.",
+          variant: "warning",
+        });
+        return;
+      }
+
+      const ok = await confirm({
+        title: "Restore Data ke Firebase?",
+        description: `Ditemukan total ${totalDocs} dokumen (${stats.join(", ")}) dari file "${file.name}". Seluruh data ini akan diunggah dan disimpan ke Firebase Cloud. Apakah Anda yakin ingin melanjutkan?`,
+        confirmText: "Ya, Restore ke Firebase",
+        cancelText: "Batal",
+        variant: "warning",
+        icon: "warning",
+      });
+
+      if (!ok) return;
+
+      setIsRestoring(true);
+
+      // 1. Enable network to push to Firebase Cloud
+      await enableNetwork(db);
+
+      // 2. Commit in safe batches (<= 400 ops per commit)
+      let batch = writeBatch(db);
+      let opCount = 0;
+      let committedDocs = 0;
+
+      for (const col of ALL_COLLECTIONS) {
+        const items = collections[col];
+        if (!Array.isArray(items)) continue;
+
+        for (const item of items) {
+          if (!item || typeof item !== "object") continue;
+          const { id, ...data } = item;
+          const sanitized = cleanUndefined(data);
+          const docRef = id ? doc(db, col, id) : doc(collection(db, col));
+          batch.set(docRef, sanitized, { merge: true });
+          opCount++;
+
+          if (opCount >= 400) {
+            await batch.commit();
+            committedDocs += opCount;
+            batch = writeBatch(db);
+            opCount = 0;
+          }
+        }
+      }
+
+      if (opCount > 0) {
+        await batch.commit();
+        committedDocs += opCount;
+      }
+
+      await waitForPendingWrites(db);
+
+      // 3. Invalidate queries so all pages update immediately
+      await queryClient.invalidateQueries();
+
+      // 4. If user was in offline mode, restore offline state
+      if (localStorage.getItem("syncMode") !== "online") {
+        await disableNetwork(db);
+      }
+
+      await alertModal({
+        title: "Restore Berhasil!",
+        description: `Berhasil memulihkan ${committedDocs} dokumen dari file ke Firebase Cloud! Seluruh data project, task, dan timeline Anda telah diperbarui.`,
+        variant: "success",
+      });
+    } catch (err: any) {
+      console.error("Restore error:", err);
+      await alertModal({
+        title: "Gagal Melakukan Restore",
+        description: err?.message || "Terjadi kesalahan saat memulihkan data ke Firebase.",
+        variant: "error",
+      });
+    } finally {
+      setIsRestoring(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   return (
@@ -350,6 +555,93 @@ export default function SettingsPage() {
                   {isOnline ? <Server className="w-4 h-4 mr-2" /> : <ServerOff className="w-4 h-4 mr-2" />}
                   {isOnline ? "Online Mode" : "Offline Mode"}
                 </Button>
+              </div>
+            </div>
+          </section>
+
+          {/* Local File Backup & Restore Section */}
+          <section className="bg-card border rounded-xl p-6 shadow-sm space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Database className="w-5 h-5 text-primary" />
+                Local Backup & Restore (.JSON)
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Simpan salinan database lengkap ke file JSON di komputer Anda (offline backup), atau pulihkan data dari file backup ke Firebase kapan saja.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Backup to File */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition-colors gap-4">
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                    <FileDown className="w-4 h-4 text-primary" />
+                    Backup Database ke File JSON
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Unduh file JSON yang memuat seluruh project, task, timeline, PIC, catatan, dan bug Anda.
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleBackupToFile} 
+                  disabled={isBackingUp || isRestoring}
+                  size="sm"
+                  className="w-full sm:w-auto shrink-0 gap-2"
+                >
+                  {isBackingUp ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Mengekspor...
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-4 h-4" />
+                      Backup ke File (.json)
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Restore from File */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition-colors gap-4">
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                    <FileUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Restore dari File JSON ke Firebase
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Pilih file backup JSON dari komputer untuk mengunggah dan memulihkan seluruh data langsung ke Cloud Firebase.
+                  </p>
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".json,application/json"
+                    onChange={handleFileSelected}
+                    className="hidden"
+                  />
+                  <Button 
+                    onClick={() => fileInputRef.current?.click()} 
+                    disabled={isBackingUp || isRestoring}
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto shrink-0 gap-2 border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium"
+                  >
+                    {isRestoring ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Memulihkan...
+                      </>
+                    ) : (
+                      <>
+                        <FileUp className="w-4 h-4" />
+                        Pilih File & Restore
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </section>
