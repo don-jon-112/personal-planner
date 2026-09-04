@@ -34,6 +34,7 @@ import { useConfirm } from "@/components/confirm-dialog-provider";
 import { BugDialog } from "./bug-dialog";
 import { KanbanColumn } from "./kanban-column";
 import { BugCard } from "./bug-card";
+import { useProject } from "@/components/project-context";
 
 const COLUMNS = [
   { id: "Open", title: "Open", colorBadgeClass: "bg-red-500" },
@@ -44,6 +45,7 @@ const COLUMNS = [
 
 export default function BugsPage() {
   const confirm = useConfirm();
+  const { activeProject, isItemInActiveProject } = useProject();
   const { data: rawBugs, isLoading } = useCollection<any>("bugReports");
   const { mutate: deleteBug } = useDeleteDocument("bugReports");
   const { mutate: updateBug } = useUpdateDocument("bugReports");
@@ -90,7 +92,9 @@ export default function BugsPage() {
     }
   };
 
-  const filteredBugs = (rawBugs || []).filter((bug: any) => {
+  const projectBugs = (rawBugs || []).filter((b: any) => isItemInActiveProject(b.projectId));
+
+  const filteredBugs = projectBugs.filter((bug: any) => {
     const query = searchQuery.toLowerCase();
     return (
       bug.summary?.toLowerCase().includes(query) ||
@@ -104,8 +108,18 @@ export default function BugsPage() {
     <Panel className="h-full border-t-4 border-t-primary">
       <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-0 gap-4">
         <div className="w-full sm:w-auto">
-          <PanelTitle className="text-2xl font-bold text-secondary-foreground">Bug & Report</PanelTitle>
-          <PanelDescription className="mt-1">Track issues from QA or Users in Kanban or Table view.</PanelDescription>
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
+            Bug & Report
+            {activeProject && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
+                {activeProject.name}
+              </span>
+            )}
+          </PanelTitle>
+          <PanelDescription className="mt-1">
+            Track issues and QA reports for {activeProject?.name || "this project"}.
+          </PanelDescription>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <Button onClick={handleCreate} className="shadow-sm w-full sm:w-auto">

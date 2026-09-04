@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAddDocument, useUpdateDocument } from "@/hooks/use-firestore";
+import { useProject } from "@/components/project-context";
 import { 
   Dialog, 
   DialogContent, 
@@ -44,6 +45,7 @@ export function WeeklyReportDialog({
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
 
+  const { activeProjectId } = useProject();
   const { mutateAsync: addReport, isPending: isAdding } = useAddDocument("weeklyReports");
   const { mutateAsync: updateReport, isPending: isUpdating } = useUpdateDocument("weeklyReports");
 
@@ -77,7 +79,7 @@ export function WeeklyReportDialog({
       if (reportToEdit?.id) {
         await updateReport({ id: reportToEdit.id, data });
       } else {
-        await addReport(data);
+        await addReport({ ...data, projectId: activeProjectId || undefined });
       }
       setOpen(false);
       if (!reportToEdit) form.reset();

@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MobileNav } from "@/components/mobile-nav";
 import { SidebarProvider, useSidebar } from "@/components/sidebar-context";
+import { ProjectProvider } from "@/components/project-context";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
@@ -11,8 +13,8 @@ function HeaderNav() {
   const { isSidebarHidden, toggleSidebar } = useSidebar();
 
   return (
-    <header className="h-14 bg-white dark:bg-card border-b border-border px-4 md:px-6 flex items-center justify-between shadow-sm z-50 relative">
-      <div className="flex items-center gap-2">
+    <header className="h-14 bg-white dark:bg-card border-b border-border px-4 md:px-6 flex items-center justify-between shadow-xs z-50 relative">
+      <div className="flex items-center gap-3">
         <MobileNav />
         <Button
           variant="ghost"
@@ -23,6 +25,10 @@ function HeaderNav() {
         >
           {isSidebarHidden ? <PanelLeftOpen className="w-5 h-5 text-primary" /> : <PanelLeftClose className="w-5 h-5" />}
         </Button>
+        {/* Quick switcher in header when sidebar is hidden or on wider screens */}
+        <div className="hidden sm:flex items-center">
+          <ProjectSwitcher variant="header" />
+        </div>
       </div>
       <div className="flex-1" /> {/* Spacer */}
       <div className="flex items-center gap-4 text-sm font-medium">
@@ -42,15 +48,17 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <SidebarProvider>
-      <Sidebar />
-      <main className="flex-1 flex flex-col min-h-screen min-w-0 w-full">
-        <HeaderNav />
-        {/* Main Content Area */}
-        <div className="p-6 flex-1 flex flex-col min-h-0 min-w-0">
-          {children}
-        </div>
-      </main>
-    </SidebarProvider>
+    <ProjectProvider>
+      <SidebarProvider>
+        <Sidebar />
+        <main className="flex-1 flex flex-col min-h-screen min-w-0 w-full">
+          <HeaderNav />
+          {/* Main Content Area */}
+          <div className="p-6 flex-1 flex flex-col min-h-0 min-w-0">
+            {children}
+          </div>
+        </main>
+      </SidebarProvider>
+    </ProjectProvider>
   );
 }

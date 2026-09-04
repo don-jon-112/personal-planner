@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAddDocument, useUpdateDocument } from "@/hooks/use-firestore";
+import { useProject } from "@/components/project-context";
 import { 
   Dialog, 
   DialogContent, 
@@ -47,6 +48,7 @@ export function BugDialog({
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
 
+  const { activeProjectId } = useProject();
   const { mutateAsync: addBug, isPending: isAdding } = useAddDocument("bugReports");
   const { mutateAsync: updateBug, isPending: isUpdating } = useUpdateDocument("bugReports");
 
@@ -84,7 +86,7 @@ export function BugDialog({
       if (bugToEdit?.id) {
         await updateBug({ id: bugToEdit.id, data });
       } else {
-        await addBug(data);
+        await addBug({ ...data, projectId: activeProjectId || undefined });
       }
       setOpen(false);
       if (!bugToEdit) form.reset();

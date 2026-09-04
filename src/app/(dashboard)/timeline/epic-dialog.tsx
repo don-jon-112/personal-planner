@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAddDocument, useUpdateDocument } from "@/hooks/use-firestore";
+import { useProject } from "@/components/project-context";
 import { 
   Dialog, 
   DialogContent, 
@@ -30,6 +31,7 @@ export function EpicDialog({
   open?: boolean,
   onOpenChange?: (open: boolean) => void
 }) {
+  const { activeProjectId } = useProject();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
@@ -53,7 +55,7 @@ export function EpicDialog({
       if (epicToEdit?.id) {
         await updateEpic({ id: epicToEdit.id, data });
       } else {
-        await addEpic({ ...data, order: Date.now() }); // Using timestamp as default order for new items at bottom
+        await addEpic({ ...data, order: Date.now(), projectId: activeProjectId || undefined });
       }
       setOpen(false);
       if (!epicToEdit) form.reset();

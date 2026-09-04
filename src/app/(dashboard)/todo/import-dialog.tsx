@@ -22,6 +22,7 @@ import { useCollection, useAddDocument } from "@/hooks/use-firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useAlertModal } from "@/components/confirm-dialog-provider";
+import { useProject } from "@/components/project-context";
 
 interface ParsedTask {
   name: string;
@@ -47,6 +48,7 @@ export function ImportDialog({
 }) {
   const alertModal = useAlertModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { activeProjectId } = useProject();
 
   const { data: epics = [] } = useCollection<any>("timelineEpics");
   const { mutateAsync: addEpic } = useAddDocument("timelineEpics");
@@ -261,7 +263,7 @@ export function ImportDialog({
 
       for (let i = 0; i < uniqueEpicNames.length; i++) {
         const newEpicName = uniqueEpicNames[i];
-        const res = await addEpic({ name: newEpicName, order: Date.now() + i * 10 });
+        const res = await addEpic({ name: newEpicName, order: Date.now() + i * 10, projectId: activeProjectId || undefined });
         if (res && res.id) {
           existingEpicMap.set(newEpicName.toLowerCase(), res.id);
         }
@@ -308,6 +310,7 @@ export function ImportDialog({
           md: item.md || 1,
           status: item.status || "TODO",
           order: Date.now() + i * 10,
+          projectId: activeProjectId || undefined,
         });
       }
 

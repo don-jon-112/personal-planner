@@ -50,6 +50,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { DateRangeFilter, DateRangeConfig, computeTimelineDates, getDatesInRange } from "./date-range-filter";
+import { useProject } from "@/components/project-context";
 
 // Helpers for dates
 function getDayStatus(date: Date, holidays: any[] = []) {
@@ -606,6 +607,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
 export default function TimelinePage() {
   const confirm = useConfirm();
   const alertModal = useAlertModal();
+  const { activeProject, isItemInActiveProject } = useProject();
 
   const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
@@ -674,15 +676,17 @@ export default function TimelinePage() {
 
   useEffect(() => {
     if (rawEpics) {
-      setOrderedEpics([...rawEpics].sort((a, b) => (a.order || 0) - (b.order || 0)));
+      const filtered = rawEpics.filter((e: any) => isItemInActiveProject(e.projectId));
+      setOrderedEpics(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
     }
-  }, [rawEpics]);
+  }, [rawEpics, isItemInActiveProject]);
 
   useEffect(() => {
     if (rawTasks) {
-      setLocalTasks([...rawTasks].sort((a, b) => (a.order || 0) - (b.order || 0)));
+      const filtered = rawTasks.filter((t: any) => isItemInActiveProject(t.projectId));
+      setLocalTasks(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
     }
-  }, [rawTasks]);
+  }, [rawTasks, isItemInActiveProject]);
 
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -813,10 +817,18 @@ export default function TimelinePage() {
     <Panel className="h-[calc(100dvh-104px)] min-h-0 border-t-4 border-t-primary flex flex-col">
       <PanelHeader className="flex flex-col xl:flex-row items-start justify-between border-b-0 pb-3 gap-4 shrink-0">
         <div className="w-full xl:w-auto">
-          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             <CalendarClock className="w-6 h-6 text-primary" /> Timeline
+            {activeProject && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
+                {activeProject.name}
+              </span>
+            )}
           </PanelTitle>
-          <PanelDescription className="mt-1">Plan and manage your project schedule with an Excel-like view.</PanelDescription>
+          <PanelDescription className="mt-1">
+            Gantt schedule and roadmap for {activeProject?.name || "this project"}.
+          </PanelDescription>
         </div>
 
         <div className="flex flex-col gap-2.5 w-full xl:w-auto items-start xl:items-end">

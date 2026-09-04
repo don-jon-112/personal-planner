@@ -32,6 +32,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { cn } from "@/lib/utils";
+import { useProject } from "@/components/project-context";
 
 const formSchema = z.object({
   name: z.string().min(1, "PIC Name is required"),
@@ -43,6 +44,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function PicsPage() {
   const confirm = useConfirm();
+  const { activeProject, isItemInActiveProject } = useProject();
   const { data: pics = [], isLoading: isPicsLoading } = useCollection<any>("timelinePics");
   const { data: tasks = [] } = useCollection<any>("timelineTasks");
 
@@ -105,11 +107,17 @@ export default function PicsPage() {
       {/* Header */}
       <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-1 gap-4">
         <div className="w-full sm:w-auto">
-          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             <Users className="w-6 h-6 text-primary" /> PIC Management
+            {activeProject && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
+                {activeProject.name}
+              </span>
+            )}
           </PanelTitle>
           <PanelDescription className="mt-1">
-            Manage Person In Charge (PIC), assign distinctive badge colors, and configure analytics visibility.
+            Manage Person In Charge (PIC), badge colors, and workload analytics for {activeProject?.name || "this project"}.
           </PanelDescription>
         </div>
       </PanelHeader>
@@ -217,7 +225,8 @@ export default function PicsPage() {
                   </TableRow>
                 ) : (
                   filteredPics.map((pic: any) => {
-                    const picTasks = tasks.filter((t: any) => t.pic === pic.name);
+                    const projectTasks = tasks.filter((t: any) => isItemInActiveProject(t.projectId));
+                    const picTasks = projectTasks.filter((t: any) => t.pic === pic.name);
                     const totalTasks = picTasks.length;
                     const totalMd = picTasks.reduce((sum: number, t: any) => sum + (Number(t.md) || 0), 0);
                     const doneTasks = picTasks.filter((t: any) => t.status === "DONE").length;

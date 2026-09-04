@@ -15,6 +15,7 @@ import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider"
 
 const ALL_COLLECTIONS = [
   "appSettings",
+  "projects",
   "todos",
   "notes",
   "bugReports",

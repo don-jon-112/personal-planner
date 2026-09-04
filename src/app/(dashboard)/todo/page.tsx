@@ -48,9 +48,11 @@ import { ImportDialog } from "./import-dialog";
 import { SortableTodoRow } from "./sortable-todo-row";
 import { SortableEpicRow } from "./sortable-epic-row";
 import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
+import { useProject } from "@/components/project-context";
 
 export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
+  const { activeProject, isItemInActiveProject } = useProject();
 
   // Firestore Collections
   const { data: tasks = [], isLoading: isTasksLoading } = useCollection<any>("timelineTasks");
@@ -58,9 +60,17 @@ export default function TodoPage() {
   const { data: pics = [] } = useCollection<any>("timelinePics");
   const { data: holidays = [] } = useCollection<any>("timelineHolidays");
 
+  const activeTasks = useMemo(() => {
+    return tasks.filter((t: any) => isItemInActiveProject(t.projectId));
+  }, [tasks, isItemInActiveProject]);
+
+  const activeEpics = useMemo(() => {
+    return epics.filter((e: any) => isItemInActiveProject(e.projectId));
+  }, [epics, isItemInActiveProject]);
+
   const overlapMap = useMemo(() => {
-    return computeAllTaskOverlaps(tasks, holidays, epics);
-  }, [tasks, holidays, epics]);
+    return computeAllTaskOverlaps(activeTasks, holidays, activeEpics);
+  }, [activeTasks, holidays, activeEpics]);
 
   const { mutate: deleteTask } = useDeleteDocument("timelineTasks");
   const { mutate: batchUpdateTasks } = useUpdateBatch("timelineTasks");
@@ -92,14 +102,14 @@ export default function TodoPage() {
   const [taskSortConfig, setTaskSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
   const [epicSortConfig, setEpicSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
 
-  // Sync firestore collections to local state
+  // Sync firestore collections to local state (scoped to active project)
   useEffect(() => {
-    if (tasks) setLocalTasks(tasks);
-  }, [tasks]);
+    setLocalTasks(activeTasks);
+  }, [activeTasks]);
 
   useEffect(() => {
-    if (epics) setLocalEpics(epics);
-  }, [epics]);
+    setLocalEpics(activeEpics);
+  }, [activeEpics]);
 
   const toggleStatusFilter = (status: string) => {
     setStatusFilters((prev) =>
@@ -304,11 +314,17 @@ export default function TodoPage() {
       {/* Header */}
       <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-1 gap-4">
         <div className="w-full sm:w-auto">
-          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
-            <CheckSquare className="w-6 h-6 text-primary" /> Todo Plan
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
+            <CheckSquare className="w-6 h-6 text-primary" /> Task Plan
+            {activeProject && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
+                {activeProject.name}
+              </span>
+            )}
           </PanelTitle>
           <PanelDescription className="mt-1">
-            Manage your project tasks, backlogs, and epic breakdown.
+            Manage tasks, backlogs, and epic breakdown for {activeProject?.name || "this project"}.
           </PanelDescription>
         </div>
       </PanelHeader>

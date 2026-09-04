@@ -6,7 +6,8 @@ import {
   Bug, 
   CalendarClock,
   FolderKanban,
-  Users
+  Users,
+  Layers
 } from "lucide-react";
 
 export interface SubMenuItem {
@@ -22,10 +23,9 @@ export interface MenuItem {
   children?: SubMenuItem[];
 }
 
-export const menuItems: MenuItem[] = [
+export const projectMenuItems: MenuItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Weekly Report", href: "/weekly-report", icon: CalendarDays },
-  { name: "Notes", href: "/notes", icon: FileText },
   {
     name: "Project Plan",
     icon: FolderKanban,
@@ -36,4 +36,14 @@ export const menuItems: MenuItem[] = [
     ],
   },
   { name: "Bug & Report", href: "/bugs", icon: Bug },
+];
+
+export const globalMenuItems: MenuItem[] = [
+  { name: "Notes", href: "/notes", icon: FileText },
+  { name: "All Projects", href: "/projects", icon: Layers },
+];
+
+export const menuItems: MenuItem[] = [
+  ...projectMenuItems,
+  ...globalMenuItems,
 ];

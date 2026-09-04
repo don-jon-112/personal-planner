@@ -20,6 +20,7 @@ import { Plus, ListPlus, AlertCircle, ArrowRight, AlertTriangle, Calendar, Layer
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { checkTaskOverlap, OverlapResult } from "@/lib/overlap-utils";
+import { useProject } from "@/components/project-context";
 
 const formSchema = z.object({
   name: z.string().min(1, "Task name is required"),
@@ -47,10 +48,16 @@ export function TaskDialog({
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
 
+  const { activeProjectId, isItemInActiveProject } = useProject();
+
   const { data: epics = [] } = useCollection<any>("timelineEpics");
   const { data: pics = [] } = useCollection<any>("timelinePics");
   const { data: allTasks = [] } = useCollection<any>("timelineTasks");
   const { data: holidays = [] } = useCollection<any>("timelineHolidays");
+
+  const filteredEpics = useMemo(() => {
+    return epics.filter((e: any) => isItemInActiveProject(e.projectId));
+  }, [epics, isItemInActiveProject]);
 
   const { mutateAsync: addTask, isPending: isAdding } = useAddDocument("timelineTasks");
   const { mutateAsync: updateTask, isPending: isUpdating } = useUpdateDocument("timelineTasks");
@@ -64,10 +71,10 @@ export function TaskDialog({
   const [pendingSubmitData, setPendingSubmitData] = useState<FormValues | null>(null);
   const [activeOverlapData, setActiveOverlapData] = useState<OverlapResult | null>(null);
 
-  // Filter tasks that do not have an epic assigned (Backlog items)
+  // Filter tasks that do not have an epic assigned (Backlog items) in the active project
   const backlogTasks = useMemo(() => {
-    return allTasks.filter((t: any) => !t.epicId || t.epicId === "");
-  }, [allTasks]);
+    return allTasks.filter((t: any) => (!t.epicId || t.epicId === "") && isItemInActiveProject(t.projectId));
+  }, [allTasks, isItemInActiveProject]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -195,7 +202,7 @@ export function TaskDialog({
         await updateTask({ id: targetId, data });
       } else {
         // Create brand new task
-        await addTask({ ...data, order: Date.now() });
+        await addTask({ ...data, order: Date.now(), projectId: activeProjectId || undefined });
       }
       setShowOverlapConfirm(false);
       setPendingSubmitData(null);
@@ -363,7 +370,7 @@ export function TaskDialog({
                     className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value="">{fromTimeline ? "Select an Epic" : "None (Backlog)"}</option>
-                    {epics?.map((epic: any) => (
+                    {filteredEpics?.map((epic: any) => (
                       <option key={epic.id} value={epic.id}>
                         {epic.name}
                       </option>
