@@ -10,7 +10,7 @@ export default function GuestLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+    <main className="flex-1 flex flex-col min-h-screen min-w-0 w-full">
       {/* Header (Top Nav) */}
       <header className="h-14 bg-white dark:bg-card border-b border-border px-4 md:px-6 flex items-center justify-between shadow-sm z-50 relative">
         <div className="flex items-center gap-2">
@@ -33,7 +33,7 @@ export default function GuestLayout({
         </div>
       </header>
       {/* Main Content Area */}
-      <div className="p-6 h-full">
+      <div className="p-6 flex-1 flex flex-col min-h-0 min-w-0">
         {children}
       </div>
     </main>

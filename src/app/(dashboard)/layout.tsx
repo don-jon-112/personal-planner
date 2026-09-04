@@ -19,7 +19,7 @@ function HeaderNav() {
           size="icon"
           onClick={toggleSidebar}
           className="hidden md:flex text-muted-foreground hover:text-foreground hover:bg-accent/60"
-          title={isSidebarHidden ? "Show Sidebar (Hide/Show Sidebar)" : "Hide Sidebar"}
+          title={isSidebarHidden ? "Show Sidebar" : "Hide Sidebar"}
         >
           {isSidebarHidden ? <PanelLeftOpen className="w-5 h-5 text-primary" /> : <PanelLeftClose className="w-5 h-5" />}
         </Button>
@@ -43,16 +43,14 @@ export default function DashboardLayout({
 }>) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-          <HeaderNav />
-          {/* Main Content Area */}
-          <div className="p-6 h-full">
-            {children}
-          </div>
-        </main>
-      </div>
+      <Sidebar />
+      <main className="flex-1 flex flex-col min-h-screen min-w-0 w-full">
+        <HeaderNav />
+        {/* Main Content Area */}
+        <div className="p-6 flex-1 flex flex-col min-h-0 min-w-0">
+          {children}
+        </div>
+      </main>
     </SidebarProvider>
   );
 }
