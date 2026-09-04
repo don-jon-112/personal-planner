@@ -34,6 +34,18 @@ export function useCollection<T>(collectionName: string) {
   });
 }
 
+// Helper to strip undefined values so Firestore never throws "Unsupported field value: undefined"
+function cleanUndefined(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  const clean: any = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      clean[key] = val;
+    }
+  }
+  return clean;
+}
+
 // Generic Hook to Add a Document
 export function useAddDocument(collectionName: string) {
   const queryClient = useQueryClient();
@@ -42,14 +54,15 @@ export function useAddDocument(collectionName: string) {
     mutationFn: async (newData: any) => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(collection(db, collectionName));
+      const sanitized = cleanUndefined(newData);
       const writePromise = setDoc(docRef, {
-        ...newData,
+        ...sanitized,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      if (mode !== 'online') return { id: docRef.id, ...newData };
+      if (mode !== 'online') return { id: docRef.id, ...sanitized };
       await writePromise;
-      return { id: docRef.id, ...newData };
+      return { id: docRef.id, ...sanitized };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });
@@ -65,13 +78,14 @@ export function useUpdateDocument(collectionName: string) {
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
+      const sanitized = cleanUndefined(data);
       const writePromise = updateDoc(docRef, {
-        ...data,
+        ...sanitized,
         updatedAt: serverTimestamp(),
       });
-      if (mode !== 'online') return { id, ...data };
+      if (mode !== 'online') return { id, ...sanitized };
       await writePromise;
-      return { id, ...data };
+      return { id, ...sanitized };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });
@@ -108,8 +122,9 @@ export function useUpdateBatch(collectionName: string) {
       const batch = writeBatch(db);
       updates.forEach((update) => {
         const docRef = doc(db, collectionName, update.id);
+        const sanitized = cleanUndefined(update.data);
         batch.update(docRef, {
-          ...update.data,
+          ...sanitized,
           updatedAt: serverTimestamp(),
         });
       });

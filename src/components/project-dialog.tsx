@@ -75,25 +75,21 @@ export function ProjectDialog({ open, onOpenChange, projectToEdit }: ProjectDial
 
     setLoading(true);
     try {
+      const payload = {
+        name: name.trim(),
+        key: key.trim().toUpperCase() || "",
+        color: color || DEFAULT_PROJECT_COLORS[0],
+        status: status || "ACTIVE",
+        startDate: startDate || "",
+        endDate: endDate || "",
+        description: description.trim() || "",
+      };
+
       if (projectToEdit) {
-        await updateProject(projectToEdit.id, {
-          name: name.trim(),
-          key: key.trim().toUpperCase() || undefined,
-          color,
-          status,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-          description: description.trim() || undefined,
-        });
+        await updateProject(projectToEdit.id, payload);
       } else {
         await createProject({
-          name: name.trim(),
-          key: key.trim().toUpperCase() || undefined,
-          color,
-          status,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-          description: description.trim() || undefined,
+          ...payload,
           isDefault: false,
         });
       }
