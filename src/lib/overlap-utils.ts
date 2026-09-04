@@ -75,7 +75,7 @@ export function formatDateString(d: Date): string {
  * Check if target task will overlap with any existing tasks of the same PIC
  */
 export function checkTaskOverlap(
-  target: { id?: string; pic?: string; startDate?: string; md?: number; name?: string },
+  target: { id?: string; pic?: string; startDate?: string; md?: number; name?: string; status?: string },
   allTasks: any[] = [],
   holidays: any[] = [],
   epics: any[] = []
