@@ -6,13 +6,16 @@ A modern, fast, and feature-rich **Work Planner & Project Timeline Management Ap
 
 ## ✨ Features
 
+- 🏢 **Multi-Project Management Workspace**: Manage multiple projects within a single app. Seamlessly switch between projects using the header selector; each project maintains its own tasks, epics, timeline, PICs, and bug reports.
 - 📋 **Todo & Epic Planner**: Manage tasks grouped by Epics with drag-and-drop ordering, status tracking, mandays estimation, and bulk Excel (`.xlsx`) import.
-- 📊 **Interactive Timeline & Gantt View**: Visual project schedule with zoom levels (Day, Week, Month), progress indicators, and custom date ranges.
-- 👥 **PIC & Workload Management**: Assign tasks to team members with customizable color badges and workload analytics.
-- 🌐 **Guest Timeline (Client / Read-Only View)**: Dedicated protected view for stakeholders and clients without exposing sensitive dashboard controls.
-- 📝 **Weekly Report Generator**: Generate structured weekly summaries ready to copy or export.
-- 🐛 **Bug Tracker**: Log, prioritize, and track issue resolutions alongside sprint tasks.
-- ⚡ **Offline-First Persistence**: Powered by IndexedDB cache with optional cloud sync to minimize Firebase quota usage.
+- 📊 **Interactive Timeline & Gantt View**: Visual project schedule with zoom levels (Day, Week, Month), progress indicators, weekend/holiday toggles, and custom date ranges.
+- 🔗 **Per-Project Share Link (Passwordless View-Only)**: Generate secure, secret shareable URLs (`/guest-timeline?token=shr_...`) per project. Recipients can instantly view the timeline without logging in or entering a password, strictly isolated to that specific project.
+- 🖼️ / 📄 **High-Res Roadmap Export (PNG & PDF)**: Export the entire timeline at high resolution (2x/3x ratio, no clipping) or as a print-ready landscape PDF document featuring an Executive Summary Header (Project Key, Status, Epics & Tasks metrics, timestamp).
+- 👥 **Project-Scoped PIC & Workload Allocation**: Assign tasks to team members with customizable color badges and workload analytics, uniquely scoped to each individual project.
+- 📝 **Weekly Report Generator**: Generate structured weekly summaries ready to copy or export based on the active project.
+- 🐛 **Bug Tracker**: Log, prioritize, and track issue resolutions alongside sprint tasks for the active project.
+- 📝 **Personal Scratchpad Notes**: Global notes system that acts as your personal "second brain" across all projects.
+- ⚡ **Offline-First Persistence with Cloud Sync**: Powered by IndexedDB cache to minimize Firebase quota usage, complete with 1-click cloud sync buttons.
 - 📱 **Progressive Web App (PWA)**: Installable as an app on Windows, macOS, Android, and iOS.
 
 ---
@@ -21,7 +24,8 @@ A modern, fast, and feature-rich **Work Planner & Project Timeline Management Ap
 
 - **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
 - **UI & Styling**: [Tailwind CSS v4](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/), Lucide Icons
-- **Database & Sync**: [Firebase Cloud Firestore](https://firebase.google.com/) (with offline persistence)
+- **Database & Sync**: [Firebase Cloud Firestore](https://firebase.google.com/) (with offline persistence & online sync)
+- **Document & Image Export**: [html2canvas-pro](https://github.com/niklasvh/html2canvas), [jsPDF](https://github.com/parallax/jsPDF)
 - **Drag & Drop**: [@dnd-kit](https://dndkit.com/)
 - **Spreadsheet Processing**: [SheetJS (xlsx)](https://sheetjs.com/)
 - **Deployment**: [Vercel](https://vercel.com/)
@@ -112,9 +116,10 @@ Add the following environment variables in your **Vercel Project Settings** (or 
 | `GUESS_PASSWORD` | **Yes** | Guest / Client access password | Any password (e.g. `ClientView2026!`) |
 | `NEXT_PUBLIC_JIRA_BASE_URL` | No | JIRA Instance Base URL for bug ticket links | e.g. `https://your-company.atlassian.net/browse/` |
 
-### 🔒 Access Roles Explained
-- **`SITE_PASSWORD`**: Provides full access to the complete dashboard (Todo, Epics, Gantt Timeline, PICs, Bugs, Notes, Settings, Import & Export).
-- **`GUESS_PASSWORD`**: Restricted read-only view designed for clients and stakeholders, granting access strictly to the `/guest-timeline` page.
+### 🔒 Access & Sharing Roles Explained
+- **`SITE_PASSWORD`**: Provides full administrative access to all workspaces and features (Projects management, Todo, Epics, Gantt Timeline, PICs, Bugs, Notes, Settings, Import, and Export).
+- **Per-Project Share Links (`/guest-timeline?token=shr_...`)**: Instant, passwordless read-only access for team members, clients, or stakeholders to view a single project's roadmap without authentication.
+- **`GUESS_PASSWORD`**: Optional legacy fallback password granting general access to `/guest-timeline`.
 
 ---
 
