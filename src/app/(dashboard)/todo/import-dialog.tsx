@@ -105,12 +105,14 @@ export function ImportDialog({
       String(h || "").toLowerCase().replace(/[^a-z0-9]/g, "")
     );
 
-    const nameIdx = header.findIndex((h) => h.includes("task") || h.includes("name"));
+    const nameIdx = header.findIndex((h) => (h.includes("task") || h.includes("name") || h.includes("title")) && !h.includes("epic"));
     const epicIdx = header.findIndex((h) => h.includes("epic"));
-    const picIdx = header.findIndex((h) => h.includes("pic") || h.includes("assignee") || h.includes("owner"));
+    const picIdx = header.findIndex((h) => 
+      (h === "pic" || h.startsWith("pic") || h.includes("assignee") || h.includes("owner") || h.includes("person")) && !h.includes("epic")
+    );
     const dateIdx = header.findIndex((h) => h.includes("date") || h.includes("start"));
-    const mdIdx = header.findIndex((h) => h.includes("md") || h.includes("day") || h.includes("duration") || h.includes("manday"));
-    const statusIdx = header.findIndex((h) => h.includes("status"));
+    const mdIdx = header.findIndex((h) => (h === "md" || h.includes("manday") || h.includes("duration") || h.includes("day")) && !h.includes("date"));
+    const statusIdx = header.findIndex((h) => h.includes("status") || h.includes("state"));
 
     const tasks: ParsedTask[] = [];
 
@@ -172,6 +174,8 @@ export function ImportDialog({
         status = "IN REVIEW";
       } else if (rawStatus.includes("PROG") || rawStatus.includes("DOING") || rawStatus.includes("JALAN")) {
         status = "ON PROGRESS";
+      } else if (rawStatus.includes("WONT") || rawStatus.includes("WON'T") || rawStatus.includes("CANCEL") || rawStatus.includes("BATAL")) {
+        status = "WON'T DO";
       } else {
         status = "TODO";
       }
