@@ -9,8 +9,7 @@ import {
   Cloud,
   CloudOff,
   ChevronDown,
-  ChevronRight,
-  PanelLeftClose
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,21 +65,11 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground flex-col h-screen sticky top-0 shadow-xl z-20 shrink-0">
       {/* Site Title */}
-      <div className="p-4 flex items-center justify-between border-b border-sidebar-accent/50">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-sidebar-foreground text-sidebar flex items-center justify-center font-bold">
-            <Bug className="w-5 h-5" />
-          </div>
-          <h1 className="text-xl font-bold tracking-wide">Planner Web</h1>
+      <div className="p-4 flex items-center gap-3 border-b border-sidebar-accent/50">
+        <div className="w-8 h-8 rounded-full bg-sidebar-foreground text-sidebar flex items-center justify-center font-bold">
+          <Bug className="w-5 h-5" />
         </div>
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className="p-1.5 rounded-lg text-sidebar-foreground/70 hover:text-white hover:bg-sidebar-accent/50 transition-colors"
-          title="Hide Sidebar"
-        >
-          <PanelLeftClose className="w-4 h-4" />
-        </button>
+        <h1 className="text-xl font-bold tracking-wide">Planner Web</h1>
       </div>
       
       {/* Profile Quick Info */}
