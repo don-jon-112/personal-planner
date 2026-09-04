@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Download } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
 import { HolidaysDialog } from "./holidays-dialog";
 import { PicsDialog } from "./pics-dialog";
 import { ChartsDialog } from "./charts-dialog";
+import { TimelineExportDialog } from "./timeline-export-dialog";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
@@ -626,6 +627,8 @@ export default function TimelinePage() {
   const [isHolidaysDialogOpen, setIsHolidaysDialogOpen] = useState(false);
   const [isPicsDialogOpen, setIsPicsDialogOpen] = useState(false);
   const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
   const [collapseAllTrigger, setCollapseAllTrigger] = useState(0);
   const [expandAllTrigger, setExpandAllTrigger] = useState(0);
   
@@ -859,6 +862,11 @@ export default function TimelinePage() {
               <span className="hidden sm:inline">Export Excel</span>
               <span className="sm:hidden">Excel</span>
             </Button>
+            <Button onClick={() => setIsExportDialogOpen(true)} variant="outline" className="px-3 text-xs sm:text-sm">
+              <Download className="w-4 h-4 mr-1.5 text-primary" />
+              <span className="hidden sm:inline">Export Image / PDF</span>
+              <span className="sm:hidden">Export</span>
+            </Button>
             <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 text-xs sm:text-sm">
               <PieChart className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
               <span className="hidden sm:inline">Analytics</span>
@@ -879,6 +887,14 @@ export default function TimelinePage() {
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
             <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
             <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={projectPics} />
+            <TimelineExportDialog
+              open={isExportDialogOpen}
+              onOpenChange={setIsExportDialogOpen}
+              timelineRef={timelineContainerRef}
+              activeProject={activeProject}
+              totalTasks={localTasks.length}
+              totalEpics={orderedEpics.length}
+            />
           </div>
 
           {/* Row 2: Filter Toolbar on desktop */}
@@ -928,7 +944,7 @@ export default function TimelinePage() {
           </div>
         ) : (
           <div className="flex-1 overflow-auto bg-card relative custom-scrollbar">
-            <div className="min-w-max flex flex-col">
+            <div className="min-w-max flex flex-col" ref={timelineContainerRef}>
               
               <div className="flex flex-col sticky top-0 z-30 shadow-sm bg-background">
                 {/* Month Row */}
