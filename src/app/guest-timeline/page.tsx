@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw, FileSpreadsheet, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { useCollection } from "@/hooks/use-firestore";
 import { ChartsDialog } from "../(dashboard)/timeline/charts-dialog";
 import { cn } from "@/lib/utils";
@@ -351,6 +351,11 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo }: { task: any, date
         {/* Task Bar */}
         {(() => {
           if (!dates || dates.length === 0) return null;
+          if (!task.startDate || task.startDate === 'TBD') return null;
+          const taskStart = new Date(task.startDate);
+          if (isNaN(taskStart.getTime())) return null;
+          taskStart.setHours(0,0,0,0);
+
           const visibleStart = dates[0].getTime();
           const visibleEnd = dates[dates.length - 1].getTime();
           
@@ -362,17 +367,22 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo }: { task: any, date
             return null;
           }
 
-          let startIndex = 0;
-          if (taskStartTime >= visibleStart) {
-            startIndex = dates.findIndex(d => d.getTime() === taskStartTime);
-            if (startIndex === -1) startIndex = 0;
+          let startIndex = dates.findIndex(d => d.getTime() === taskStartTime);
+          if (startIndex === -1 && taskStartTime >= visibleStart) {
+            startIndex = dates.findIndex(d => d.getTime() > taskStartTime);
           }
+          if (startIndex === -1) startIndex = 0;
 
-          let endIndex = dates.length - 1;
-          if (taskEndTime <= visibleEnd) {
-            endIndex = dates.findIndex(d => d.getTime() === taskEndTime);
-            if (endIndex === -1) endIndex = dates.length - 1;
+          let endIndex = dates.findIndex(d => d.getTime() === taskEndTime);
+          if (endIndex === -1 && taskEndTime <= visibleEnd) {
+            for (let k = dates.length - 1; k >= 0; k--) {
+              if (dates[k].getTime() <= taskEndTime) {
+                endIndex = k;
+                break;
+              }
+            }
           }
+          if (endIndex === -1) endIndex = dates.length - 1;
 
           if (startIndex > endIndex) return null;
 
@@ -546,11 +556,16 @@ export default function GuestTimelinePage() {
     }
   }, [rawTasks]);
 
-  const [rangeConfig, setRangeConfig] = useState<DateRangeConfig>({ preset: "auto" });
+  const [showNonWorkingDays, setShowNonWorkingDays] = useState(true);
 
-  const dates = useMemo(() => {
+  const rawDates = useMemo(() => {
     return computeTimelineDates(rangeConfig, localTasks);
   }, [rangeConfig, localTasks]);
+
+  const dates = useMemo(() => {
+    if (showNonWorkingDays) return rawDates;
+    return rawDates.filter(d => !getDayStatus(d, holidays));
+  }, [rawDates, showNonWorkingDays, holidays]);
 
   const overlapMap = useMemo(() => {
     return computeAllTaskOverlaps(localTasks, holidays, orderedEpics);
@@ -558,62 +573,85 @@ export default function GuestTimelinePage() {
 
   return (
     <Panel className="h-[calc(100dvh-104px)] min-h-0 border-t-4 border-t-primary flex flex-col">
-      <PanelHeader className="flex flex-col sm:flex-row items-start justify-between border-b-0 pb-2 gap-4 shrink-0">
-        <div className="w-full sm:w-auto">
+      <PanelHeader className="flex flex-col xl:flex-row items-start justify-between border-b-0 pb-3 gap-4 shrink-0">
+        <div className="w-full xl:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
             <CalendarClock className="w-6 h-6 text-primary" /> Timeline
           </PanelTitle>
           <PanelDescription className="mt-1">Read-only view of the project schedule.</PanelDescription>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row w-full sm:w-auto">
-          <DateRangeFilter rangeConfig={rangeConfig} onChange={setRangeConfig} tasks={localTasks} />
-          <DropdownMenu>
-            <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 sm:px-4")}>
-              <Filter className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">
-                {selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}
-              </span>
-              <span className="sm:hidden">
-                {selectedPicFilter === "ALL" ? "Filter" : (selectedPicFilter || "").substring(0,4)}
-              </span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem 
-                  checked={selectedPicFilter === "ALL"}
-                  onCheckedChange={() => setSelectedPicFilter("ALL")}
-                >
-                  All PICs
-                </DropdownMenuCheckboxItem>
-                {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
+
+        <div className="flex flex-col gap-2.5 w-full xl:w-auto items-start xl:items-end">
+          {/* Row 1: Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end">
+            <Button 
+              onClick={() => setShowNonWorkingDays(!showNonWorkingDays)} 
+              variant="outline" 
+              className={cn("px-3 text-xs sm:text-sm", !showNonWorkingDays && "bg-primary/10 border-primary text-primary")}
+            >
+              {showNonWorkingDays ? (
+                <>
+                  <EyeOff className="w-4 h-4 mr-1.5" />
+                  <span>Hide Holidays & Weekends</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4 mr-1.5" />
+                  <span>Show Holidays & Weekends</span>
+                </>
+              )}
+            </Button>
+            <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, pics, (msg) => alertModal({ title: "Export Excel", description: msg, variant: "info" }))} variant="outline" className="px-3 text-xs sm:text-sm">
+              <FileSpreadsheet className="w-4 h-4 mr-1.5 text-green-600 dark:text-green-500" />
+              <span className="hidden sm:inline">Export Excel</span>
+              <span className="sm:hidden">Excel</span>
+            </Button>
+            <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 text-xs sm:text-sm">
+              <PieChart className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
+              <span className="hidden sm:inline">Analytics</span>
+            </Button>
+            <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" className="px-3 text-xs sm:text-sm">
+              <RefreshCw className={cn("w-4 h-4 mr-1.5", isRefreshing && "animate-spin")} />
+              <span className="hidden sm:inline">Refresh</span>
+              <span className="sm:hidden">Sync</span>
+            </Button>
+            <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={pics} />
+          </div>
+
+          {/* Row 2: Filter Toolbar on desktop */}
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end bg-muted/40 p-1.5 rounded-lg border border-border/60">
+            <span className="text-xs font-semibold text-muted-foreground px-1 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-primary" /> Filter:
+            </span>
+            <DateRangeFilter rangeConfig={rangeConfig} onChange={setRangeConfig} tasks={localTasks} />
+            <DropdownMenu>
+              <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 h-8 text-xs font-medium")}>
+                <span>{selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}</span>
+                <ChevronDown className="w-3.5 h-3.5 ml-1.5 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem 
-                    key={pic.id}
-                    checked={selectedPicFilter === pic.name}
-                    onCheckedChange={() => setSelectedPicFilter(pic.name)}
+                    checked={selectedPicFilter === "ALL"}
+                    onCheckedChange={() => setSelectedPicFilter("ALL")}
                   >
-                    {pic.name}
+                    All PICs
                   </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, pics, (msg) => alertModal({ title: "Export Excel", description: msg, variant: "info" }))} variant="outline" className="px-3 sm:px-4">
-            <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Export Excel</span>
-            <span className="sm:hidden">Excel</span>
-          </Button>
-          <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 sm:px-4">
-            <PieChart className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Analytics</span>
-          </Button>
-          <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" className="px-3 sm:px-4">
-            <RefreshCw className={cn("w-4 h-4 sm:mr-2", isRefreshing && "animate-spin")} />
-            <span className="hidden sm:inline">Refresh</span>
-            <span className="sm:hidden">Sync</span>
-          </Button>
-          <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={pics} />
+                  {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
+                    <DropdownMenuCheckboxItem 
+                      key={pic.id}
+                      checked={selectedPicFilter === pic.name}
+                      onCheckedChange={() => setSelectedPicFilter(pic.name)}
+                    >
+                      {pic.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </PanelHeader>
 
