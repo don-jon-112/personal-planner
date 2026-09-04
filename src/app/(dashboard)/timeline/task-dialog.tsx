@@ -59,6 +59,10 @@ export function TaskDialog({
     return epics.filter((e: any) => isItemInActiveProject(e.projectId));
   }, [epics, isItemInActiveProject]);
 
+  const filteredPics = useMemo(() => {
+    return pics.filter((p: any) => isItemInActiveProject(p.projectId));
+  }, [pics, isItemInActiveProject]);
+
   const { mutateAsync: addTask, isPending: isAdding } = useAddDocument("timelineTasks");
   const { mutateAsync: updateTask, isPending: isUpdating } = useUpdateDocument("timelineTasks");
 
@@ -390,7 +394,7 @@ export function TaskDialog({
                     >
                       <option value="">Select PIC</option>
                       <option value="TBD">TBD</option>
-                      {pics
+                      {filteredPics
                         ?.sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""))
                         .map((pic: any) => (
                           <option key={pic.id} value={pic.name}>

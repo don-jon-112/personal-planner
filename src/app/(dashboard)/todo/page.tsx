@@ -68,6 +68,10 @@ export default function TodoPage() {
     return epics.filter((e: any) => isItemInActiveProject(e.projectId));
   }, [epics, isItemInActiveProject]);
 
+  const activePics = useMemo(() => {
+    return pics.filter((p: any) => isItemInActiveProject(p.projectId));
+  }, [pics, isItemInActiveProject]);
+
   const overlapMap = useMemo(() => {
     return computeAllTaskOverlaps(activeTasks, holidays, activeEpics);
   }, [activeTasks, holidays, activeEpics]);
@@ -433,12 +437,12 @@ export default function TodoPage() {
                       ))}
                     </DropdownMenuGroup>
 
-                    {pics.length > 0 && (
+                    {activePics.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
                           <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
-                          {pics.map((pic) => (
+                          {activePics.map((pic) => (
                             <DropdownMenuCheckboxItem
                               key={pic.id}
                               checked={picFilters.includes(pic.name)}
@@ -451,7 +455,7 @@ export default function TodoPage() {
                       </>
                     )}
 
-                    {epics.length > 0 && (
+                    {activeEpics.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
@@ -462,7 +466,7 @@ export default function TodoPage() {
                           >
                             Backlog (No Epic)
                           </DropdownMenuCheckboxItem>
-                          {epics.map((epic) => (
+                          {activeEpics.map((epic) => (
                             <DropdownMenuCheckboxItem
                               key={epic.id}
                               checked={epicFilters.includes(epic.id)}
@@ -598,8 +602,8 @@ export default function TodoPage() {
                           <SortableTodoRow
                             key={item.id}
                             item={item}
-                            epics={epics}
-                            pics={pics}
+                            epics={activeEpics}
+                            pics={activePics}
                             overlapInfo={overlapMap.get(item.id)}
                             handleEdit={handleEditTask}
                             deleteTask={deleteTask}

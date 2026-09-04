@@ -65,9 +65,21 @@ export default function PicsPage() {
     },
   });
 
+  const projectPics = useMemo(() => {
+    return pics.filter((p: any) => isItemInActiveProject(p.projectId));
+  }, [pics, isItemInActiveProject]);
+
+  const projectTasks = useMemo(() => {
+    return tasks.filter((t: any) => isItemInActiveProject(t.projectId));
+  }, [tasks, isItemInActiveProject]);
+
   const onSubmit = async (data: FormValues) => {
     try {
-      await addPic({ ...data, showInAnalytics: data.showInAnalytics ?? true });
+      await addPic({
+        ...data,
+        projectId: activeProject?.id || "",
+        showInAnalytics: data.showInAnalytics ?? true,
+      });
       form.reset({
         name: "",
         color: "#1ABB9C",
@@ -94,13 +106,13 @@ export default function PicsPage() {
   };
 
   const filteredPics = useMemo(() => {
-    let list = [...pics].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
+    let list = [...projectPics].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
       list = list.filter((p) => (p.name || "").toLowerCase().includes(q));
     }
     return list;
-  }, [pics, searchQuery]);
+  }, [projectPics, searchQuery]);
 
   return (
     <Panel className="h-full border-t-4 border-t-primary flex flex-col">
@@ -191,7 +203,7 @@ export default function PicsPage() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Total PICs: <span className="font-semibold text-foreground">{pics.length}</span>
+              Total PICs: <span className="font-semibold text-foreground">{projectPics.length}</span>
             </p>
           </div>
 
@@ -225,7 +237,6 @@ export default function PicsPage() {
                   </TableRow>
                 ) : (
                   filteredPics.map((pic: any) => {
-                    const projectTasks = tasks.filter((t: any) => isItemInActiveProject(t.projectId));
                     const picTasks = projectTasks.filter((t: any) => t.pic === pic.name);
                     const totalTasks = picTasks.length;
                     const totalMd = picTasks.reduce((sum: number, t: any) => sum + (Number(t.md) || 0), 0);

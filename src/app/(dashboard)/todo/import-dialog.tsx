@@ -48,7 +48,7 @@ export function ImportDialog({
 }) {
   const alertModal = useAlertModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { activeProjectId } = useProject();
+  const { activeProjectId, isItemInActiveProject } = useProject();
 
   const { data: epics = [] } = useCollection<any>("timelineEpics");
   const { mutateAsync: addEpic } = useAddDocument("timelineEpics");
@@ -249,7 +249,7 @@ export function ImportDialog({
     try {
       // 1. Automatically create missing Epics
       const existingEpicMap = new Map<string, string>();
-      epics.forEach((e: any) => {
+      epics.filter((e: any) => isItemInActiveProject(e.projectId)).forEach((e: any) => {
         existingEpicMap.set(e.name.trim().toLowerCase(), e.id);
       });
 
@@ -263,15 +263,16 @@ export function ImportDialog({
 
       for (let i = 0; i < uniqueEpicNames.length; i++) {
         const newEpicName = uniqueEpicNames[i];
-        const res = await addEpic({ name: newEpicName, order: Date.now() + i * 10, projectId: activeProjectId || undefined });
+        const res = await addEpic({ name: newEpicName, order: Date.now() + i * 10, projectId: activeProjectId || "" });
         if (res && res.id) {
           existingEpicMap.set(newEpicName.toLowerCase(), res.id);
         }
       }
 
       // 2. Automatically create missing PICs
+      const projectPics = existingPics.filter((p: any) => isItemInActiveProject(p.projectId));
       const existingPicSet = new Set<string>();
-      existingPics.forEach((p: any) => {
+      projectPics.forEach((p: any) => {
         if (p.name) existingPicSet.add(p.name.trim().toLowerCase());
       });
 
@@ -285,11 +286,12 @@ export function ImportDialog({
 
       for (let i = 0; i < uniquePicNames.length; i++) {
         const newPicName = uniquePicNames[i];
-        const color = DEFAULT_PIC_COLORS[(existingPics.length + i) % DEFAULT_PIC_COLORS.length];
+        const color = DEFAULT_PIC_COLORS[(projectPics.length + i) % DEFAULT_PIC_COLORS.length];
         await addPic({
           name: newPicName,
           color: color,
           showInAnalytics: true,
+          projectId: activeProjectId || "",
         });
         existingPicSet.add(newPicName.toLowerCase());
       }

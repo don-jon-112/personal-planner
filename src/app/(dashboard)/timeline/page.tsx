@@ -613,6 +613,9 @@ export default function TimelinePage() {
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
   const { data: holidays } = useCollection<any>("timelineHolidays");
   const { data: pics } = useCollection<any>("timelinePics");
+  const projectPics = useMemo(() => {
+    return (pics || []).filter((p: any) => isItemInActiveProject(p.projectId));
+  }, [pics, isItemInActiveProject]);
   const { mutateAsync: updateEpic } = useUpdateDocument("timelineEpics");
   const { mutateAsync: updateTask } = useUpdateDocument("timelineTasks");
   const { mutateAsync: deleteEpic } = useDeleteDocument("timelineEpics");
@@ -851,7 +854,7 @@ export default function TimelinePage() {
                 </>
               )}
             </Button>
-            <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, pics, (msg) => alertModal({ title: "Export Excel", description: msg, variant: "info" }))} variant="outline" className="px-3 text-xs sm:text-sm">
+            <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, projectPics, (msg) => alertModal({ title: "Export Excel", description: msg, variant: "info" }))} variant="outline" className="px-3 text-xs sm:text-sm">
               <FileSpreadsheet className="w-4 h-4 mr-1.5 text-green-600 dark:text-green-500" />
               <span className="hidden sm:inline">Export Excel</span>
               <span className="sm:hidden">Excel</span>
@@ -875,7 +878,7 @@ export default function TimelinePage() {
             <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} />
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
             <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
-            <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={pics} />
+            <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={projectPics} />
           </div>
 
           {/* Row 2: Filter Toolbar on desktop */}
@@ -899,7 +902,7 @@ export default function TimelinePage() {
                   >
                     All PICs
                   </DropdownMenuCheckboxItem>
-                  {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
+                  {[...projectPics].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
                     <DropdownMenuCheckboxItem 
                       key={pic.id}
                       checked={selectedPicFilter === pic.name}
@@ -1013,7 +1016,7 @@ export default function TimelinePage() {
                           tasks={epicTasks}
                           dates={dates}
                           holidays={holidays}
-                          pics={pics || []}
+                          pics={projectPics}
                           overlapMap={overlapMap}
                           onEditEpic={(e: any) => { setEditingEpic(e); setIsEpicDialogOpen(true); }}
                           onDeleteEpic={handleDeleteEpic}

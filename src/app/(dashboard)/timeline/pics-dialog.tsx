@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog-provider";
 
+import { useProject } from "@/components/project-context";
+
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   color: z.string().min(1, "Color is required"),
@@ -33,6 +35,7 @@ export function PicsDialog({
   onOpenChange?: (open: boolean) => void
 }) {
   const confirm = useConfirm();
+  const { activeProject, isItemInActiveProject } = useProject();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
@@ -41,6 +44,8 @@ export function PicsDialog({
   const { mutateAsync: addPic, isPending: isAdding } = useAddDocument("timelinePics");
   const { mutateAsync: updatePic } = useUpdateDocument("timelinePics");
   const { mutate: deletePic } = useDeleteDocument("timelinePics");
+
+  const projectPics = (pics || []).filter((p: any) => isItemInActiveProject(p.projectId));
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -53,7 +58,11 @@ export function PicsDialog({
 
   async function onSubmit(data: FormValues) {
     try {
-      await addPic({ ...data, showInAnalytics: true });
+      await addPic({
+        ...data,
+        projectId: activeProject?.id || "",
+        showInAnalytics: true,
+      });
       form.reset({
         name: "",
         color: "#1ABB9C",
@@ -95,11 +104,11 @@ export function PicsDialog({
             <h4 className="text-sm font-medium text-muted-foreground">Existing PICs</h4>
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : pics?.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No custom PICs defined.</p>
+            ) : projectPics.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No custom PICs defined for this project.</p>
             ) : (
               <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                {[...(pics || [])].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
+                {[...projectPics].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")).map((pic: any) => (
                   <div key={pic.id} className="flex items-center justify-between bg-muted/30 p-2 rounded border">
                     <div className="flex items-center gap-3 flex-1">
                       <input 

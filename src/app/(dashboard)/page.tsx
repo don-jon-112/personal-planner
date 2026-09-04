@@ -18,11 +18,12 @@ import { cn } from "@/lib/utils";
 export default function Home() {
   const { activeProject, isItemInActiveProject } = useProject();
   const { data: allTasks } = useCollection<any>("timelineTasks");
+  const { data: allEpics } = useCollection<any>("timelineEpics");
   const { data: allBugs } = useCollection<any>("bugReports");
-  const { data: notes } = useCollection<any>("notes");
 
-  // Filter tasks & bugs scoped to the active project
+  // Filter tasks, epics & bugs scoped to the active project
   const tasks = (allTasks || []).filter((t: any) => isItemInActiveProject(t.projectId));
+  const epics = (allEpics || []).filter((e: any) => isItemInActiveProject(e.projectId));
   const bugs = (allBugs || []).filter((b: any) => isItemInActiveProject(b.projectId));
 
   const totalTasks = tasks.length;
@@ -53,9 +54,9 @@ export default function Home() {
 
   const activities = [
     ...tasks.map((t: any) => ({ id: t.id, type: "task", title: `Task: ${t.name || t.task}`, time: getTime(t) })),
+    ...epics.map((e: any) => ({ id: e.id, type: "epic", title: `Epic: ${e.name}`, time: getTime(e) })),
     ...bugs.map((b: any) => ({ id: b.id, type: "bug", title: `Bug: ${b.summary}`, time: getTime(b) })),
-    ...(notes || []).map((n: any) => ({ id: n.id, type: "note", title: `Note (Global): ${n.title}`, time: getTime(n) })),
-  ].sort((a, b) => b.time - a.time).slice(0, 5);
+  ].sort((a, b) => b.time - a.time).slice(0, 6);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto w-full">
@@ -159,7 +160,7 @@ export default function Home() {
         <Panel>
           <PanelHeader>
             <PanelTitle>Recent Activity</PanelTitle>
-            <PanelDescription>Latest updates for this project & global notes.</PanelDescription>
+            <PanelDescription>Latest updates in {activeProject?.name || "this project"}.</PanelDescription>
           </PanelHeader>
           <PanelContent>
             <div className="space-y-3.5">
@@ -170,7 +171,7 @@ export default function Home() {
                   <div key={`${activity.type}-${activity.id}`} className="flex items-center gap-3 border-b border-border/50 pb-3 last:border-0 last:pb-0">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
                       activity.type === 'task' ? 'bg-primary' : 
-                      activity.type === 'note' ? 'bg-yellow-500' : 'bg-destructive'
+                      activity.type === 'epic' ? 'bg-indigo-500' : 'bg-destructive'
                     }`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{activity.title}</p>
