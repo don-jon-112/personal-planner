@@ -556,6 +556,7 @@ export default function GuestTimelinePage() {
     }
   }, [rawTasks]);
 
+  const [rangeConfig, setRangeConfig] = useState<DateRangeConfig>({ preset: "auto" });
   const [showNonWorkingDays, setShowNonWorkingDays] = useState(true);
 
   const rawDates = useMemo(() => {

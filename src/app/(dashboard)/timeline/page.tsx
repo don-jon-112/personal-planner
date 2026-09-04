@@ -683,6 +683,7 @@ export default function TimelinePage() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  const [rangeConfig, setRangeConfig] = useState<DateRangeConfig>({ preset: "auto" });
   const [showNonWorkingDays, setShowNonWorkingDays] = useState(true);
 
   const rawDates = useMemo(() => {
