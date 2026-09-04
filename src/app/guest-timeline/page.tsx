@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Lock, ShieldAlert } from "lucide-react";
+import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Lock, ShieldAlert, Loader2 } from "lucide-react";
 import { useCollection } from "@/hooks/use-firestore";
 import { ChartsDialog } from "../(dashboard)/timeline/charts-dialog";
 import { Project } from "@/types/project";
@@ -501,6 +501,11 @@ function GuestTimelineInner() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Always ensure network is connected on guest-timeline so public visitors can fetch from Firestore Cloud
+  useEffect(() => {
+    enableNetwork(db).catch(console.error);
+  }, []);
+
   // Match project by token or projectIdParam
   const matchedProject = useMemo(() => {
     if (!projects || projects.length === 0) return null;
@@ -612,6 +617,15 @@ function GuestTimelineInner() {
     return computeAllTaskOverlaps(localTasks, holidays, orderedEpics);
   }, [localTasks, holidays, orderedEpics]);
 
+  if (isLoadingProjects) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground font-medium">Memuat jadwal timeline project...</p>
+      </div>
+    );
+  }
+
   if (isInvalidToken) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
@@ -624,6 +638,17 @@ function GuestTimelineInner() {
             Tautan timeline ini tidak valid, telah dinonaktifkan, atau sudah tidak berlaku lagi.
             Silakan hubungi pengelola project untuk mendapatkan tautan akses terbaru.
           </p>
+          <div className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="text-xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Coba Muat Ulang
+            </Button>
+          </div>
         </div>
       </div>
     );

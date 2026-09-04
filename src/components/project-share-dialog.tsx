@@ -22,10 +22,13 @@ import {
   Calendar,
   Lock,
   Loader2,
+  CloudUpload,
 } from "lucide-react";
 import { Project, ProjectShareSettings } from "@/types/project";
 import { useProject } from "./project-context";
 import { useConfirm } from "./confirm-dialog-provider";
+import { enableNetwork, disableNetwork, waitForPendingWrites } from "firebase/firestore";
+import { db } from "@/firebase/config";
 
 interface ProjectShareDialogProps {
   open: boolean;
@@ -47,6 +50,8 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
 
   const [copied, setCopied] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [syncedSuccess, setSyncedSuccess] = useState(false);
 
   const shareSettings: ProjectShareSettings = activeProject?.shareSettings || {
     isEnabled: false,
@@ -56,6 +61,37 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
 
   const isEnabled = shareSettings.isEnabled;
   const shareToken = shareSettings.shareToken;
+
+  const syncToCloud = async () => {
+    try {
+      await enableNetwork(db);
+      await waitForPendingWrites(db);
+    } catch (e) {
+      console.warn("Auto-sync to cloud error:", e);
+    } finally {
+      if (typeof window !== "undefined" && localStorage.getItem("syncMode") !== "online") {
+        await disableNetwork(db).catch(() => {});
+      }
+    }
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncingCloud(true);
+    try {
+      await enableNetwork(db);
+      await waitForPendingWrites(db);
+      await new Promise((r) => setTimeout(r, 500));
+      setSyncedSuccess(true);
+      setTimeout(() => setSyncedSuccess(false), 3000);
+    } catch (err) {
+      console.error("Manual sync error:", err);
+    } finally {
+      if (typeof window !== "undefined" && localStorage.getItem("syncMode") !== "online") {
+        await disableNetwork(db).catch(() => {});
+      }
+      setIsSyncingCloud(false);
+    }
+  };
 
   // Auto-generate token if not set yet
   useEffect(() => {
@@ -67,7 +103,7 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
           shareToken: initialToken,
           expiresAt: null,
         },
-      });
+      }).then(() => syncToCloud());
     }
   }, [open, activeProject, updateProject]);
 
@@ -85,6 +121,7 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
           shareToken: shareToken || generateRandomToken(),
         },
       });
+      await syncToCloud();
     } finally {
       setIsUpdating(false);
     }
@@ -118,6 +155,7 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
             shareToken: newToken,
           },
         });
+        await syncToCloud();
       } finally {
         setIsUpdating(false);
       }
@@ -243,6 +281,44 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
               </div>
             </div>
           )}
+
+          {/* Cloud Sync Helper */}
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between gap-3 text-xs">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-foreground flex items-center gap-1.5">
+                <CloudUpload className="w-3.5 h-3.5 text-primary shrink-0" />
+                Sinkronisasi Cloud
+              </p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                Kirim data project & task terbaru ke server Cloud agar bisa dibuka oleh penerima link.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleManualSync}
+              disabled={isSyncingCloud}
+              className="h-8 px-2.5 text-xs shrink-0"
+            >
+              {isSyncingCloud ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  Syncing...
+                </>
+              ) : syncedSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5" />
+                  Tersinkron!
+                </>
+              ) : (
+                <>
+                  <CloudUpload className="w-3.5 h-3.5 mr-1.5" />
+                  Push ke Cloud
+                </>
+              )}
+            </Button>
+          </div>
 
           {/* Privacy Notice Card */}
           <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1.5 text-xs text-muted-foreground min-w-0">

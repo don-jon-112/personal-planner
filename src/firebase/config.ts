@@ -26,11 +26,17 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // By default, we keep the network disabled to use zero quota.
-  // The user can trigger a manual sync from the Settings page.
-  const syncMode = localStorage.getItem('syncMode');
-  if (syncMode !== 'online') {
-    disableNetwork(db).catch(console.error);
+  const isGuestTimeline = window.location.pathname.startsWith('/guest-timeline');
+  if (isGuestTimeline) {
+    // Guest timeline MUST always be connected to fetch live cloud data for visitors
+    enableNetwork(db).catch(console.error);
+  } else {
+    // By default, we keep the network disabled to use zero quota.
+    // The user can trigger a manual sync from the Settings page.
+    const syncMode = localStorage.getItem('syncMode');
+    if (syncMode !== 'online') {
+      disableNetwork(db).catch(console.error);
+    }
   }
 }
 
