@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw, FileSpreadsheet, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Lock, ShieldAlert } from "lucide-react";
 import { useCollection } from "@/hooks/use-firestore";
 import { ChartsDialog } from "../(dashboard)/timeline/charts-dialog";
+import { Project } from "@/types/project";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
 import { useAlertModal } from "@/components/confirm-dialog-provider";
@@ -484,15 +486,36 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAll
   );
 }
 
-export default function GuestTimelinePage() {
+function GuestTimelineInner() {
   const alertModal = useAlertModal();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+  const projectIdParam = searchParams.get("project") || searchParams.get("projectId");
+
   const { data: rawEpics, isLoading: isLoadingEpics, refetch: refetchEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks, refetch: refetchTasks } = useCollection<any>("timelineTasks");
   const { data: holidays, refetch: refetchHolidays } = useCollection<any>("timelineHolidays");
   const { data: pics, refetch: refetchPics } = useCollection<any>("timelinePics");
+  const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>("projects");
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Match project by token or projectIdParam
+  const matchedProject = useMemo(() => {
+    if (!projects || projects.length === 0) return null;
+    if (token) {
+      return projects.find((p) => p.shareSettings?.shareToken === token) || null;
+    }
+    if (projectIdParam) {
+      return projects.find((p) => p.id === projectIdParam) || null;
+    }
+    return projects[0] || null;
+  }, [projects, token, projectIdParam]);
+
+  const isInvalidToken = Boolean(
+    token && !isLoadingProjects && (!matchedProject || matchedProject.shareSettings?.isEnabled === false)
+  );
 
   useEffect(() => {
     const checkPendingSync = async () => {
@@ -547,17 +570,31 @@ export default function GuestTimelinePage() {
     );
   }, [orderedEpics, localTasks, selectedPicFilter]);
 
+  // Scope Epics to matchedProject
   useEffect(() => {
-    if (rawEpics) {
+    if (rawEpics && matchedProject) {
+      const filtered = rawEpics.filter((e: any) => {
+        if (e.projectId) return e.projectId === matchedProject.id;
+        return matchedProject.isDefault || matchedProject.id === projects?.[0]?.id;
+      });
+      setOrderedEpics(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
+    } else if (rawEpics && !token && !projectIdParam) {
       setOrderedEpics([...rawEpics].sort((a, b) => (a.order || 0) - (b.order || 0)));
     }
-  }, [rawEpics]);
+  }, [rawEpics, matchedProject, projects, token, projectIdParam]);
 
+  // Scope Tasks to matchedProject
   useEffect(() => {
-    if (rawTasks) {
+    if (rawTasks && matchedProject) {
+      const filtered = rawTasks.filter((t: any) => {
+        if (t.projectId) return t.projectId === matchedProject.id;
+        return matchedProject.isDefault || matchedProject.id === projects?.[0]?.id;
+      });
+      setLocalTasks(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
+    } else if (rawTasks && !token && !projectIdParam) {
       setLocalTasks([...rawTasks].sort((a, b) => (a.order || 0) - (b.order || 0)));
     }
-  }, [rawTasks]);
+  }, [rawTasks, matchedProject, projects, token, projectIdParam]);
 
   const [rangeConfig, setRangeConfig] = useState<DateRangeConfig>({ preset: "auto" });
   const [showNonWorkingDays, setShowNonWorkingDays] = useState(true);
@@ -575,14 +612,46 @@ export default function GuestTimelinePage() {
     return computeAllTaskOverlaps(localTasks, holidays, orderedEpics);
   }, [localTasks, holidays, orderedEpics]);
 
+  if (isInvalidToken) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-4">
+        <div className="max-w-md w-full p-8 rounded-2xl border bg-card text-center space-y-4 shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">Akses Tidak Tersedia</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Tautan timeline ini telah dinonaktifkan oleh Project Manager atau sudah tidak berlaku lagi.
+            Silakan hubungi pengelola project untuk mendapatkan tautan akses terbaru.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Panel className="h-[calc(100dvh-104px)] min-h-0 border-t-4 border-t-primary flex flex-col">
       <PanelHeader className="flex flex-col xl:flex-row items-start justify-between border-b-0 pb-3 gap-4 shrink-0">
         <div className="w-full xl:w-auto">
-          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2">
-            <CalendarClock className="w-6 h-6 text-primary" /> Timeline
+          <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
+            <CalendarClock className="w-6 h-6 text-primary" />
+            <span>{matchedProject ? matchedProject.name : "Timeline"}</span>
+            {matchedProject && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: matchedProject.color || "#3b82f6" }}
+                />
+                {matchedProject.key || "Project"}
+              </span>
+            )}
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border">
+              Read-Only
+            </span>
           </PanelTitle>
-          <PanelDescription className="mt-1">Read-only view of the project schedule.</PanelDescription>
+          <PanelDescription className="mt-1">
+            {matchedProject?.description || "Read-only view of the project schedule."}
+          </PanelDescription>
         </div>
 
         <div className="flex flex-col gap-2.5 w-full xl:w-auto items-start xl:items-end">
@@ -766,3 +835,18 @@ export default function GuestTimelinePage() {
     </Panel>
   );
 }
+
+export default function GuestTimelinePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[70vh] flex items-center justify-center text-muted-foreground text-sm">
+          Loading timeline...
+        </div>
+      }
+    >
+      <GuestTimelineInner />
+    </Suspense>
+  );
+}
+

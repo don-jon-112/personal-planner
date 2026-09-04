@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Download } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Download, Share2, Calendar } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -11,6 +11,7 @@ import { HolidaysDialog } from "./holidays-dialog";
 import { PicsDialog } from "./pics-dialog";
 import { ChartsDialog } from "./charts-dialog";
 import { TimelineExportDialog } from "./timeline-export-dialog";
+import { ProjectShareDialog } from "@/components/project-share-dialog";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
@@ -628,6 +629,7 @@ export default function TimelinePage() {
   const [isPicsDialogOpen, setIsPicsDialogOpen] = useState(false);
   const [isChartsDialogOpen, setIsChartsDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const [collapseAllTrigger, setCollapseAllTrigger] = useState(0);
   const [expandAllTrigger, setExpandAllTrigger] = useState(0);
@@ -838,50 +840,94 @@ export default function TimelinePage() {
         </div>
 
         <div className="flex flex-col gap-2.5 w-full xl:w-auto items-start xl:items-end">
-          {/* Row 1: Action Buttons */}
+          {/* Row 1: Action Buttons (Clean & Grouped) */}
           <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end">
-            <Button 
-              onClick={() => setShowNonWorkingDays(!showNonWorkingDays)} 
-              variant="outline" 
-              className={cn("px-3 text-xs sm:text-sm", !showNonWorkingDays && "bg-primary/10 border-primary text-primary")}
+            {/* 1. View Settings Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 h-8 text-xs font-medium gap-1.5")}>
+                <Eye className="w-3.5 h-3.5" />
+                <span>View</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Display Preferences</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={showNonWorkingDays}
+                  onCheckedChange={setShowNonWorkingDays}
+                >
+                  Show Holidays & Weekends
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setIsHolidaysDialogOpen(true)}>
+                  <Calendar className="w-3.5 h-3.5 mr-2 text-primary" />
+                  Manage Holidays
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setExpandAllTrigger((t) => t + 1)}>
+                  <ChevronDown className="w-3.5 h-3.5 mr-2" />
+                  Expand All Epics
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setCollapseAllTrigger((t) => t + 1)}>
+                  <ChevronUp className="w-3.5 h-3.5 mr-2" />
+                  Collapse All Epics
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 2. Analytics */}
+            <Button
+              onClick={() => setIsChartsDialogOpen(true)}
+              variant="outline"
+              className="px-3 h-8 text-xs font-medium gap-1.5"
             >
-              {showNonWorkingDays ? (
-                <>
-                  <EyeOff className="w-4 h-4 mr-1.5" />
-                  <span>Hide Holidays & Weekends</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="w-4 h-4 mr-1.5" />
-                  <span>Show Holidays & Weekends</span>
-                </>
-              )}
-            </Button>
-            <Button onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, projectPics, (msg) => alertModal({ title: "Export Excel", description: msg, variant: "info" }))} variant="outline" className="px-3 text-xs sm:text-sm">
-              <FileSpreadsheet className="w-4 h-4 mr-1.5 text-green-600 dark:text-green-500" />
-              <span className="hidden sm:inline">Export Excel</span>
-              <span className="sm:hidden">Excel</span>
-            </Button>
-            <Button onClick={() => setIsExportDialogOpen(true)} variant="outline" className="px-3 text-xs sm:text-sm">
-              <Download className="w-4 h-4 mr-1.5 text-primary" />
-              <span className="hidden sm:inline">Export Image / PDF</span>
-              <span className="sm:hidden">Export</span>
-            </Button>
-            <Button onClick={() => setIsChartsDialogOpen(true)} variant="outline" className="px-3 text-xs sm:text-sm">
-              <PieChart className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
+              <PieChart className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span className="hidden sm:inline">Analytics</span>
             </Button>
-            <Button onClick={() => setIsHolidaysDialogOpen(true)} variant="outline" className="px-3 text-xs sm:text-sm">
-              <span>Holidays</span>
-            </Button>
-            <Button onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }} variant="outline" className="px-3 text-xs sm:text-sm">
-              <Plus className="w-4 h-4 mr-1.5" />
+
+            {/* 3. Share & Export Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 h-8 text-xs font-medium gap-1.5 border-primary/30 text-primary hover:bg-primary/10")}>
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Share & Export</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuLabel>Client Sharing</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => setIsShareDialogOpen(true)}>
+                  <Share2 className="w-3.5 h-3.5 mr-2 text-primary" />
+                  <span>Share with Client...</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Export Roadmap</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)}>
+                  <Download className="w-3.5 h-3.5 mr-2 text-primary" />
+                  <span>Export Image (PNG) / PDF...</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportTimelineToExcel(orderedEpics, localTasks, dates, holidays, projectPics, (msg) => alertModal({ title: "Export Excel", description: msg, variant: "info" }))}>
+                  <FileSpreadsheet className="w-3.5 h-3.5 mr-2 text-green-600 dark:text-green-500" />
+                  <span>Export to Excel (.xlsx)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 4. Primary Actions */}
+            <Button
+              onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }}
+              variant="outline"
+              className="px-3 h-8 text-xs font-medium gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
               <span>New Epic</span>
             </Button>
-            <Button onClick={() => { setEditingTask(null); setIsTaskDialogOpen(true); }} className="px-3 text-xs sm:text-sm">
-              <Plus className="w-4 h-4 mr-1.5" />
+            <Button
+              onClick={() => { setEditingTask(null); setIsTaskDialogOpen(true); }}
+              className="px-3 h-8 text-xs font-medium gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
               <span>New Task</span>
             </Button>
+
+            {/* Modal Dialogs */}
             <EpicDialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen} epicToEdit={editingEpic} />
             <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} />
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
@@ -894,6 +940,10 @@ export default function TimelinePage() {
               activeProject={activeProject}
               totalTasks={localTasks.length}
               totalEpics={orderedEpics.length}
+            />
+            <ProjectShareDialog
+              open={isShareDialogOpen}
+              onOpenChange={setIsShareDialogOpen}
             />
           </div>
 

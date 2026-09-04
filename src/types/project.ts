@@ -10,6 +10,14 @@ export interface Project {
   createdAt?: any;
   updatedAt?: any;
   isDefault?: boolean;
+  shareSettings?: ProjectShareSettings;
+}
+
+export interface ProjectShareSettings {
+  isEnabled: boolean;
+  shareToken: string;
+  createdAt?: any;
+  expiresAt?: string | null;
 }
 
 export const PROJECT_STATUSES = [
