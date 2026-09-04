@@ -353,6 +353,27 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          {/* Application Credit Section */}
+          <section className="bg-card border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-extrabold text-base shrink-0">
+                JA
+              </div>
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Application Credit</p>
+                <p className="text-base font-bold text-foreground mt-0.5">
+                  Created by <span className="text-primary">Jonathan Alva</span>
+                </p>
+                <a 
+                  href="mailto:jonathan.alva97@yahoo.com" 
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors font-mono inline-block mt-0.5"
+                >
+                  jonathan.alva97@yahoo.com
+                </a>
+              </div>
+            </div>
+          </section>
+
         </div>
       </PanelContent>
     </Panel>

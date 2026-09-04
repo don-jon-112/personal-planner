@@ -405,6 +405,7 @@ export function TaskDialog({
                       <option value="ON PROGRESS">ON PROGRESS</option>
                       <option value="IN REVIEW">IN REVIEW</option>
                       <option value="DONE">DONE</option>
+                      <option value="WON'T DO">WON'T DO</option>
                     </select>
                   </div>
                 </div>

@@ -406,7 +406,7 @@ export default function TodoPage() {
                   <DropdownMenuContent align="end" className="w-64">
                     <DropdownMenuGroup>
                       <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                      {["TODO", "ON PROGRESS", "IN REVIEW", "DONE"].map((status) => (
+                      {["TODO", "ON PROGRESS", "IN REVIEW", "DONE", "WON'T DO"].map((status) => (
                         <DropdownMenuCheckboxItem
                           key={status}
                           checked={statusFilters.includes(status)}

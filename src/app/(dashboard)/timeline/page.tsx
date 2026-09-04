@@ -143,6 +143,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
       .status-done { background-color: #dcfce7; color: #166534; font-weight: bold; text-align: center; }
       .status-review { background-color: #f3e8ff; color: #7e22ce; font-weight: bold; text-align: center; }
       .status-progress { background-color: #dbeafe; color: #1e40af; font-weight: bold; text-align: center; }
+      .status-wontdo { background-color: #fee2e2; color: #991b1b; font-weight: bold; text-align: center; }
       .status-todo { background-color: #f1f5f9; color: #475569; font-weight: bold; text-align: center; }
       .center { text-align: center; }
       .number { text-align: right; }
@@ -201,7 +202,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
 
     epicTasks.forEach(task => {
       const st = task.status || 'TODO';
-      const stClass = st === 'DONE' ? 'status-done' : (st === 'IN REVIEW' || st === 'ON REVIEW') ? 'status-review' : st === 'ON PROGRESS' ? 'status-progress' : 'status-todo';
+      const stClass = st === 'DONE' ? 'status-done' : (st === 'IN REVIEW' || st === 'ON REVIEW') ? 'status-review' : st === 'ON PROGRESS' ? 'status-progress' : (st === "WON'T DO" || st === "WONT DO") ? 'status-wontdo' : 'status-todo';
       const picColor = getPicColor(task.pic, pics);
 
       const taskStart = new Date(task.startDate);
@@ -376,6 +377,7 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
               task.status === "DONE" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
               task.status === "IN REVIEW" || task.status === "ON REVIEW" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" :
               task.status === "ON PROGRESS" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+              task.status === "WON'T DO" || task.status === "WONT DO" ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" :
               "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
             )}>
               {task.status || "TODO"}
@@ -386,6 +388,7 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
             <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "ON PROGRESS")}>ON PROGRESS</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "IN REVIEW")}>IN REVIEW</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "DONE")}>DONE</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "WON'T DO")}>WON'T DO</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -521,7 +524,8 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
 
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter((t: any) => t.status === "DONE").length;
-  const percentage = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
+  const activeTasks = tasks.filter((t: any) => t.status !== "WON'T DO" && t.status !== "WONT DO").length;
+  const percentage = activeTasks === 0 ? (totalTasks > 0 ? 100 : 0) : Math.round((doneTasks / activeTasks) * 100);
 
   return (
     <div ref={setNodeRef} style={style} className={cn("flex flex-col bg-card", isDragging && "z-40 relative")}>

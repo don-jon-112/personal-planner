@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
   "ON PROGRESS": "#3b82f6", // blue-500
   "IN REVIEW": "#a855f7", // purple-500
   "DONE": "#22c55e", // green-500
+  "WON'T DO": "#ef4444", // red-500
 };
 
 export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDialogProps) {
@@ -45,6 +46,7 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
     let inProgressCount = 0;
     let inReviewCount = 0;
     let doneCount = 0;
+    let wontDoCount = 0;
 
     validTasks.forEach(t => {
       const s = (t.status || "TODO").toUpperCase();
@@ -52,6 +54,7 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
       else if (s === "ON PROGRESS") inProgressCount++;
       else if (s === "IN REVIEW" || s === "ON REVIEW") inReviewCount++;
       else if (s === "DONE") doneCount++;
+      else if (s === "WON'T DO" || s === "WONT DO") wontDoCount++;
     });
 
     return [
@@ -59,6 +62,7 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
       { name: "ON PROGRESS", value: inProgressCount, color: STATUS_COLORS["ON PROGRESS"] },
       { name: "IN REVIEW", value: inReviewCount, color: STATUS_COLORS["IN REVIEW"] },
       { name: "DONE", value: doneCount, color: STATUS_COLORS["DONE"] },
+      { name: "WON'T DO", value: wontDoCount, color: STATUS_COLORS["WON'T DO"] },
     ].filter(d => d.value > 0);
   }, [validTasks]);
 

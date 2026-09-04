@@ -88,6 +88,10 @@ export function checkTaskOverlap(
     return { hasOverlap: false, overlappingTasks: [] };
   }
 
+  if (target.status === "WON'T DO" || target.status === "WONT DO") {
+    return { hasOverlap: false, overlappingTasks: [] };
+  }
+
   const targetRange = getTaskDateRange(target, holidays);
   if (!targetRange.isValid) {
     return { hasOverlap: false, overlappingTasks: [] };
@@ -103,6 +107,9 @@ export function checkTaskOverlap(
   for (const t of allTasks) {
     // Exclude the task itself if editing
     if (target.id && t.id === target.id) continue;
+
+    // Exclude tasks marked as WON'T DO
+    if (t.status === "WON'T DO" || t.status === "WONT DO") continue;
 
     // Check same PIC (case-insensitive trim)
     if (!t.pic || t.pic.trim().toLowerCase() !== target.pic.trim().toLowerCase()) continue;
