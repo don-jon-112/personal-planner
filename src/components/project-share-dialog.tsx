@@ -132,7 +132,7 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
             <Share2 className="w-5 h-5 text-primary" /> Share Link
           </DialogTitle>
           <DialogDescription className="break-words">
-            Berikan akses pantau jadwal & timeline khusus untuk klien pada project{" "}
+            Bagikan akses pantau jadwal & timeline untuk project{" "}
             <span className="font-semibold text-foreground">
               {activeProject?.name || "ini"}
             </span>.
@@ -160,8 +160,8 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
                 </p>
                 <p className="text-[11px] opacity-80 leading-relaxed break-words">
                   {isEnabled
-                    ? "Klien yang memiliki link dapat melihat timeline (View-Only)"
-                    : "Akses dinonaktifkan. Klien tidak dapat membuka timeline"}
+                    ? "Siapa saja yang memiliki link dapat langsung melihat timeline tanpa password (View-Only)"
+                    : "Akses dinonaktifkan. Tautan tidak dapat dibuka"}
                 </p>
               </div>
             </div>
@@ -188,7 +188,7 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
           {isEnabled && (
             <div className="space-y-2 min-w-0">
               <Label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
-                <span>Tautan Khusus Klien</span>
+                <span>Tautan Akses Timeline</span>
                 <span className="text-[10px] text-primary flex items-center gap-1">
                   <Lock className="w-3 h-3" /> Read-Only Secure
                 </span>
@@ -228,7 +228,7 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
                   className="text-primary hover:underline flex items-center gap-1 font-medium truncate"
                 >
                   <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                  Pratinjau Tampilan Klien
+                  Pratinjau Tampilan Link
                 </a>
 
                 <button
@@ -251,13 +251,13 @@ export function ProjectShareDialog({ open, onOpenChange }: ProjectShareDialogPro
             </p>
             <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed break-words">
               <li>
-                Klien <strong>hanya dapat melihat</strong> task dan timeline project ini saja.
+                Penerima link <strong>langsung dapat melihat jadwal tanpa perlu login atau password</strong>, khusus untuk project ini saja (View-Only).
               </li>
               <li>
-                Klien <strong>tidak bisa mengedit, menghapus, atau melihat</strong> project klien lain.
+                Penerima link <strong>tidak bisa mengedit, menghapus, atau melihat</strong> project lainnya.
               </li>
               <li>
-                Jika Anda klik <strong>Reset Link</strong>, link lama otomatis langsung mati dan tidak bisa dibuka lagi.
+                Jika Anda klik <strong>Reset / Ganti Link Baru</strong>, link lama otomatis langsung mati seketika.
               </li>
             </ul>
           </div>

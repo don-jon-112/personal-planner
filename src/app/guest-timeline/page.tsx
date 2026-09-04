@@ -510,11 +510,11 @@ function GuestTimelineInner() {
     if (projectIdParam) {
       return projects.find((p) => p.id === projectIdParam) || null;
     }
-    return projects[0] || null;
+    return null;
   }, [projects, token, projectIdParam]);
 
   const isInvalidToken = Boolean(
-    token && !isLoadingProjects && (!matchedProject || matchedProject.shareSettings?.isEnabled === false)
+    !isLoadingProjects && (!token || !matchedProject || matchedProject.shareSettings?.isEnabled === false)
   );
 
   useEffect(() => {
@@ -621,7 +621,7 @@ function GuestTimelineInner() {
           </div>
           <h2 className="text-xl font-bold text-foreground">Akses Tidak Tersedia</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Tautan timeline ini telah dinonaktifkan oleh Project Manager atau sudah tidak berlaku lagi.
+            Tautan timeline ini tidak valid, telah dinonaktifkan, atau sudah tidak berlaku lagi.
             Silakan hubungi pengelola project untuk mendapatkan tautan akses terbaru.
           </p>
         </div>

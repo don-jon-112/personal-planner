@@ -7,6 +7,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Allow public access to /guest-timeline (share links) without password
+  if (request.nextUrl.pathname.startsWith('/guest-timeline')) {
+    return NextResponse.next()
+  }
+
   // Check if they have the correct password cookie
   const password = request.cookies.get('site_password')?.value
 
