@@ -159,7 +159,7 @@ export default function TodoPage() {
       list = list.filter((t) => {
         const name = (t.name || "").toLowerCase();
         const pic = (t.pic || "").toLowerCase();
-        const epicName = (epics.find((e) => e.id === t.epicId)?.name || "").toLowerCase();
+        const epicName = (activeEpics.find((e) => e.id === t.epicId)?.name || "").toLowerCase();
         return name.includes(q) || pic.includes(q) || epicName.includes(q);
       });
     }
@@ -192,8 +192,8 @@ export default function TodoPage() {
         let bVal = b[taskSortConfig.key] || "";
 
         if (taskSortConfig.key === "epic") {
-          aVal = epics.find((e) => e.id === a.epicId)?.name || "";
-          bVal = epics.find((e) => e.id === b.epicId)?.name || "";
+          aVal = activeEpics.find((e) => e.id === a.epicId)?.name || "";
+          bVal = activeEpics.find((e) => e.id === b.epicId)?.name || "";
         } else if (taskSortConfig.key === "md") {
           aVal = Number(a.md) || 0;
           bVal = Number(b.md) || 0;
@@ -213,7 +213,7 @@ export default function TodoPage() {
     }
 
     return list;
-  }, [localTasks, epics, taskSearchQuery, statusFilters, picFilters, epicFilters, taskSortConfig]);
+  }, [localTasks, activeEpics, taskSearchQuery, statusFilters, picFilters, epicFilters, taskSortConfig]);
 
   // Filtered & Sorted Epics
   const processedEpics = useMemo(() => {
@@ -230,11 +230,11 @@ export default function TodoPage() {
         let bVal = b[epicSortConfig.key] || "";
 
         if (epicSortConfig.key === "taskCount") {
-          aVal = tasks.filter((t) => t.epicId === a.id).length;
-          bVal = tasks.filter((t) => t.epicId === b.id).length;
+          aVal = activeTasks.filter((t) => t.epicId === a.id).length;
+          bVal = activeTasks.filter((t) => t.epicId === b.id).length;
         } else if (epicSortConfig.key === "totalMd") {
-          aVal = tasks.filter((t) => t.epicId === a.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
-          bVal = tasks.filter((t) => t.epicId === b.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+          aVal = activeTasks.filter((t) => t.epicId === a.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+          bVal = activeTasks.filter((t) => t.epicId === b.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
         }
 
         if (aVal < bVal) return epicSortConfig.direction === "asc" ? -1 : 1;
@@ -250,7 +250,7 @@ export default function TodoPage() {
     }
 
     return list;
-  }, [localEpics, tasks, epicSearchQuery, epicSortConfig]);
+  }, [localEpics, activeTasks, epicSearchQuery, epicSortConfig]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -372,7 +372,7 @@ export default function TodoPage() {
                   : "bg-muted text-muted-foreground"
               )}
             >
-              {tasks.length}
+              {activeTasks.length}
             </span>
           </button>
 
@@ -396,7 +396,7 @@ export default function TodoPage() {
                   : "bg-muted text-muted-foreground"
               )}
             >
-              {epics.length}
+              {activeEpics.length}
             </span>
           </button>
         </div>
@@ -717,7 +717,7 @@ export default function TodoPage() {
                           <SortableEpicRow
                             key={epic.id}
                             epic={epic}
-                            tasks={tasks}
+                            tasks={activeTasks}
                             handleEdit={handleEditEpic}
                             deleteEpic={deleteEpic}
                             isDragDisabled={isEpicDragDisabled}
