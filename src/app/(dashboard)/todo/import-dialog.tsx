@@ -213,7 +213,7 @@ export function ImportDialog({
 
         const firstSheetName = workbook.SheetNames[0];
         if (!firstSheetName) {
-          setErrorMsg("File spreadsheet tidak memiliki lembar kerja (sheet).");
+          setErrorMsg("Spreadsheet file has no worksheets.");
           setParsedData([]);
           return;
         }
@@ -226,14 +226,14 @@ export function ImportDialog({
 
         const tasks = parseSpreadsheetData(rawRows);
         if (tasks.length === 0) {
-          setErrorMsg("File kosong atau tidak ada baris data tugas yang valid.");
+          setErrorMsg("Empty file or no valid task rows found.");
           setParsedData([]);
         } else {
           setParsedData(tasks);
         }
       } catch (err) {
         console.error(err);
-        setErrorMsg("Gagal membaca file. Pastikan format file adalah .xlsx, .xls, atau .csv.");
+        setErrorMsg("Failed to read file. Please ensure format is .xlsx, .xls, or .csv.");
       }
     };
 
@@ -317,12 +317,12 @@ export function ImportDialog({
       }
 
       const summaryParts = [`${parsedData.length} task`];
-      if (uniqueEpicNames.length > 0) summaryParts.push(`${uniqueEpicNames.length} epic baru`);
-      if (uniquePicNames.length > 0) summaryParts.push(`${uniquePicNames.length} PIC baru`);
+      if (uniqueEpicNames.length > 0) summaryParts.push(`${uniqueEpicNames.length} new epics`);
+      if (uniquePicNames.length > 0) summaryParts.push(`${uniquePicNames.length} new PICs`);
 
       await alertModal({
-        title: "Import Berhasil",
-        description: `Berhasil mengimpor data (${summaryParts.join(", ")}) ke Todo Plan!`,
+        title: "Import Successful!",
+        description: `Successfully imported data (${summaryParts.join(", ")}) into Task Plan!`,
         variant: "success",
       });
       setParsedData([]);
@@ -330,7 +330,7 @@ export function ImportDialog({
       onOpenChange(false);
     } catch (err: any) {
       console.error("Import error:", err);
-      setErrorMsg("Terjadi kesalahan saat mengimpor data ke database.");
+      setErrorMsg("An error occurred while importing data to the database.");
     } finally {
       setIsImporting(false);
     }
@@ -357,7 +357,7 @@ export function ImportDialog({
             <FileSpreadsheet className="w-5 h-5 text-primary" /> Import Tasks & Epics
           </DialogTitle>
           <DialogDescription>
-            Unduh template Excel (.xlsx), isi daftar tugas Anda per kolom, lalu upload kembali untuk mengimpor secara massal.
+            Download the Excel (.xlsx) template, fill in your tasks per column, and upload it back to bulk import.
           </DialogDescription>
         </DialogHeader>
 
@@ -369,8 +369,8 @@ export function ImportDialog({
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold">1. Unduh Template Excel</p>
-                <p className="text-xs text-muted-foreground">Format Excel (.xlsx) dengan kolom Task, Epic, PIC, Start Date, MD, Status</p>
+                <p className="text-sm font-semibold">1. Download Excel Template</p>
+                <p className="text-xs text-muted-foreground">Excel format (.xlsx) with columns: Task, Epic, PIC, Start Date, MD, Status</p>
               </div>
             </div>
             <Button
@@ -386,7 +386,7 @@ export function ImportDialog({
 
           {/* Step 2: Upload Zone */}
           <div className="space-y-2">
-            <p className="text-sm font-semibold">2. Upload File Spreadsheet</p>
+            <p className="text-sm font-semibold">2. Upload Spreadsheet File</p>
             <div
               onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-border/80 hover:border-primary/60 transition-colors rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer bg-muted/20 hover:bg-muted/30"
@@ -403,10 +403,10 @@ export function ImportDialog({
                 {fileName ? (
                   <span className="text-primary font-bold">{fileName}</span>
                 ) : (
-                  "Klik untuk memilih file Excel (.xlsx, .xls) atau CSV"
+                  "Click to select Excel (.xlsx, .xls) or CSV file"
                 )}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Mendukung file .xlsx, .xls, dan .csv</p>
+              <p className="text-xs text-muted-foreground mt-1">Supports .xlsx, .xls, and .csv files</p>
             </div>
           </div>
 
@@ -424,7 +424,7 @@ export function ImportDialog({
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  Pratinjau Data ({parsedData.length} Task Terdeteksi)
+                  Data Preview ({parsedData.length} Task(s) Detected)
                 </p>
                 <Button
                   type="button"
@@ -433,7 +433,7 @@ export function ImportDialog({
                   onClick={resetState}
                   className="text-xs text-muted-foreground hover:text-destructive h-7 px-2"
                 >
-                  Ganti File
+                  Change File
                 </Button>
               </div>
 
@@ -495,7 +495,7 @@ export function ImportDialog({
         {/* Footer actions */}
         <div className="flex items-center justify-end gap-2 pt-3 border-t">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isImporting}>
-            Batal
+            Cancel
           </Button>
           <Button
             type="button"
@@ -506,12 +506,12 @@ export function ImportDialog({
             {isImporting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Mengimpor...
+                Importing...
               </>
             ) : (
               <>
                 <Upload className="w-4 h-4 mr-1.5" />
-                Impor {parsedData.length > 0 ? `${parsedData.length} Task` : "Data"}
+                Import {parsedData.length > 0 ? `${parsedData.length} Task(s)` : "Data"}
               </>
             )}
           </Button>

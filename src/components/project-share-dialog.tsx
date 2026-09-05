@@ -141,9 +141,9 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
     const ok = await confirm({
       title: "Reset Public Link?",
       description:
-        "Tautan lama akan langsung hangus dan tidak bisa diakses siapapun lagi. Apakah Anda yakin ingin membuat link baru?",
+        "The old link will immediately expire and can no longer be accessed by anyone. Are you sure you want to generate a new link?",
       confirmText: "Reset Link",
-      cancelText: "Batal",
+      cancelText: "Cancel",
       variant: "destructive",
     });
 
@@ -172,9 +172,9 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
             <Share2 className="w-5 h-5 text-primary" /> Share Link
           </DialogTitle>
           <DialogDescription className="break-words">
-            Bagikan akses pantau jadwal & timeline untuk project{" "}
+            Share view-only schedule and timeline access for{" "}
             <span className="font-semibold text-foreground">
-              {activeProject?.name || "ini"}
+              {activeProject?.name || "this project"}
             </span>.
           </DialogDescription>
         </DialogHeader>
@@ -184,10 +184,10 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
             <div className="p-4 rounded-xl border bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-300 space-y-2">
               <div className="flex items-center gap-2 font-bold text-sm text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>Timeline Belum Tersedia</span>
+                <span>Timeline Not Available</span>
               </div>
               <p className="text-xs leading-relaxed opacity-90">
-                Project ini belum memiliki data timeline sama sekali (Epic atau Task). Anda belum dapat mengaktifkan atau membagikan link publik hingga jadwal timeline dibuat.
+                This project does not have any timeline data yet (Epics or Tasks). You cannot enable or share a public link until timeline items are created.
               </p>
             </div>
           ) : (
@@ -208,12 +208,12 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold uppercase tracking-wider">
-                      Status Link: {isEnabled ? "Aktif (Public)" : "Nonaktif (Dimatikan)"}
+                      Link Status: {isEnabled ? "Active (Public)" : "Disabled (Off)"}
                     </p>
                     <p className="text-[11px] opacity-80 leading-relaxed break-words">
                       {isEnabled
-                        ? "Siapa saja yang memiliki link dapat langsung melihat timeline tanpa password (View-Only)"
-                        : "Akses dinonaktifkan. Tautan tidak dapat dibuka"}
+                        ? "Anyone with this link can view the timeline without a password (View-Only)"
+                        : "Access disabled. The link cannot be viewed"}
                     </p>
                   </div>
                 </div>
@@ -229,9 +229,9 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
                   {isUpdating ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : isEnabled ? (
-                    "Matikan Link"
+                    "Disable Link"
                   ) : (
-                    "Aktifkan Link"
+                    "Enable Link"
                   )}
                 </Button>
               </div>
@@ -240,7 +240,7 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
               {isEnabled && (
                 <div className="space-y-2 min-w-0">
                   <Label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
-                    <span>Tautan Akses Timeline</span>
+                    <span>Timeline Access Link</span>
                     <span className="text-[10px] text-primary flex items-center gap-1">
                       <Lock className="w-3 h-3" /> Read-Only Secure
                     </span>
@@ -280,7 +280,7 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
                       className="text-primary hover:underline flex items-center gap-1 font-medium truncate"
                     >
                       <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                      Pratinjau Tampilan Link
+                      Preview Link View
                     </a>
 
                     <button
@@ -290,7 +290,7 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
                       className="text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 text-[11px] cursor-pointer self-start sm:self-auto"
                     >
                       <RotateCw className="w-3 h-3 shrink-0" />
-                      Reset / Ganti Link Baru
+                      Reset / Generate New Link
                     </button>
                   </div>
                 </div>
@@ -301,10 +301,10 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-foreground flex items-center gap-1.5">
                     <CloudUpload className="w-3.5 h-3.5 text-primary shrink-0" />
-                    Sinkronisasi Cloud
+                    Cloud Sync
                   </p>
                   <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
-                    Kirim data project & task terbaru ke server Cloud agar bisa dibuka oleh penerima link.
+                    Push the latest project & task data to Cloud server so link recipients can view it.
                   </p>
                 </div>
                 <Button
@@ -323,12 +323,12 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
                   ) : syncedSuccess ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5" />
-                      Tersinkron!
+                      Synced!
                     </>
                   ) : (
                     <>
                       <CloudUpload className="w-3.5 h-3.5 mr-1.5" />
-                      Push ke Cloud
+                      Push to Cloud
                     </>
                   )}
                 </Button>
@@ -337,17 +337,17 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
               {/* Privacy Notice Card */}
               <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1.5 text-xs text-muted-foreground min-w-0">
                 <p className="font-semibold text-foreground flex items-center gap-1.5">
-                  🛡️ Privasi & Keamanan Data:
+                  🛡️ Privacy & Data Security:
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed break-words">
                   <li>
-                    Penerima link <strong>langsung dapat melihat jadwal tanpa perlu login atau password</strong>, khusus untuk project ini saja (View-Only).
+                    Recipients can <strong>view the schedule directly without requiring a login or password</strong>, strictly for this project only (View-Only).
                   </li>
                   <li>
-                    Penerima link <strong>tidak bisa mengedit, menghapus, atau melihat</strong> project lainnya.
+                    Recipients <strong>cannot edit, delete, or view</strong> any other projects.
                   </li>
                   <li>
-                    Jika Anda klik <strong>Reset / Ganti Link Baru</strong>, link lama otomatis langsung mati seketika.
+                    If you click <strong>Reset / Generate New Link</strong>, the previous link will immediately expire and become inaccessible.
                   </li>
                 </ul>
               </div>
@@ -357,7 +357,7 @@ export function ProjectShareDialog({ open, onOpenChange, hasTimeline = true }: P
 
         <DialogFooter className="pt-2 border-t">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Tutup
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>

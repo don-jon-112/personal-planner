@@ -98,7 +98,7 @@ function getPicColor(name: string, pics: any[] = []) {
 
 function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], holidays: any[] = [], pics: any[] = [], showAlert?: (msg: string) => void) {
   if (!epics || epics.length === 0) {
-    if (showAlert) showAlert("Tidak ada data Epic atau Task untuk diexport.");
+    if (showAlert) showAlert("No Epic or Task data available to export.");
     return;
   }
 
@@ -639,10 +639,10 @@ export default function TimelinePage() {
 
   const handleDeleteEpic = async (epic: any) => {
     const ok = await confirm({
-      title: "Hapus Epic?",
-      description: `Apakah Anda yakin ingin menghapus Epic "${epic.name}" beserta seluruh task di dalamnya? Tindakan ini tidak dapat dibatalkan.`,
-      confirmText: "Hapus Epic",
-      cancelText: "Batal",
+      title: "Delete Epic?",
+      description: `Are you sure you want to delete Epic "${epic.name}" and all its tasks? This action cannot be undone.`,
+      confirmText: "Delete Epic",
+      cancelText: "Cancel",
       variant: "destructive",
     });
     if (ok) {
@@ -652,10 +652,10 @@ export default function TimelinePage() {
 
   const handleDeleteTask = async (task: any) => {
     const ok = await confirm({
-      title: "Hapus Task?",
-      description: `Apakah Anda yakin ingin menghapus task "${task.name}"?`,
-      confirmText: "Hapus Task",
-      cancelText: "Batal",
+      title: "Delete Task?",
+      description: `Are you sure you want to delete task "${task.name}"?`,
+      confirmText: "Delete Task",
+      cancelText: "Cancel",
       variant: "destructive",
     });
     if (ok) {
@@ -890,8 +890,8 @@ export default function TimelinePage() {
                     const hasTimeline = orderedEpics.length > 0 || localTasks.length > 0;
                     if (!hasTimeline) {
                       alertModal({
-                        title: "Timeline Belum Tersedia",
-                        description: `Project "${activeProject?.name || "ini"}" belum memiliki data timeline sama sekali (Epic atau Task). Silakan buat minimal satu Epic atau Task terlebih dahulu sebelum membagikan link.`,
+                        title: "Timeline Not Available",
+                        description: `Project "${activeProject?.name || "this project"}" does not have any timeline data yet (Epics or Tasks). Please create at least one Epic or Task before sharing the link.`,
                         variant: "warning",
                       });
                       return;
@@ -909,8 +909,8 @@ export default function TimelinePage() {
                     const hasTimeline = orderedEpics.length > 0 || localTasks.length > 0;
                     if (!hasTimeline) {
                       alertModal({
-                        title: "Timeline Belum Tersedia",
-                        description: `Project "${activeProject?.name || "ini"}" belum memiliki data timeline untuk diexport.`,
+                        title: "Timeline Not Available",
+                        description: `Project "${activeProject?.name || "this project"}" does not have any timeline data to export.`,
                         variant: "warning",
                       });
                       return;

@@ -74,7 +74,7 @@ function getPicColor(name: string, pics: any[] = []) {
 
 function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], holidays: any[] = [], pics: any[] = [], showAlert?: (msg: string) => void) {
   if (!epics || epics.length === 0) {
-    if (showAlert) showAlert("Tidak ada data Epic atau Task untuk diexport.");
+    if (showAlert) showAlert("No Epic or Task data available to export.");
     return;
   }
 
@@ -295,10 +295,10 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo }: { task: any, date
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400">
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Jadwal Overlap ({task.pic})</span>
+                    <span>Schedule Overlap ({task.pic})</span>
                   </div>
                   <p className="text-muted-foreground text-[11px]">
-                    PIC <strong>{task.pic}</strong> memiliki {overlapInfo?.overlappingTasks.length} task lain di rentang tanggal yang sama:
+                    PIC <strong>{task.pic}</strong> has {overlapInfo?.overlappingTasks.length} other task(s) in the same date range:
                   </p>
                   <div className="space-y-1 pt-1 border-t border-border/50 max-h-36 overflow-y-auto">
                     {overlapInfo?.overlappingTasks.map((ot) => (
@@ -307,7 +307,7 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo }: { task: any, date
                           <span className="font-semibold text-foreground truncate">{ot.name}</span>
                           <span className="text-[9px] px-1 py-0.2 rounded bg-primary/10 text-primary font-bold">{ot.epicName}</span>
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{ot.startDate} s/d {ot.endDateStr} ({ot.md} MD) • {ot.status}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{ot.startDate} to {ot.endDateStr} ({ot.md} MD) • {ot.status}</p>
                       </div>
                     ))}
                   </div>
@@ -621,7 +621,7 @@ function GuestTimelineInner() {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground font-medium">Memuat jadwal timeline project...</p>
+        <p className="text-sm text-muted-foreground font-medium">Loading project timeline schedule...</p>
       </div>
     );
   }
@@ -633,10 +633,10 @@ function GuestTimelineInner() {
           <div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
             <Lock className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold text-foreground">Akses Tidak Tersedia</h2>
+          <h2 className="text-xl font-bold text-foreground">Access Unavailable</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Tautan timeline ini tidak valid, telah dinonaktifkan, atau sudah tidak berlaku lagi.
-            Silakan hubungi pengelola project untuk mendapatkan tautan akses terbaru.
+            This timeline link is invalid, has been disabled, or is no longer active.
+            Please contact the project manager to get a new access link.
           </p>
           <div className="pt-2">
             <Button
@@ -646,7 +646,7 @@ function GuestTimelineInner() {
               className="text-xs"
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-              Coba Muat Ulang
+              Try Reloading
             </Button>
           </div>
         </div>
@@ -759,9 +759,9 @@ function GuestTimelineInner() {
         ) : (orderedEpics.length === 0 || localTasks.length === 0) ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-muted-foreground border-dashed border-2 rounded-lg m-4 text-center">
             <CalendarClock className="w-12 h-12 mb-3 opacity-30 text-primary" />
-            <p className="text-base font-semibold text-foreground">Timeline Belum Tersedia</p>
+            <p className="text-base font-semibold text-foreground">Timeline Not Available</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm leading-relaxed">
-              Project ini belum memiliki jadwal timeline (Epic atau Task) yang dapat ditampilkan.
+              This project does not have any timeline schedule (Epics or Tasks) to display yet.
             </p>
           </div>
         ) : (

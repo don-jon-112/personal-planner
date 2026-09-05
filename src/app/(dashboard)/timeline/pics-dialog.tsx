@@ -135,10 +135,10 @@ export function PicsDialog({
                         size="icon" 
                         onClick={async () => {
                           const ok = await confirm({
-                            title: "Hapus PIC?",
-                            description: `Apakah Anda yakin ingin menghapus PIC "${pic.name}"?`,
-                            confirmText: "Hapus PIC",
-                            cancelText: "Batal",
+                            title: "Delete PIC?",
+                            description: `Are you sure you want to delete PIC "${pic.name}"?`,
+                            confirmText: "Delete PIC",
+                            cancelText: "Cancel",
                             variant: "destructive",
                           });
                           if (ok) deletePic(pic.id);

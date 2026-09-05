@@ -102,10 +102,10 @@ export function SortableTableRow({
               className="text-destructive"
               onClick={async () => {
                 const ok = await confirm({
-                  title: "Hapus Laporan?",
-                  description: `Apakah Anda yakin ingin menghapus laporan "${report.task}"?`,
-                  confirmText: "Hapus Laporan",
-                  cancelText: "Batal",
+                  title: "Delete Report?",
+                  description: `Are you sure you want to delete report "${report.task}"?`,
+                  confirmText: "Delete Report",
+                  cancelText: "Cancel",
                   variant: "destructive",
                 });
                 if (ok) {

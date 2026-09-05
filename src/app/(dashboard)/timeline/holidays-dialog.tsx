@@ -104,10 +104,10 @@ export function HolidaysDialog({
                       size="icon" 
                       onClick={async () => {
                         const ok = await confirm({
-                          title: "Hapus Hari Libur?",
-                          description: `Apakah Anda yakin ingin menghapus "${holiday.name}" (${new Date(holiday.date).toLocaleDateString()})?`,
-                          confirmText: "Hapus",
-                          cancelText: "Batal",
+                          title: "Delete Holiday?",
+                          description: `Are you sure you want to delete "${holiday.name}" (${new Date(holiday.date).toLocaleDateString()})?`,
+                          confirmText: "Delete",
+                          cancelText: "Cancel",
                           variant: "destructive",
                         });
                         if (ok) deleteHoliday(holiday.id);

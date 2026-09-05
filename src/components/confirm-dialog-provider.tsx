@@ -55,19 +55,19 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       confirmResolveRef.current = resolve;
       if (typeof options === "string") {
         setConfirmConfig({
-          title: "Konfirmasi",
+          title: "Confirmation",
           description: options,
-          confirmText: "Ya, Lanjutkan",
-          cancelText: "Batal",
+          confirmText: "Yes, Proceed",
+          cancelText: "Cancel",
           variant: "destructive",
           icon: "warning",
         });
       } else {
         setConfirmConfig({
-          title: options.title || "Konfirmasi",
-          description: options.description || "Apakah Anda yakin ingin melanjutkan?",
-          confirmText: options.confirmText || "Lanjutkan",
-          cancelText: options.cancelText || "Batal",
+          title: options.title || "Confirmation",
+          description: options.description || "Are you sure you want to proceed?",
+          confirmText: options.confirmText || "Proceed",
+          cancelText: options.cancelText || "Cancel",
           variant: options.variant || "destructive",
           icon: options.icon || (options.variant === "destructive" ? "trash" : "warning"),
         });
@@ -81,14 +81,14 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       alertResolveRef.current = resolve;
       if (typeof options === "string") {
         setAlertConfig({
-          title: "Informasi",
+          title: "Information",
           description: options,
-          buttonText: "Mengerti",
+          buttonText: "Got it",
           variant: "info",
         });
       } else {
         setAlertConfig({
-          title: options.title || "Informasi",
+          title: options.title || "Information",
           description: options.description || "",
           buttonText: options.buttonText || "OK",
           variant: options.variant || "info",

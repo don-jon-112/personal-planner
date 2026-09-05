@@ -76,10 +76,10 @@ export function SortableNoteItem({
               className="text-destructive"
               onClick={async () => {
                 const ok = await confirm({
-                  title: "Hapus Catatan?",
-                  description: `Apakah Anda yakin ingin menghapus catatan "${note.title || "Untitled"}"?`,
-                  confirmText: "Hapus Catatan",
-                  cancelText: "Batal",
+                  title: "Delete Note?",
+                  description: `Are you sure you want to delete note "${note.title || "Untitled"}"?`,
+                  confirmText: "Delete Note",
+                  cancelText: "Cancel",
                   variant: "destructive",
                 });
                 if (ok) {

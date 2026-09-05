@@ -110,14 +110,14 @@ export function SortableEpicRow({
               className="text-destructive focus:bg-destructive/10 focus:text-destructive"
               onClick={async () => {
                 const description = totalTasks > 0
-                  ? `Epic "${epic.name}" memiliki ${totalTasks} task terkait. Menghapus epic ini akan menjadikan task-task tersebut sebagai backlog (tanpa epic). Apakah Anda yakin?`
-                  : `Apakah Anda yakin ingin menghapus epic "${epic.name}"?`;
+                  ? `Epic "${epic.name}" has ${totalTasks} associated task(s). Deleting this epic will move those tasks to backlog (unassigned epic). Are you sure?`
+                  : `Are you sure you want to delete epic "${epic.name}"?`;
                 
                 const ok = await confirm({
-                  title: "Hapus Epic?",
+                  title: "Delete Epic?",
                   description,
-                  confirmText: "Hapus Epic",
-                  cancelText: "Batal",
+                  confirmText: "Delete Epic",
+                  cancelText: "Cancel",
                   variant: "destructive",
                 });
                 

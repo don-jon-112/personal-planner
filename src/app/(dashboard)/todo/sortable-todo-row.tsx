@@ -222,10 +222,10 @@ export function SortableTodoRow({
               className="text-destructive focus:text-destructive"
               onClick={async () => {
                 const ok = await confirm({
-                  title: "Hapus Task?",
-                  description: `Apakah Anda yakin ingin menghapus task "${item.name}"?`,
-                  confirmText: "Hapus Task",
-                  cancelText: "Batal",
+                  title: "Delete Task?",
+                  description: `Are you sure you want to delete task "${item.name}"?`,
+                  confirmText: "Delete Task",
+                  cancelText: "Cancel",
                   variant: "destructive",
                 });
                 if (ok) {

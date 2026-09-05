@@ -122,10 +122,10 @@ export default function SettingsPage() {
 
   const handleSyncToFirebase = async () => {
     const ok = await confirm({
-      title: "Push Data ke Cloud Firebase?",
-      description: "Apakah Anda yakin ingin mengirim semua perubahan lokal ke Firebase? Data konflik di server akan ditimpa dengan data lokal.",
-      confirmText: "Push ke Firebase",
-      cancelText: "Batal",
+      title: "Push Data to Cloud Firebase?",
+      description: "Are you sure you want to push all local changes to Firebase? Server conflicts will be overwritten with local data.",
+      confirmText: "Push to Firebase",
+      cancelText: "Cancel",
       variant: "warning",
       icon: "warning",
     });
@@ -140,15 +140,15 @@ export default function SettingsPage() {
       await new Promise(r => setTimeout(r, 1000));
       if (!isOnline) await disableNetwork(db);
       await alertModal({
-        title: "Sinkronisasi Berhasil",
-        description: "Perubahan lokal berhasil disinkronkan ke Firebase!",
+        title: "Sync Successful",
+        description: "Local changes have been successfully synced to Firebase!",
         variant: "success",
       });
     } catch (e) {
       console.error(e);
       await alertModal({
-        title: "Gagal Sinkronisasi",
-        description: "Terjadi kesalahan saat sinkronisasi ke Firebase.",
+        title: "Sync Failed",
+        description: "An error occurred while syncing to Firebase.",
         variant: "error",
       });
     } finally {
@@ -158,10 +158,10 @@ export default function SettingsPage() {
 
   const handleSyncFromFirebase = async () => {
     const ok = await confirm({
-      title: "Overwrite Data dari Cloud?",
-      description: "Apakah Anda yakin ingin menimpa seluruh data lokal dengan data dari Cloud? Database lokal Anda akan dibersihkan dan perubahan lokal yang belum disinkronkan akan hilang.",
-      confirmText: "Timpa Data Lokal",
-      cancelText: "Batal",
+      title: "Overwrite Data from Cloud?",
+      description: "Are you sure you want to overwrite all local data with data from Cloud? Your local database will be cleared and unsynced local changes will be lost.",
+      confirmText: "Overwrite Local Data",
+      cancelText: "Cancel",
       variant: "destructive",
       icon: "warning",
     });
@@ -280,8 +280,8 @@ export default function SettingsPage() {
       const collections = parsed.collections || parsed.data || parsed;
       if (!collections || typeof collections !== "object") {
         await alertModal({
-          title: "Format Backup Tidak Dikenali",
-          description: "File JSON ini tidak memiliki struktur backup yang sesuai.",
+          title: "Unrecognized Backup Format",
+          description: "This JSON file does not have a valid backup structure.",
           variant: "error",
         });
         return;
@@ -301,18 +301,18 @@ export default function SettingsPage() {
 
       if (totalDocs === 0) {
         await alertModal({
-          title: "File Kosong",
-          description: "Tidak ditemukan dokumen yang valid pada file backup ini.",
+          title: "Empty File",
+          description: "No valid documents found in this backup file.",
           variant: "warning",
         });
         return;
       }
 
       const ok = await confirm({
-        title: "Restore Data ke Firebase?",
-        description: `Ditemukan total ${totalDocs} dokumen (${stats.join(", ")}) dari file "${file.name}". Seluruh data ini akan diunggah dan disimpan ke Firebase Cloud. Apakah Anda yakin ingin melanjutkan?`,
-        confirmText: "Ya, Restore ke Firebase",
-        cancelText: "Batal",
+        title: "Restore Data to Firebase?",
+        description: `Found a total of ${totalDocs} document(s) (${stats.join(", ")}) from file "${file.name}". All of this data will be uploaded and saved to Firebase Cloud. Are you sure you want to proceed?`,
+        confirmText: "Yes, Restore to Firebase",
+        cancelText: "Cancel",
         variant: "warning",
         icon: "warning",
       });
@@ -366,15 +366,15 @@ export default function SettingsPage() {
       }
 
       await alertModal({
-        title: "Restore Berhasil!",
-        description: `Berhasil memulihkan ${committedDocs} dokumen dari file ke Firebase Cloud! Seluruh data project, task, dan timeline Anda telah diperbarui.`,
+        title: "Restore Successful!",
+        description: `Successfully restored ${committedDocs} document(s) from file to Firebase Cloud! All your project, task, and timeline data have been updated.`,
         variant: "success",
       });
     } catch (err: any) {
       console.error("Restore error:", err);
       await alertModal({
-        title: "Gagal Melakukan Restore",
-        description: err?.message || "Terjadi kesalahan saat memulihkan data ke Firebase.",
+        title: "Restore Failed",
+        description: err?.message || "An error occurred while restoring data to Firebase.",
         variant: "error",
       });
     } finally {

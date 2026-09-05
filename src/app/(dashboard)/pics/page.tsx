@@ -346,14 +346,14 @@ export default function PicsPage() {
                             size="icon"
                             onClick={async () => {
                               const description = totalTasks > 0
-                                ? `PIC "${pic.name}" memiliki ${totalTasks} task terkait. Menghapus preset PIC ini tidak akan menghapus task, namun preset PIC akan dihapus. Tetap hapus?`
-                                : `Apakah Anda yakin ingin menghapus PIC "${pic.name}"?`;
+                                ? `PIC "${pic.name}" has ${totalTasks} associated task(s). Deleting this PIC preset will not delete the tasks, but the preset will be removed. Delete anyway?`
+                                : `Are you sure you want to delete PIC "${pic.name}"?`;
 
                               const ok = await confirm({
-                                title: "Hapus PIC?",
+                                title: "Delete PIC?",
                                 description,
-                                confirmText: "Hapus PIC",
-                                cancelText: "Batal",
+                                confirmText: "Delete PIC",
+                                cancelText: "Cancel",
                                 variant: "destructive",
                               });
 

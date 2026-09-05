@@ -300,10 +300,10 @@ export default function BugsPage() {
                               className="text-destructive"
                               onClick={async () => {
                                 const ok = await confirm({
-                                  title: "Hapus Laporan Bug?",
-                                  description: `Apakah Anda yakin ingin menghapus bug "${bug.summary}"?`,
-                                  confirmText: "Hapus Bug",
-                                  cancelText: "Batal",
+                                  title: "Delete Bug Report?",
+                                  description: `Are you sure you want to delete bug "${bug.summary}"?`,
+                                  confirmText: "Delete Bug",
+                                  cancelText: "Cancel",
                                   variant: "destructive",
                                 });
                                 if (ok) {
