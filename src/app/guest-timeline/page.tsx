@@ -756,10 +756,13 @@ function GuestTimelineInner() {
       <PanelContent className="flex-1 overflow-hidden p-0 flex flex-col m-6 border rounded-lg shadow-sm">
         {(isLoadingEpics || isLoadingTasks) ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading timeline...</div>
-        ) : orderedEpics.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-muted-foreground border-dashed border-2 rounded-lg m-4">
-            <CalendarClock className="w-12 h-12 mb-4 opacity-20" />
-            <p>No Epics found.</p>
+        ) : (orderedEpics.length === 0 || localTasks.length === 0) ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-muted-foreground border-dashed border-2 rounded-lg m-4 text-center">
+            <CalendarClock className="w-12 h-12 mb-3 opacity-30 text-primary" />
+            <p className="text-base font-semibold text-foreground">Timeline Belum Tersedia</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm leading-relaxed">
+              Project ini belum memiliki jadwal timeline (Epic atau Task) yang dapat ditampilkan.
+            </p>
           </div>
         ) : (
           <div className="flex-1 overflow-auto bg-card relative custom-scrollbar">

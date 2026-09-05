@@ -885,13 +885,39 @@ export default function TimelinePage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuLabel>Sharing</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setIsShareDialogOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    const hasTimeline = orderedEpics.length > 0 || localTasks.length > 0;
+                    if (!hasTimeline) {
+                      alertModal({
+                        title: "Timeline Belum Tersedia",
+                        description: `Project "${activeProject?.name || "ini"}" belum memiliki data timeline sama sekali (Epic atau Task). Silakan buat minimal satu Epic atau Task terlebih dahulu sebelum membagikan link.`,
+                        variant: "warning",
+                      });
+                      return;
+                    }
+                    setIsShareDialogOpen(true);
+                  }}
+                >
                   <Share2 className="w-3.5 h-3.5 mr-2 text-primary" />
                   <span>Share Link</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Export Roadmap</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    const hasTimeline = orderedEpics.length > 0 || localTasks.length > 0;
+                    if (!hasTimeline) {
+                      alertModal({
+                        title: "Timeline Belum Tersedia",
+                        description: `Project "${activeProject?.name || "ini"}" belum memiliki data timeline untuk diexport.`,
+                        variant: "warning",
+                      });
+                      return;
+                    }
+                    setIsExportDialogOpen(true);
+                  }}
+                >
                   <Download className="w-3.5 h-3.5 mr-2 text-primary" />
                   <span>Export Image (PNG) / PDF...</span>
                 </DropdownMenuItem>
@@ -936,6 +962,7 @@ export default function TimelinePage() {
             <ProjectShareDialog
               open={isShareDialogOpen}
               onOpenChange={setIsShareDialogOpen}
+              hasTimeline={orderedEpics.length > 0 || localTasks.length > 0}
             />
           </div>
 
