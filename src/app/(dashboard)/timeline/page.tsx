@@ -951,7 +951,16 @@ export default function TimelinePage() {
             </Button>
 
             {/* Modal Dialogs */}
-            <EpicDialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen} epicToEdit={editingEpic} />
+            <EpicDialog 
+              open={isEpicDialogOpen} 
+              onOpenChange={setIsEpicDialogOpen} 
+              epicToEdit={editingEpic}
+              onSelectTask={(task) => {
+                setIsEpicDialogOpen(false);
+                setEditingTask(task);
+                setIsTaskDialogOpen(true);
+              }}
+            />
             <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} />
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
             <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />

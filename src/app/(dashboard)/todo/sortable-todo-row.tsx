@@ -4,7 +4,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TableRow, TableCell } from "@/components/ui/table";
-import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle } from "lucide-react";
+import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -152,6 +152,15 @@ export function SortableTodoRow({
             </TooltipProvider>
           )}
           <span className="text-sm text-foreground font-semibold truncate">{item.name}</span>
+          {item.notes && item.notes.length > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/80 text-muted-foreground border border-border/70 shrink-0 select-none"
+              title={`${item.notes.length} note(s) attached`}
+            >
+              <FileText className="w-3 h-3 text-primary" />
+              <span>{item.notes.length}</span>
+            </span>
+          )}
         </div>
       </TableCell>
 

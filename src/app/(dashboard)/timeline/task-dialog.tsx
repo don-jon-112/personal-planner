@@ -16,12 +16,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, ListPlus, AlertCircle, ArrowRight, AlertTriangle, Calendar, Layers, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, ListPlus, AlertCircle, ArrowRight, AlertTriangle, Calendar, Layers, Clock, CheckCircle2, FileText, ExternalLink, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { checkTaskOverlap, OverlapResult } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+export interface TaskNoteItem {
+  id: string;
+  text: string;
+  url?: string;
+}
 
 const formSchema = z.object({
   name: z.string().min(1, "Task name is required"),
@@ -72,6 +86,11 @@ export function TaskDialog({
   const [selectedBacklogId, setSelectedBacklogId] = useState<string>("");
   const [isTbdDate, setIsTbdDate] = useState(false);
 
+  // Notes state
+  const [notes, setNotes] = useState<TaskNoteItem[]>([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [newNoteUrl, setNewNoteUrl] = useState("");
+
   // Overlap confirmation states
   const [showOverlapConfirm, setShowOverlapConfirm] = useState(false);
   const [pendingSubmitData, setPendingSubmitData] = useState<FormValues | null>(null);
@@ -99,6 +118,8 @@ export function TaskDialog({
       setShowOverlapConfirm(false);
       setPendingSubmitData(null);
       setActiveOverlapData(null);
+      setNewNoteText("");
+      setNewNoteUrl("");
 
       if (taskToEdit && taskToEdit.id) {
         // Editing an existing task
@@ -113,8 +134,29 @@ export function TaskDialog({
           startDate: taskToEdit.startDate || new Date().toISOString().split("T")[0],
         });
         setIsTbdDate(taskToEdit.startDate === "TBD");
+
+        // Populate notes
+        const rawNotes = Array.isArray(taskToEdit.notes) ? taskToEdit.notes : [];
+        setNotes(
+          rawNotes.map((n: any, idx: number) => {
+            if (typeof n === "string") {
+              const isUrl = /^https?:\/\//i.test(n.trim());
+              return {
+                id: `note-${idx}-${Date.now()}`,
+                text: n.trim(),
+                url: isUrl ? n.trim() : undefined,
+              };
+            }
+            return {
+              id: n.id || `note-${idx}-${Date.now()}`,
+              text: n.text || n.content || "",
+              url: n.url || undefined,
+            };
+          })
+        );
       } else {
         // Adding a new task
+        setNotes([]);
         if (fromTimeline) {
           setMode("backlog");
           if (backlogTasks.length > 0) {
@@ -129,6 +171,14 @@ export function TaskDialog({
               startDate: first.startDate || new Date().toISOString().split("T")[0],
             });
             setIsTbdDate(first.startDate === "TBD");
+            const rawNotes = Array.isArray(first.notes) ? first.notes : [];
+            setNotes(
+              rawNotes.map((n: any, idx: number) => ({
+                id: n.id || `note-${idx}-${Date.now()}`,
+                text: typeof n === "string" ? n : n.text || n.content || "",
+                url: typeof n === "string" && /^https?:\/\//i.test(n) ? n : n.url,
+              }))
+            );
           } else {
             setSelectedBacklogId("");
             form.reset({
@@ -172,7 +222,51 @@ export function TaskDialog({
         form.setValue("startDate", chosen.startDate);
         setIsTbdDate(chosen.startDate === "TBD");
       }
+      if (Array.isArray(chosen.notes)) {
+        setNotes(
+          chosen.notes.map((n: any, idx: number) => ({
+            id: n.id || `note-${idx}-${Date.now()}`,
+            text: typeof n === "string" ? n : n.text || n.content || "",
+            url: typeof n === "string" && /^https?:\/\//i.test(n) ? n : n.url,
+          }))
+        );
+      }
     }
+  };
+
+  const handleAddNote = () => {
+    const trimmedText = newNoteText.trim();
+    let trimmedUrl = newNoteUrl.trim();
+
+    if (!trimmedText && !trimmedUrl) return;
+
+    let finalText = trimmedText;
+    let finalUrl = trimmedUrl;
+
+    // If text looks like a URL and URL input is empty, treat text as URL
+    if (!finalUrl && /^https?:\/\//i.test(trimmedText)) {
+      finalUrl = trimmedText;
+    } else if (finalUrl && !/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = `https://${finalUrl}`;
+    }
+
+    if (!finalText && finalUrl) {
+      finalText = finalUrl;
+    }
+
+    const newNote: TaskNoteItem = {
+      id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      text: finalText,
+      url: finalUrl || undefined,
+    };
+
+    setNotes((prev) => [...prev, newNote]);
+    setNewNoteText("");
+    setNewNoteUrl("");
+  };
+
+  const handleDeleteNote = (noteId: string) => {
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
   };
 
   const currentTargetId = taskToEdit?.id || (mode === "backlog" ? selectedBacklogId : null);
@@ -205,10 +299,10 @@ export function TaskDialog({
 
       if (targetId) {
         // Update existing task (or assign backlog task to epic)
-        await updateTask({ id: targetId, data });
+        await updateTask({ id: targetId, data: { ...data, notes } });
       } else {
         // Create brand new task
-        await addTask({ ...data, order: Date.now(), projectId: activeProjectId || undefined });
+        await addTask({ ...data, notes, order: Date.now(), projectId: activeProjectId || undefined });
       }
       setShowOverlapConfirm(false);
       setPendingSubmitData(null);
@@ -217,6 +311,7 @@ export function TaskDialog({
       if (!taskToEdit) {
         form.reset();
         setSelectedBacklogId("");
+        setNotes([]);
       }
     } catch (error) {
       console.error(error);
@@ -258,7 +353,7 @@ export function TaskDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isEditing ? "Edit Task" : fromTimeline ? "Schedule Task from Backlog" : "Create New Task"}
@@ -456,6 +551,128 @@ export function TaskDialog({
                       <Label>MD (Man Days)</Label>
                     </div>
                     <Input type="number" min="1" {...form.register("md", { valueAsNumber: true })} />
+                  </div>
+                </div>
+
+                {/* Notes Section */}
+                <div className="space-y-2.5 pt-2 border-t border-border/70">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      Notes
+                    </Label>
+                    {notes.length > 0 && (
+                      <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        {notes.length} {notes.length === 1 ? "note" : "notes"}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Add Note Inputs */}
+                  <div className="space-y-1.5 p-2.5 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                        placeholder="Note / Jira link (e.g. PROJ-123 or https://jira...)"
+                        className="text-xs h-8 bg-background"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleAddNote();
+                          }
+                        }}
+                      />
+                      <Input
+                        value={newNoteUrl}
+                        onChange={(e) => setNewNoteUrl(e.target.value)}
+                        placeholder="URL (optional, https://...)"
+                        className="text-xs h-8 sm:w-[170px] bg-background"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleAddNote();
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddNote}
+                        disabled={!newNoteText.trim() && !newNoteUrl.trim()}
+                        className="h-8 px-3 text-xs shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Add
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Tip: Kamu bisa langsung paste link Jira di Note atau cantumkan URL terpisah. Tekan Enter untuk menambah.
+                    </p>
+                  </div>
+
+                  {/* Notes Table */}
+                  <div className="border border-border/60 rounded-md overflow-hidden bg-card">
+                    <Table>
+                      <TableHeader className="bg-muted/40">
+                        <TableRow className="h-8 hover:bg-transparent">
+                          <TableHead className="w-[36px] py-1 text-center text-xs font-semibold">#</TableHead>
+                          <TableHead className="py-1 text-xs font-semibold">Note</TableHead>
+                          <TableHead className="py-1 text-xs font-semibold w-[140px]">Link</TableHead>
+                          <TableHead className="w-[40px] py-1 text-right text-xs"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {notes.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground">
+                              Belum ada notes atau link Jira. Tambahkan di atas.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          notes.map((note, idx) => (
+                            <TableRow key={note.id || idx} className="h-8 hover:bg-muted/20">
+                              <TableCell className="text-center text-xs text-muted-foreground py-1">
+                                {idx + 1}
+                              </TableCell>
+                              <TableCell className="text-xs font-medium py-1 break-words">
+                                {note.text}
+                              </TableCell>
+                              <TableCell className="text-xs py-1">
+                                {note.url ? (
+                                  <a
+                                    href={note.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-[11px] max-w-[130px] truncate"
+                                    title={note.url}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <ExternalLink className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{note.url.replace(/^https?:\/\//, "")}</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-muted-foreground text-[11px]">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right py-1 pr-2">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleDeleteNote(note.id)}
+                                  title="Hapus note"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
                   </div>
                 </div>
 

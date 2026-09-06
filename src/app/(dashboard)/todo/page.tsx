@@ -345,6 +345,11 @@ export default function TodoPage() {
         open={isEpicDialogOpen}
         onOpenChange={setIsEpicDialogOpen}
         epicToEdit={editingEpic}
+        onSelectTask={(task) => {
+          setIsEpicDialogOpen(false);
+          setEditingTask(task);
+          setIsTaskDialogOpen(true);
+        }}
       />
       <ImportDialog
         open={isImportDialogOpen}
