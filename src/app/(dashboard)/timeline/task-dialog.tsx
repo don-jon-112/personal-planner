@@ -4,7 +4,8 @@ import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useAddDocument, useUpdateDocument, useCollection } from "@/hooks/use-firestore";
+import { useAddDocument, useUpdateDocument, useDeleteDocument, useCollection } from "@/hooks/use-firestore";
+import { useConfirm } from "@/components/confirm-dialog-provider";
 import { 
   Dialog, 
   DialogContent, 
@@ -81,6 +82,8 @@ export function TaskDialog({
 
   const { mutateAsync: addTask, isPending: isAdding } = useAddDocument("timelineTasks");
   const { mutateAsync: updateTask, isPending: isUpdating } = useUpdateDocument("timelineTasks");
+  const { mutateAsync: deleteTask, isPending: isDeleting } = useDeleteDocument("timelineTasks");
+  const confirm = useConfirm();
 
   const [mode, setMode] = useState<"create" | "backlog">("create");
   const [selectedBacklogId, setSelectedBacklogId] = useState<string>("");
@@ -157,53 +160,17 @@ export function TaskDialog({
       } else {
         // Adding a new task
         setNotes([]);
-        if (fromTimeline) {
-          setMode("backlog");
-          if (backlogTasks.length > 0) {
-            const first = backlogTasks[0];
-            setSelectedBacklogId(first.id);
-            form.reset({
-              name: first.name || "",
-              epicId: taskToEdit?.epicId || "",
-              pic: first.pic || "TBD",
-              status: first.status || "TODO",
-              md: first.md || 1,
-              startDate: first.startDate || new Date().toISOString().split("T")[0],
-            });
-            setIsTbdDate(first.startDate === "TBD");
-            const rawNotes = Array.isArray(first.notes) ? first.notes : [];
-            setNotes(
-              rawNotes.map((n: any, idx: number) => ({
-                id: n.id || `note-${idx}-${Date.now()}`,
-                text: typeof n === "string" ? n : n.text || n.content || "",
-                url: typeof n === "string" && /^https?:\/\//i.test(n) ? n : n.url,
-              }))
-            );
-          } else {
-            setSelectedBacklogId("");
-            form.reset({
-              name: "",
-              epicId: taskToEdit?.epicId || "",
-              pic: "TBD",
-              status: "TODO",
-              md: 1,
-              startDate: new Date().toISOString().split("T")[0],
-            });
-            setIsTbdDate(false);
-          }
-        } else {
-          setMode("create");
-          setSelectedBacklogId("");
-          form.reset({
-            name: "",
-            epicId: taskToEdit?.epicId || "",
-            pic: "TBD",
-            status: "TODO",
-            md: 1,
-            startDate: new Date().toISOString().split("T")[0],
-          });
-          setIsTbdDate(false);
-        }
+        setMode("create");
+        setSelectedBacklogId("");
+        form.reset({
+          name: "",
+          epicId: taskToEdit?.epicId || "",
+          pic: "TBD",
+          status: "TODO",
+          md: 1,
+          startDate: new Date().toISOString().split("T")[0],
+        });
+        setIsTbdDate(false);
       }
     }
   }, [taskToEdit, open, form, fromTimeline, backlogTasks]);
@@ -265,8 +232,17 @@ export function TaskDialog({
     setNewNoteUrl("");
   };
 
-  const handleDeleteNote = (noteId: string) => {
-    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+  const handleDeleteNote = async (noteId: string) => {
+    const ok = await confirm({
+      title: "Hapus Catatan?",
+      description: "Apakah Anda yakin ingin menghapus catatan ini?",
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    }
   };
 
   const currentTargetId = taskToEdit?.id || (mode === "backlog" ? selectedBacklogId : null);
@@ -319,6 +295,11 @@ export function TaskDialog({
   };
 
   async function onSubmit(data: FormValues) {
+    if (fromTimeline && !data.epicId) {
+      form.setError("epicId", { message: "Silakan pilih Epic untuk menampilkan task di Timeline" });
+      return;
+    }
+
     const targetId = taskToEdit?.id || (mode === "backlog" ? selectedBacklogId : null);
 
     // Check overlap for submitted data
@@ -356,130 +337,122 @@ export function TaskDialog({
         <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isEditing ? "Edit Task" : fromTimeline ? "Schedule Task from Backlog" : "Create New Task"}
+              {isEditing 
+                ? "Edit Task" 
+                : mode === "backlog" 
+                ? "Assign Task from Backlog" 
+                : "Create New Task"}
             </DialogTitle>
           </DialogHeader>
 
-          {/* If opened from Timeline and there are no backlog items, display banner */}
-          {fromTimeline && !isEditing && backlogTasks.length === 0 ? (
-            <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center space-y-3 my-2">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-bold text-sm text-foreground">Tidak Ada Task di Backlog</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Di menu Timeline, task harus dipilih dari backlog yang sudah dibuat di Todo Plan. Silakan buat task backlog terlebih dahulu.
-                </p>
-              </div>
-              <div className="pt-2 flex justify-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
-                  Tutup
-                </Button>
-                <Link href="/todo" onClick={() => setOpen(false)}>
-                  <Button type="button" size="sm" className="shadow-xs">
-                    Buka Todo Plan <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Mode Selector for New Task (only shown if not in timeline mode) */}
-              {!isEditing && !fromTimeline && backlogTasks.length > 0 && (
-                <div className="flex bg-muted/60 p-1 rounded-lg gap-1 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("create");
-                      setSelectedBacklogId("");
-                    }}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold transition-all",
-                      mode === "create"
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Create New
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("backlog");
-                      if (backlogTasks.length > 0 && !selectedBacklogId) {
-                        handleBacklogSelect(backlogTasks[0].id);
-                      }
-                    }}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold transition-all",
-                      mode === "backlog"
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <ListPlus className="w-3.5 h-3.5 text-primary" />
-                    <span>Select from Backlog</span>
-                    <span className="ml-1 px-1.5 py-0.2 bg-primary/10 text-primary rounded-full text-[10px] font-bold">
-                      {backlogTasks.length}
-                    </span>
-                  </button>
-                </div>
-              )}
-
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                {/* Backlog Dropdown if mode is backlog */}
-                {(mode === "backlog" || fromTimeline) && !isEditing && (
-                  <div className="space-y-2 p-3 bg-muted/30 border rounded-lg">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <ListPlus className="w-3.5 h-3.5 text-primary" /> Pilih Task dari Backlog
-                    </Label>
-                    <select
-                      value={selectedBacklogId}
-                      onChange={(e) => handleBacklogSelect(e.target.value)}
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {backlogTasks.map((t: any) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.status || "TODO"}, {t.md || 1} MD)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+          {/* Mode Selector for New Task (shown when backlog tasks exist) */}
+          {!isEditing && backlogTasks.length > 0 && (
+            <div className="flex bg-muted/60 p-1 rounded-lg gap-1 mb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("create");
+                  setSelectedBacklogId("");
+                  form.setValue("name", "");
+                  form.setValue("pic", "TBD");
+                  form.setValue("status", "TODO");
+                  form.setValue("md", 1);
+                  form.setValue("startDate", new Date().toISOString().split("T")[0]);
+                  setIsTbdDate(false);
+                  setNotes([]);
+                }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold transition-all",
+                  mode === "create"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Create New
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("backlog");
+                  if (backlogTasks.length > 0) {
+                    const targetId = selectedBacklogId || backlogTasks[0].id;
+                    handleBacklogSelect(targetId);
+                  }
+                }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold transition-all",
+                  mode === "backlog"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <ListPlus className="w-3.5 h-3.5 text-primary" />
+                <span>Select from Backlog</span>
+                <span className="ml-1 px-1.5 py-0.2 bg-primary/10 text-primary rounded-full text-[10px] font-bold">
+                  {backlogTasks.length}
+                </span>
+              </button>
+            </div>
+          )}
 
-                {/* Task Name (Disabled / read-only when selecting from backlog in timeline) */}
-                <div className="space-y-2">
-                  <Label>Task Name</Label>
-                  <Input
-                    {...form.register("name")}
-                    placeholder="e.g., Design Database Schema"
-                    disabled={mode === "backlog" || fromTimeline}
-                    className={cn((mode === "backlog" || fromTimeline) && "bg-muted text-foreground font-semibold")}
-                  />
-                  {form.formState.errors.name && (
-                    <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
-                  )}
-                </div>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Backlog Dropdown if mode is backlog */}
+            {mode === "backlog" && !isEditing && (
+              <div className="space-y-2 p-3 bg-muted/30 border rounded-lg">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <ListPlus className="w-3.5 h-3.5 text-primary" /> Pilih Task dari Backlog
+                </Label>
+                <select
+                  value={selectedBacklogId}
+                  onChange={(e) => handleBacklogSelect(e.target.value)}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {backlogTasks.map((t: any) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.status || "TODO"}, {t.md || 1} MD)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-                {/* Epic Selection */}
-                <div className="space-y-2">
-                  <Label>Epic {fromTimeline && <span className="text-destructive">*</span>}</Label>
-                  <select
-                    {...form.register("epicId")}
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value="">{fromTimeline ? "Select an Epic" : "None (Backlog)"}</option>
-                    {filteredEpics?.map((epic: any) => (
-                      <option key={epic.id} value={epic.id}>
-                        {epic.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Task Name */}
+            <div className="space-y-2">
+              <Label>
+                Task Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                {...form.register("name")}
+                placeholder="e.g., Design Database Schema"
+                disabled={mode === "backlog"}
+                className={cn(mode === "backlog" && "bg-muted text-foreground font-semibold")}
+              />
+              {form.formState.errors.name && (
+                <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+              )}
+            </div>
 
-                {/* PIC & Status */}
+            {/* Epic Selection */}
+            <div className="space-y-2">
+              <Label>Epic {fromTimeline && <span className="text-destructive">*</span>}</Label>
+              <select
+                {...form.register("epicId")}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">{fromTimeline ? "Select an Epic" : "None (Backlog)"}</option>
+                {filteredEpics?.map((epic: any) => (
+                  <option key={epic.id} value={epic.id}>
+                    {epic.name}
+                  </option>
+                ))}
+              </select>
+              {form.formState.errors.epicId && (
+                <p className="text-xs text-destructive">{form.formState.errors.epicId.message}</p>
+              )}
+            </div>
+
+            {/* PIC & Status */}
                 <div className="flex gap-3">
                   <div className="space-y-2 flex-1">
                     <Label>
@@ -702,23 +675,51 @@ export function TaskDialog({
                   </div>
                 )}
 
-                <div className="flex justify-end pt-3 gap-2">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isPending}>
-                    {isPending
-                      ? "Saving..."
-                      : isEditing
-                      ? "Save Changes"
-                      : fromTimeline || mode === "backlog"
-                      ? "Assign Backlog to Epic"
-                      : "Save Task"}
-                  </Button>
-                </div>
-              </form>
-            </>
-          )}
+            <div className="flex justify-between items-center pt-3 gap-2">
+              {isEditing ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={async () => {
+                    if (!taskToEdit?.id) return;
+                    const ok = await confirm({
+                      title: "Hapus Task?",
+                      description: `Apakah Anda yakin ingin menghapus task "${taskToEdit.name}"? Tindakan ini tidak dapat dibatalkan.`,
+                      confirmText: "Hapus Task",
+                      cancelText: "Batal",
+                      variant: "destructive",
+                    });
+                    if (ok) {
+                      await deleteTask(taskToEdit.id);
+                      setOpen(false);
+                    }
+                  }}
+                  disabled={isPending || isDeleting}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Hapus Task</span>
+                </Button>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending || isDeleting}>
+                  {isPending || isDeleting
+                    ? "Saving..."
+                    : isEditing
+                    ? "Save Changes"
+                    : mode === "backlog"
+                    ? "Assign Backlog to Epic"
+                    : "Save Task"}
+                </Button>
+              </div>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
