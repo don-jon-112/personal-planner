@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import { Project } from "@/types/project";
 import { useCollection, useAddDocument, useUpdateDocument, useDeleteDocument } from "@/hooks/use-firestore";
+import { DEFAULT_TASK_STATUSES } from "@/hooks/use-task-statuses";
 
 interface ProjectContextType {
   projects: Project[];
@@ -25,6 +26,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { mutateAsync: addProject } = useAddDocument("projects");
   const { mutateAsync: updateProjectDoc } = useUpdateDocument("projects");
   const { mutateAsync: deleteProjectDoc } = useDeleteDocument("projects");
+  const { mutateAsync: addStatusDoc } = useAddDocument("timelineStatuses");
 
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
 
@@ -55,6 +57,15 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             setActiveProjectIdState(res.id);
             if (typeof window !== "undefined") {
               localStorage.setItem(LOCAL_STORAGE_KEY, res.id);
+            }
+            // Auto-seed default statuses for initial project
+            for (const def of DEFAULT_TASK_STATUSES) {
+              await addStatusDoc({
+                name: def.name,
+                color: def.color,
+                order: def.order,
+                projectId: res.id,
+              });
             }
           }
         } catch (e) {
@@ -97,6 +108,15 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     const res: any = await addProject(data);
     if (res?.id) {
       setActiveProjectId(res.id);
+      // Auto-seed default statuses for newly created project
+      for (const def of DEFAULT_TASK_STATUSES) {
+        await addStatusDoc({
+          name: def.name,
+          color: def.color,
+          order: def.order,
+          projectId: res.id,
+        });
+      }
     }
     return res?.id;
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +23,6 @@ import {
   Check, 
   X,
   Palette,
-  Sparkles,
-  AlertCircle,
   ShieldAlert
 } from "lucide-react";
 import { useCollection, useUpdateBatch } from "@/hooks/use-firestore";
@@ -33,7 +31,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useProject } from "@/components/project-context";
-import { useTaskStatuses, DEFAULT_TASK_STATUSES, TaskStatus } from "@/hooks/use-task-statuses";
+import { useTaskStatuses, TaskStatus } from "@/hooks/use-task-statuses";
 
 const formSchema = z.object({
   name: z.string().min(1, "Status Name is required"),
@@ -65,6 +63,16 @@ export default function StatusesPage() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Automatically initialize standard statuses if this project has none saved yet
+  useEffect(() => {
+    if (!isStatusesLoading && !hasCustomStatuses && activeProject?.id && !isInitializing) {
+      setIsInitializing(true);
+      initializeDefaultStatuses(activeProject.id).finally(() => {
+        setIsInitializing(false);
+      });
+    }
+  }, [isStatusesLoading, hasCustomStatuses, activeProject?.id, isInitializing, initializeDefaultStatuses]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -76,18 +84,6 @@ export default function StatusesPage() {
   const projectTasks = useMemo(() => {
     return tasks.filter((t: any) => isItemInActiveProject(t.projectId));
   }, [tasks, isItemInActiveProject]);
-
-  const handleInitDefaults = async () => {
-    if (!activeProject?.id) return;
-    try {
-      setIsInitializing(true);
-      await initializeDefaultStatuses(activeProject.id);
-    } catch (error) {
-      console.error("Failed to initialize statuses:", error);
-    } finally {
-      setIsInitializing(false);
-    }
-  };
 
   const onSubmit = async (data: FormValues) => {
     if (!activeProject?.id) return;
@@ -109,19 +105,6 @@ export default function StatusesPage() {
 
     try {
       setIsSubmitting(true);
-      
-      // If project has no custom statuses yet, initialize the 5 defaults first
-      // so adding 1 custom status doesn't wipe out the virtual default 5 statuses!
-      if (!hasCustomStatuses) {
-        for (const def of DEFAULT_TASK_STATUSES) {
-          await addStatus({
-            name: def.name,
-            color: def.color,
-            order: def.order,
-            projectId: activeProject.id,
-          });
-        }
-      }
 
       await addStatus({
         name: trimmedName,
@@ -141,23 +124,7 @@ export default function StatusesPage() {
     }
   };
 
-  const handleStartRename = async (status: TaskStatus) => {
-    // If it's a virtual status, initialize defaults first so it exists as a real document in DB
-    if (status.isDefault || !hasCustomStatuses) {
-      const ok = await confirm({
-        title: "Initialize Project Statuses?",
-        description: "To customize statuses, standard defaults will be saved to your project first. Continue?",
-        confirmText: "Initialize & Edit",
-        cancelText: "Cancel",
-      });
-      if (ok && activeProject?.id) {
-        setIsInitializing(true);
-        await initializeDefaultStatuses(activeProject.id);
-        setIsInitializing(false);
-      }
-      return;
-    }
-
+  const handleStartRename = (status: TaskStatus) => {
     setEditingStatusId(status.id);
     setEditingStatusName(status.name);
   };
@@ -206,14 +173,6 @@ export default function StatusesPage() {
   };
 
   const handleColorChange = async (status: TaskStatus, newColor: string) => {
-    if (status.isDefault || !hasCustomStatuses) {
-      if (activeProject?.id) {
-        setIsInitializing(true);
-        await initializeDefaultStatuses(activeProject.id);
-        setIsInitializing(false);
-      }
-      return;
-    }
     await updateStatus({
       id: status.id,
       data: { color: newColor },
@@ -230,16 +189,6 @@ export default function StatusesPage() {
         description: `Status "${status.name}" cannot be deleted because it is currently used by ${taskCount} task(s). Please reassign or update those tasks to another status before deleting.`,
         confirmText: "I Understand",
         variant: "destructive",
-      });
-      return;
-    }
-
-    if (status.isDefault) {
-      await confirm({
-        title: "Default Status",
-        description: `Status "${status.name}" is a default template. To customize, click "Initialize Default Statuses" first.`,
-        confirmText: "OK",
-        variant: "default",
       });
       return;
     }
@@ -281,35 +230,9 @@ export default function StatusesPage() {
             Manage task progress statuses, badge colors, and track task distributions for {activeProject?.name || "this project"}.
           </PanelDescription>
         </div>
-
-        {!hasCustomStatuses && (
-          <Button
-            onClick={handleInitDefaults}
-            disabled={isInitializing}
-            variant="outline"
-            className="border-primary/40 text-primary hover:bg-primary/10 text-xs gap-1.5 shrink-0 shadow-xs"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            {isInitializing ? "Initializing..." : "Load Default Statuses"}
-          </Button>
-        )}
       </PanelHeader>
 
       <PanelContent className="space-y-6 flex-1 overflow-auto p-6">
-        {/* Notice if virtual defaults are in use */}
-        {!hasCustomStatuses && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 text-sm text-blue-900 dark:text-blue-300">
-            <AlertCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold">Using Standard Default Statuses</p>
-              <p className="text-xs text-blue-800/80 dark:text-blue-400">
-                This project is currently using the 5 built-in default statuses (TODO, ON PROGRESS, IN REVIEW, DONE, WON&apos;T DO).
-                Click <strong>Load Default Statuses</strong> or add a new status below to customize names and colors for this project.
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* Top Section: Add New Status Form */}
         <div className="bg-card border rounded-xl p-5 shadow-xs">
           <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3 flex items-center gap-2">
