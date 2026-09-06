@@ -11,6 +11,7 @@ import { Project } from "@/types/project";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
 import { useAlertModal } from "@/components/confirm-dialog-provider";
+import { DEFAULT_STATUS_COLORS } from "@/hooks/use-task-statuses";
 import { enableNetwork, disableNetwork, getDocs, collection, terminate, clearIndexedDbPersistence } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
@@ -275,7 +276,7 @@ function TaskText({ text, className }: { text: string, className?: string }) {
   );
 }
 
-function TaskRow({ task, dates, holidays, pics, overlapInfo }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult }) {
+function TaskRow({ task, dates, holidays, pics, overlapInfo, statuses = [] }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult, statuses?: any[] }) {
   const taskStart = new Date(task.startDate);
   taskStart.setHours(0,0,0,0);
 
@@ -322,16 +323,22 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo }: { task: any, date
         {task.pic}
       </div>
       <div className="w-[120px] md:sticky md:left-[370px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
-        <span className={cn(
-          "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
-          task.status === "DONE" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-          task.status === "IN REVIEW" || task.status === "ON REVIEW" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" :
-          task.status === "ON PROGRESS" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-          task.status === "WON'T DO" || task.status === "WONT DO" ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" :
-          "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
-        )}>
-          {task.status || "TODO"}
-        </span>
+        {(() => {
+          const matchedStatus = statuses.find((s: any) => (s.name || "").trim().toUpperCase() === (task.status || "TODO").trim().toUpperCase());
+          const color = matchedStatus?.color || DEFAULT_STATUS_COLORS[(task.status || "TODO").toUpperCase()] || "#94a3b8";
+          return (
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+              style={{
+                backgroundColor: `${color}20`,
+                color: color,
+                border: `1px solid ${color}50`,
+              }}
+            >
+              {task.status || "TODO"}
+            </span>
+          );
+        })()}
       </div>
       <div className="w-[60px] md:sticky md:left-[490px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
         {task.md}
@@ -419,7 +426,7 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo }: { task: any, date
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAllTrigger, expandAllTrigger }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAllTrigger, expandAllTrigger, statuses }: any) {
   const [isExpanded, setIsExpanded] = useState(true);
   
   useEffect(() => {
@@ -478,6 +485,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAll
               holidays={holidays}
               pics={pics}
               overlapInfo={overlapMap?.get(task.id)}
+              statuses={statuses}
             />
           ))}
         </div>
@@ -497,6 +505,7 @@ function GuestTimelineInner() {
   const { data: rawTasks, isLoading: isLoadingTasks, refetch: refetchTasks } = useCollection<any>("timelineTasks");
   const { data: holidays, refetch: refetchHolidays } = useCollection<any>("timelineHolidays");
   const { data: pics, refetch: refetchPics } = useCollection<any>("timelinePics");
+  const { data: statuses = [], refetch: refetchStatuses } = useCollection<any>("timelineStatuses");
   const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>("projects");
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -530,7 +539,7 @@ function GuestTimelineInner() {
         try {
           await enableNetwork(db);
           // Just fetch the timeline collections
-          const timelineCols = ["timelineEpics", "timelineTasks", "timelineHolidays", "timelinePics"];
+          const timelineCols = ["timelineEpics", "timelineTasks", "timelineHolidays", "timelinePics", "timelineStatuses"];
           const fetchPromises = timelineCols.map(col => getDocs(collection(db, col)));
           await Promise.all(fetchPromises);
           await queryClient.invalidateQueries();
@@ -852,6 +861,7 @@ function GuestTimelineInner() {
                       overlapMap={overlapMap}
                       collapseAllTrigger={collapseAllTrigger}
                       expandAllTrigger={expandAllTrigger}
+                      statuses={statuses}
                     />
                   );
                 })}

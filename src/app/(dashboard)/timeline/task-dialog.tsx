@@ -21,6 +21,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { checkTaskOverlap, OverlapResult } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
+import { useTaskStatuses } from "@/hooks/use-task-statuses";
 
 const formSchema = z.object({
   name: z.string().min(1, "Task name is required"),
@@ -54,6 +55,7 @@ export function TaskDialog({
   const { data: pics = [] } = useCollection<any>("timelinePics");
   const { data: allTasks = [] } = useCollection<any>("timelineTasks");
   const { data: holidays = [] } = useCollection<any>("timelineHolidays");
+  const { statuses: taskStatuses } = useTaskStatuses();
 
   const filteredEpics = useMemo(() => {
     return epics.filter((e: any) => isItemInActiveProject(e.projectId));
@@ -412,11 +414,11 @@ export function TaskDialog({
                       {...form.register("status")}
                       className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      <option value="TODO">TODO</option>
-                      <option value="ON PROGRESS">ON PROGRESS</option>
-                      <option value="IN REVIEW">IN REVIEW</option>
-                      <option value="DONE">DONE</option>
-                      <option value="WON'T DO">WON'T DO</option>
+                      {taskStatuses.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>

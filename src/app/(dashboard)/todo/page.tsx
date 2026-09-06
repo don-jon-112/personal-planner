@@ -49,6 +49,7 @@ import { SortableTodoRow } from "./sortable-todo-row";
 import { SortableEpicRow } from "./sortable-epic-row";
 import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
+import { useTaskStatuses } from "@/hooks/use-task-statuses";
 
 export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
@@ -59,6 +60,7 @@ export default function TodoPage() {
   const { data: epics = [], isLoading: isEpicsLoading } = useCollection<any>("timelineEpics");
   const { data: pics = [] } = useCollection<any>("timelinePics");
   const { data: holidays = [] } = useCollection<any>("timelineHolidays");
+  const { statuses: taskStatuses } = useTaskStatuses();
 
   const activeTasks = useMemo(() => {
     return tasks.filter((t: any) => isItemInActiveProject(t.projectId));
@@ -426,13 +428,14 @@ export default function TodoPage() {
                   <DropdownMenuContent align="end" className="w-64">
                     <DropdownMenuGroup>
                       <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                      {["TODO", "ON PROGRESS", "IN REVIEW", "DONE", "WON'T DO"].map((status) => (
+                      {taskStatuses.map((st) => (
                         <DropdownMenuCheckboxItem
-                          key={status}
-                          checked={statusFilters.includes(status)}
-                          onCheckedChange={() => toggleStatusFilter(status)}
+                          key={st.id}
+                          checked={statusFilters.includes(st.name)}
+                          onCheckedChange={() => toggleStatusFilter(st.name)}
                         >
-                          {status}
+                          <span className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: st.color }} />
+                          {st.name}
                         </DropdownMenuCheckboxItem>
                       ))}
                     </DropdownMenuGroup>

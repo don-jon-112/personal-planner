@@ -7,7 +7,8 @@ import {
   CalendarClock,
   FolderKanban,
   Users,
-  Layers
+  Layers,
+  Tag
 } from "lucide-react";
 
 export interface SubMenuItem {
@@ -33,6 +34,7 @@ export const projectMenuItems: MenuItem[] = [
       { name: "Task Plan", href: "/todo", icon: CheckSquare },
       { name: "Timeline", href: "/timeline", icon: CalendarClock },
       { name: "PICs", href: "/pics", icon: Users },
+      { name: "Task Status", href: "/statuses", icon: Tag },
     ],
   },
   { name: "Bug & Report", href: "/bugs", icon: Bug },

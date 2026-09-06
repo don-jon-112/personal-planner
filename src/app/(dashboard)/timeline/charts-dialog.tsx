@@ -14,6 +14,7 @@ interface ChartsDialogProps {
   onOpenChange: (open: boolean) => void;
   tasks: any[];
   pics?: any[];
+  statuses?: any[];
 }
 
 const COLORS = ["#3b82f6", "#22c55e", "#eab308", "#f97316", "#ef4444", "#a855f7", "#ec4899", "#14b8a6"];
@@ -21,11 +22,13 @@ const STATUS_COLORS: Record<string, string> = {
   "TODO": "#94a3b8", // slate-400
   "ON PROGRESS": "#3b82f6", // blue-500
   "IN REVIEW": "#a855f7", // purple-500
+  "ON REVIEW": "#a855f7",
   "DONE": "#22c55e", // green-500
   "WON'T DO": "#ef4444", // red-500
+  "WONT DO": "#ef4444",
 };
 
-export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDialogProps) {
+export function ChartsDialog({ open, onOpenChange, tasks, pics = [], statuses = [] }: ChartsDialogProps) {
   
   // Filter out TBD tasks and PICs not meant for analytics
   const validTasks = useMemo(() => {
@@ -42,29 +45,43 @@ export function ChartsDialog({ open, onOpenChange, tasks, pics = [] }: ChartsDia
   const statusData = useMemo(() => {
     if (validTasks.length === 0) return [];
     
-    let todoCount = 0;
-    let inProgressCount = 0;
-    let inReviewCount = 0;
-    let doneCount = 0;
-    let wontDoCount = 0;
-
+    const counts: Record<string, number> = {};
     validTasks.forEach(t => {
-      const s = (t.status || "TODO").toUpperCase();
-      if (s === "TODO") todoCount++;
-      else if (s === "ON PROGRESS") inProgressCount++;
-      else if (s === "IN REVIEW" || s === "ON REVIEW") inReviewCount++;
-      else if (s === "DONE") doneCount++;
-      else if (s === "WON'T DO" || s === "WONT DO") wontDoCount++;
+      const s = (t.status || "TODO").trim().toUpperCase();
+      counts[s] = (counts[s] || 0) + 1;
     });
 
-    return [
-      { name: "TODO", value: todoCount, color: STATUS_COLORS["TODO"] },
-      { name: "ON PROGRESS", value: inProgressCount, color: STATUS_COLORS["ON PROGRESS"] },
-      { name: "IN REVIEW", value: inReviewCount, color: STATUS_COLORS["IN REVIEW"] },
-      { name: "DONE", value: doneCount, color: STATUS_COLORS["DONE"] },
-      { name: "WON'T DO", value: wontDoCount, color: STATUS_COLORS["WON'T DO"] },
-    ].filter(d => d.value > 0);
-  }, [validTasks]);
+    if (statuses && statuses.length > 0) {
+      const result = statuses.map((st: any) => {
+        const key = (st.name || "").trim().toUpperCase();
+        const value = counts[key] || 0;
+        return {
+          name: st.name,
+          value,
+          color: st.color || STATUS_COLORS[key] || "#94a3b8",
+        };
+      });
+
+      // Any tasks with unlisted statuses
+      Object.entries(counts).forEach(([k, v]) => {
+        if (!statuses.some((st: any) => (st.name || "").trim().toUpperCase() === k)) {
+          result.push({
+            name: k,
+            value: v,
+            color: STATUS_COLORS[k] || "#94a3b8",
+          });
+        }
+      });
+
+      return result.filter(d => d.value > 0);
+    }
+
+    return Object.entries(counts).map(([name, value]) => ({
+      name,
+      value,
+      color: STATUS_COLORS[name] || "#94a3b8",
+    })).filter(d => d.value > 0);
+  }, [validTasks, statuses]);
 
   // Calculate MD by PIC Distribution
   const picData = useMemo(() => {

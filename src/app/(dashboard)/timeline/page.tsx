@@ -15,6 +15,7 @@ import { ProjectShareDialog } from "@/components/project-share-dialog";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
+import { useTaskStatuses } from "@/hooks/use-task-statuses";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -304,7 +305,7 @@ function TaskText({ text, className }: { text: string, className?: string }) {
   );
 }
 
-function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, onUpdateStatus }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult, onEdit: any, onDelete: any, onUpdateStatus: any }) {
+function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, onUpdateStatus, taskStatuses = [], getStatusColor }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult, onEdit: any, onDelete: any, onUpdateStatus: any, taskStatuses?: any[], getStatusColor?: (name: string) => string }) {
   const {
     attributes,
     listeners,
@@ -375,23 +376,24 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
       <div className="w-[120px] md:sticky md:left-[370px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger className="focus:outline-none">
-            <span className={cn(
-              "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
-              task.status === "DONE" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-              task.status === "IN REVIEW" || task.status === "ON REVIEW" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" :
-              task.status === "ON PROGRESS" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-              task.status === "WON'T DO" || task.status === "WONT DO" ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" :
-              "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
-            )}>
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+              style={{
+                backgroundColor: `${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}20`,
+                color: getStatusColor ? getStatusColor(task.status) : "#94a3b8",
+                border: `1px solid ${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}50`,
+              }}
+            >
               {task.status || "TODO"}
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center">
-            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "TODO")}>TODO</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "ON PROGRESS")}>ON PROGRESS</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "IN REVIEW")}>IN REVIEW</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "DONE")}>DONE</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "WON'T DO")}>WON'T DO</DropdownMenuItem>
+            {taskStatuses.map((s: any) => (
+              <DropdownMenuItem key={s.id} onClick={() => onUpdateStatus(task.id, s.name)}>
+                <span className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: s.color }} />
+                {s.name}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -495,7 +497,7 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger, expandAllTrigger }: any) {
+function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger, expandAllTrigger, taskStatuses, getStatusColor }: any) {
   const {
     attributes,
     listeners,
@@ -593,6 +595,8 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
                 onEdit={onEditTask} 
                 onDelete={onDeleteTask}
                 onUpdateStatus={onUpdateTaskStatus}
+                taskStatuses={taskStatuses}
+                getStatusColor={getStatusColor}
               />
             ))}
           </div>
@@ -615,6 +619,7 @@ export default function TimelinePage() {
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
   const { data: holidays } = useCollection<any>("timelineHolidays");
   const { data: pics } = useCollection<any>("timelinePics");
+  const { statuses: taskStatuses, getStatusColor } = useTaskStatuses();
   const projectPics = useMemo(() => {
     return (pics || []).filter((p: any) => isItemInActiveProject(p.projectId));
   }, [pics, isItemInActiveProject]);
@@ -950,7 +955,7 @@ export default function TimelinePage() {
             <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} />
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
             <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
-            <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={projectPics} />
+            <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={projectPics} statuses={taskStatuses} />
             <TimelineExportDialog
               open={isExportDialogOpen}
               onOpenChange={setIsExportDialogOpen}
@@ -1111,6 +1116,8 @@ export default function TimelinePage() {
                           onUpdateTaskStatus={handleUpdateTaskStatus}
                           collapseAllTrigger={collapseAllTrigger}
                           expandAllTrigger={expandAllTrigger}
+                          taskStatuses={taskStatuses}
+                          getStatusColor={getStatusColor}
                         />
                       );
                     })}

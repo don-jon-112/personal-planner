@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/tooltip";
 import { OverlapResult } from "@/lib/overlap-utils";
 import { useConfirm } from "@/components/confirm-dialog-provider";
+import { useTaskStatuses } from "@/hooks/use-task-statuses";
 
 interface SortableTodoRowProps {
   item: any;
@@ -54,6 +55,7 @@ export function SortableTodoRow({
   isDragDisabled,
 }: SortableTodoRowProps) {
   const confirm = useConfirm();
+  const { getStatusColor } = useTaskStatuses();
   const {
     attributes,
     listeners,
@@ -193,22 +195,21 @@ export function SortableTodoRow({
       </TableCell>
 
       <TableCell className="whitespace-nowrap">
-        <span
-          className={cn(
-            "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
-            item.status === "DONE"
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : item.status === "IN REVIEW" || item.status === "ON REVIEW"
-              ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-              : item.status === "ON PROGRESS"
-              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-              : item.status === "WON'T DO" || item.status === "WONT DO"
-              ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-              : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
-          )}
-        >
-          {item.status || "TODO"}
-        </span>
+        {(() => {
+          const color = getStatusColor(item.status);
+          return (
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider"
+              style={{
+                backgroundColor: `${color}20`,
+                color: color,
+                border: `1px solid ${color}50`,
+              }}
+            >
+              {item.status || "TODO"}
+            </span>
+          );
+        })()}
       </TableCell>
 
       <TableCell className="w-[50px] text-right pr-4" onClick={(e) => e.stopPropagation()}>
