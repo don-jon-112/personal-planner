@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,18 +60,18 @@ export default function StatusesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
   const [editingStatusName, setEditingStatusName] = useState("");
-  const [isInitializing, setIsInitializing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const initAttempted = useRef<Record<string, boolean>>({});
 
-  // Automatically initialize standard statuses if this project has none saved yet
+  // Automatically initialize standard statuses once per project if none saved yet
   useEffect(() => {
-    if (!isStatusesLoading && !hasCustomStatuses && activeProject?.id && !isInitializing) {
-      setIsInitializing(true);
-      initializeDefaultStatuses(activeProject.id).finally(() => {
-        setIsInitializing(false);
-      });
+    const pid = activeProject?.id;
+    if (!pid || isStatusesLoading) return;
+    if (!hasCustomStatuses && !initAttempted.current[pid]) {
+      initAttempted.current[pid] = true;
+      initializeDefaultStatuses(pid);
     }
-  }, [isStatusesLoading, hasCustomStatuses, activeProject?.id, isInitializing, initializeDefaultStatuses]);
+  }, [isStatusesLoading, hasCustomStatuses, activeProject?.id, initializeDefaultStatuses]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
