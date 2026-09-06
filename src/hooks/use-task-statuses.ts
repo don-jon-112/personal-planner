@@ -80,8 +80,8 @@ export function useTaskStatuses(explicitProjectId?: string) {
 
   // 2. Auto-clean any duplicate records existing in Firestore database
   useEffect(() => {
-    if (!currentProjectId || allStatuses.length === 0) return;
-    const projectItems = allStatuses.filter((s) => s.projectId === currentProjectId);
+    if (allStatuses.length === 0) return;
+    const projectItems = allStatuses.filter((s) => isItemInActiveProject(s.projectId));
     const seenNames = new Map<string, string>(); // name -> first doc id
     const duplicateIds: string[] = [];
 
@@ -103,7 +103,7 @@ export function useTaskStatuses(explicitProjectId?: string) {
         });
       });
     }
-  }, [allStatuses, currentProjectId, deleteStatusDoc]);
+  }, [allStatuses, isItemInActiveProject, deleteStatusDoc]);
 
   const hasCustomStatuses = useMemo(() => {
     return allStatuses.some((s) => {
