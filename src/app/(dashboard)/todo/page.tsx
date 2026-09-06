@@ -50,6 +50,7 @@ import { SortableEpicRow } from "./sortable-epic-row";
 import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
+import { DataTablePagination } from "@/components/ui/pagination";
 
 export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
@@ -108,6 +109,13 @@ export default function TodoPage() {
   const [taskSortConfig, setTaskSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
   const [epicSortConfig, setEpicSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
 
+  // Pagination states
+  const [taskPage, setTaskPage] = useState(1);
+  const [taskPageSize, setTaskPageSize] = useState(10);
+
+  const [epicPage, setEpicPage] = useState(1);
+  const [epicPageSize, setEpicPageSize] = useState(10);
+
   // Sync firestore collections to local state (scoped to active project)
   useEffect(() => {
     setLocalTasks(activeTasks);
@@ -116,6 +124,15 @@ export default function TodoPage() {
   useEffect(() => {
     setLocalEpics(activeEpics);
   }, [activeEpics]);
+
+  // Reset pages to 1 when search, filters, sorting, or page size change
+  useEffect(() => {
+    setTaskPage(1);
+  }, [taskSearchQuery, statusFilters, picFilters, epicFilters, taskSortConfig, taskPageSize]);
+
+  useEffect(() => {
+    setEpicPage(1);
+  }, [epicSearchQuery, epicSortConfig, epicPageSize]);
 
   const toggleStatusFilter = (status: string) => {
     setStatusFilters((prev) =>
@@ -206,8 +223,20 @@ export default function TodoPage() {
         return 0;
       });
     } else {
-      // Default sort by order / orderIndex
+      // Default sort: Group tasks by Epic position first, then by task order (Backlog / No Epic at bottom)
+      const epicOrderMap = new Map<string, number>();
+      activeEpics.forEach((epic, idx) => {
+        epicOrderMap.set(epic.id, epic.order ?? idx);
+      });
+
       list.sort((a, b) => {
+        const epicRankA = a.epicId ? (epicOrderMap.get(a.epicId) ?? 999998) : 999999;
+        const epicRankB = b.epicId ? (epicOrderMap.get(b.epicId) ?? 999998) : 999999;
+
+        if (epicRankA !== epicRankB) {
+          return epicRankA - epicRankB;
+        }
+
         const orderA = a.order ?? a.orderIndex ?? Date.now();
         const orderB = b.order ?? b.orderIndex ?? Date.now();
         return orderA - orderB;
@@ -253,6 +282,17 @@ export default function TodoPage() {
 
     return list;
   }, [localEpics, activeTasks, epicSearchQuery, epicSortConfig]);
+
+  // Paginated Tasks & Epics
+  const paginatedTasks = useMemo(() => {
+    const start = (taskPage - 1) * taskPageSize;
+    return processedTasks.slice(start, start + taskPageSize);
+  }, [processedTasks, taskPage, taskPageSize]);
+
+  const paginatedEpics = useMemo(() => {
+    const start = (epicPage - 1) * epicPageSize;
+    return processedEpics.slice(start, start + epicPageSize);
+  }, [processedEpics, epicPage, epicPageSize]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -603,10 +643,10 @@ export default function TodoPage() {
                       modifiers={[restrictToVerticalAxis]}
                     >
                       <SortableContext
-                        items={processedTasks.map((t) => t.id)}
+                        items={paginatedTasks.map((t) => t.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                        {processedTasks.map((item) => (
+                        {paginatedTasks.map((item) => (
                           <SortableTodoRow
                             key={item.id}
                             item={item}
@@ -623,6 +663,14 @@ export default function TodoPage() {
                   )}
                 </TableBody>
               </Table>
+              <DataTablePagination
+                currentPage={taskPage}
+                pageSize={taskPageSize}
+                totalItems={processedTasks.length}
+                onPageChange={setTaskPage}
+                onPageSizeChange={setTaskPageSize}
+                itemName="tasks"
+              />
             </div>
           </div>
         )}
@@ -718,10 +766,10 @@ export default function TodoPage() {
                       modifiers={[restrictToVerticalAxis]}
                     >
                       <SortableContext
-                        items={processedEpics.map((e) => e.id)}
+                        items={paginatedEpics.map((e) => e.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                        {processedEpics.map((epic) => (
+                        {paginatedEpics.map((epic) => (
                           <SortableEpicRow
                             key={epic.id}
                             epic={epic}
@@ -736,6 +784,14 @@ export default function TodoPage() {
                   )}
                 </TableBody>
               </Table>
+              <DataTablePagination
+                currentPage={epicPage}
+                pageSize={epicPageSize}
+                totalItems={processedEpics.length}
+                onPageChange={setEpicPage}
+                onPageSizeChange={setEpicPageSize}
+                itemName="epics"
+              />
             </div>
           </div>
         )}
