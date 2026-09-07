@@ -344,6 +344,7 @@ export default function SecretsPage() {
       <SecretShareDialog
         open={isShareDialogOpen}
         onOpenChange={setIsShareDialogOpen}
+        hasSecrets={activeSecrets.length > 0}
       />
 
       <PanelContent className="space-y-4 flex-1 overflow-auto">

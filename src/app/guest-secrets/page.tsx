@@ -281,7 +281,10 @@ function GuestSecretsContent() {
               {processedSecrets.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                    No secret keys found for this project.
+                    <p className="text-base font-medium">Data Secret Key Belum Tersedia</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">
+                      Belum ada data Secret Key yang ditambahkan untuk project ini.
+                    </p>
                   </TableCell>
                 </TableRow>
               ) : (
