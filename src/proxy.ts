@@ -7,8 +7,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Allow public access to /guest-timeline (share links) without password
-  if (request.nextUrl.pathname.startsWith('/guest-timeline')) {
+  // Allow public access to /guest-timeline and /guest-secrets (share links) without password
+  if (
+    request.nextUrl.pathname.startsWith('/guest-timeline') ||
+    request.nextUrl.pathname.startsWith('/guest-secrets')
+  ) {
     return NextResponse.next()
   }
 
@@ -24,8 +27,11 @@ export function proxy(request: NextRequest) {
   }
 
   if (isGuestPassword) {
-    // Guest only has access to /guest-timeline
-    if (request.nextUrl.pathname.startsWith('/guest-timeline')) {
+    // Guest has access to /guest-timeline and /guest-secrets
+    if (
+      request.nextUrl.pathname.startsWith('/guest-timeline') ||
+      request.nextUrl.pathname.startsWith('/guest-secrets')
+    ) {
       return NextResponse.next()
     }
     // Redirect guest to their designated page if they try to access anything else
