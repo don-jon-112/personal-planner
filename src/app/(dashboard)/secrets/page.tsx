@@ -23,30 +23,11 @@ import {
   Edit3, 
   Trash2, 
   Share2, 
-  GripVertical,
   Upload,
   AlertTriangle
 } from "lucide-react";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
-import { useCollection, useDeleteDocument, useUpdateBatch } from "@/hooks/use-firestore";
+import { useCollection, useDeleteDocument } from "@/hooks/use-firestore";
 import { useProject } from "@/components/project-context";
 import { useConfirm } from "@/components/confirm-dialog-provider";
 import { DataTablePagination } from "@/components/ui/pagination";
@@ -136,8 +117,8 @@ function SecretValueCell({
   );
 }
 
-// Sortable Table Row component
-function SortableSecretRow({
+// Secret Table Row component (Sorted by Key ASC, non-draggable)
+function SecretRow({
   secret,
   index,
   isMasked,
@@ -150,41 +131,16 @@ function SortableSecretRow({
   onEdit: (secret: any) => void;
   onDelete: (secret: any) => void;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: secret.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
   const prodAscom = (secret.valueProdAscom || "").trim();
   const prod = (secret.valueProd || "").trim();
   const isProdMismatch = (prodAscom !== "" || prod !== "") && prodAscom !== prod;
 
   return (
-    <TableRow ref={setNodeRef} style={style} className="hover:bg-muted/30 group">
-      <TableCell className="w-[40px] pl-3 py-2">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-1 rounded"
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-      </TableCell>
-      <TableCell className="font-semibold text-xs py-2 text-muted-foreground">
+    <TableRow className="hover:bg-muted/30 group">
+      <TableCell className="font-semibold text-xs py-2.5 text-muted-foreground pl-3 w-[50px]">
         {index + 1}
       </TableCell>
-      <TableCell className="font-mono font-medium text-xs py-2 text-foreground">
+      <TableCell className="font-mono font-medium text-xs py-2.5 text-foreground">
         <div className="flex items-center gap-2 flex-wrap">
           <span>{secret.keyName || secret.key || "-"}</span>
           {isProdMismatch && (
@@ -198,19 +154,19 @@ function SortableSecretRow({
           )}
         </div>
       </TableCell>
-      <TableCell className="py-2">
+      <TableCell className="py-2.5">
         <SecretValueCell value={secret.valueSit} isGlobalMasked={isMasked} />
       </TableCell>
-      <TableCell className="py-2">
+      <TableCell className="py-2.5">
         <SecretValueCell value={secret.valueUat} isGlobalMasked={isMasked} />
       </TableCell>
-      <TableCell className="py-2">
+      <TableCell className="py-2.5">
         <SecretValueCell value={secret.valueProdAscom} isGlobalMasked={isMasked} hasMismatch={isProdMismatch} />
       </TableCell>
-      <TableCell className="py-2">
+      <TableCell className="py-2.5">
         <SecretValueCell value={secret.valueProd} isGlobalMasked={isMasked} hasMismatch={isProdMismatch} />
       </TableCell>
-      <TableCell className="w-[80px] text-right py-2 pr-3">
+      <TableCell className="w-[80px] text-right py-2.5 pr-3">
         <div className="flex items-center justify-end gap-1">
           <Button
             type="button"
@@ -244,13 +200,11 @@ export default function SecretsPage() {
 
   const { data: rawSecrets = [], isLoading } = useCollection<any>("secretKeys");
   const { mutate: deleteSecret } = useDeleteDocument("secretKeys");
-  const { mutate: batchUpdateSecrets } = useUpdateBatch("secretKeys");
 
   const activeSecrets = useMemo(() => {
     return rawSecrets.filter((s: any) => isItemInActiveProject(s.projectId));
   }, [rawSecrets, isItemInActiveProject]);
 
-  const [localSecrets, setLocalSecrets] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isGlobalMasked, setIsGlobalMasked] = useState(true);
 
@@ -265,16 +219,12 @@ export default function SecretsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
-    setLocalSecrets(activeSecrets);
-  }, [activeSecrets]);
-
-  useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, pageSize]);
 
-  // Processed (searched and sorted) Secrets
+  // Processed (searched and sorted alphabetically by Key ASC)
   const processedSecrets = useMemo(() => {
-    let list = [...localSecrets];
+    let list = [...activeSecrets];
 
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
@@ -288,41 +238,21 @@ export default function SecretsPage() {
       });
     }
 
+    // Sort by Key Name ASC (alphabetical)
     list.sort((a, b) => {
-      const orderA = a.order ?? Date.now();
-      const orderB = b.order ?? Date.now();
-      return orderA - orderB;
+      const keyA = (a.keyName || a.key || "").toLowerCase();
+      const keyB = (b.keyName || b.key || "").toLowerCase();
+      return keyA.localeCompare(keyB);
     });
 
     return list;
-  }, [localSecrets, searchQuery]);
+  }, [activeSecrets, searchQuery]);
 
   // Paginated Secrets
   const paginatedSecrets = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return processedSecrets.slice(start, start + pageSize);
   }, [processedSecrets, currentPage, pageSize]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = processedSecrets.findIndex((s) => s.id === active.id);
-      const newIndex = processedSecrets.findIndex((s) => s.id === over.id);
-      const newOrder = arrayMove(processedSecrets, oldIndex, newIndex);
-      setLocalSecrets(newOrder);
-
-      const updates = newOrder.map((item, index) => ({
-        id: item.id,
-        data: { order: index * 1000 },
-      }));
-      batchUpdateSecrets(updates);
-    }
-  };
 
   const handleCreate = () => {
     setEditingSecret(null);
@@ -451,9 +381,7 @@ export default function SecretsPage() {
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableHead className="w-[40px] pl-3"></TableHead>
-
-                <TableHead className="w-[50px] font-semibold text-xs">No</TableHead>
+                <TableHead className="w-[50px] font-semibold text-xs pl-3">No</TableHead>
                 <TableHead className="font-semibold text-xs">Key</TableHead>
                 <TableHead className="font-semibold text-xs">Value (SIT - ASCOM)</TableHead>
                 <TableHead className="font-semibold text-xs">Value (UAT - ASCOM)</TableHead>
@@ -465,13 +393,13 @@ export default function SecretsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     Loading secret keys...
                   </TableCell>
                 </TableRow>
               ) : processedSecrets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <p className="text-base font-medium">No secret keys found.</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
                       Click "New Secret Key" above to add your first secret.
@@ -479,28 +407,16 @@ export default function SecretsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                  modifiers={[restrictToVerticalAxis]}
-                >
-                  <SortableContext
-                    items={paginatedSecrets.map((s) => s.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {paginatedSecrets.map((secret, idx) => (
-                      <SortableSecretRow
-                        key={secret.id}
-                        secret={secret}
-                        index={(currentPage - 1) * pageSize + idx}
-                        isMasked={isGlobalMasked}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
+                paginatedSecrets.map((secret, idx) => (
+                  <SecretRow
+                    key={secret.id}
+                    secret={secret}
+                    index={(currentPage - 1) * pageSize + idx}
+                    isMasked={isGlobalMasked}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))
               )}
             </TableBody>
           </Table>

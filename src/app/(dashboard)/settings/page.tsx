@@ -7,8 +7,8 @@ import { useDocument, useSetDocument } from "@/hooks/use-firestore";
 import { menuItems } from "@/config/menu";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { CloudUpload, CloudDownload, Server, ServerOff, Database, FileDown, FileUp, Loader2 } from "lucide-react";
-import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection, doc, writeBatch, terminate, clearIndexedDbPersistence } from "firebase/firestore";
+import { CloudUpload, CloudDownload, Server, ServerOff, Database, FileDown, FileUp, Loader2, Clock, RefreshCw } from "lucide-react";
+import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection, doc, writeBatch, terminate, clearIndexedDbPersistence, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
@@ -56,6 +56,13 @@ export default function SettingsPage() {
   const [isOnline, setIsOnline] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("lastSyncedAt");
+    }
+    return null;
+  });
+  const [isFetchingSyncStatus, setIsFetchingSyncStatus] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -138,12 +145,24 @@ export default function SettingsPage() {
       setIsSyncingUp(true);
       await enableNetwork(db);
       await waitForPendingWrites(db);
+
+      // Save sync timestamp metadata to Firestore Cloud & localStorage
+      const syncTime = new Date().toISOString();
+      setLastSyncedAt(syncTime);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("lastSyncedAt", syncTime);
+      }
+      await setDoc(doc(db, "appSettings", "syncMetadata"), {
+        lastSyncedAt: syncTime,
+        updatedBy: "Admin",
+      }, { merge: true }).catch(err => console.warn("Failed to record sync metadata:", err));
+
       // Brief delay to ensure connections settle
       await new Promise(r => setTimeout(r, 1000));
       if (!isOnline) await disableNetwork(db);
       await alertModal({
         title: "Sync Successful",
-        description: "Local changes have been successfully synced to Firebase!",
+        description: `Local changes have been successfully synced to Firebase Cloud on ${new Date(syncTime).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "medium" })}!`,
         variant: "success",
       });
     } catch (e) {
@@ -188,6 +207,56 @@ export default function SettingsPage() {
         variant: "error",
       });
       setIsSyncingDown(false);
+    }
+  };
+
+  const handleFetchCloudSyncStatus = async () => {
+    setIsFetchingSyncStatus(true);
+    try {
+      await enableNetwork(db).catch(() => {});
+      const syncDocRef = doc(db, "appSettings", "syncMetadata");
+      const snap = await getDoc(syncDocRef);
+      if (snap.exists() && snap.data().lastSyncedAt) {
+        const ts = snap.data().lastSyncedAt;
+        setLastSyncedAt(ts);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("lastSyncedAt", ts);
+        }
+        const dateObj = new Date(ts);
+        const formattedDate = dateObj.toLocaleDateString("id-ID", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        });
+        const formattedTime = dateObj.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        await alertModal({
+          title: "Status Sinkronisasi Firebase Cloud",
+          description: `Data paling baru di Firebase Cloud disinkronkan pada:\nTanggal: ${formattedDate}\nJam: ${formattedTime} WIB`,
+          variant: "info",
+        });
+      } else {
+        await alertModal({
+          title: "Status Sinkronisasi Firebase Cloud",
+          description: "Belum ada catatan waktu sinkronisasi di Firebase Cloud.",
+          variant: "info",
+        });
+      }
+    } catch (err: any) {
+      console.error("Error fetching cloud sync status:", err);
+      await alertModal({
+        title: "Gagal Memeriksa Status",
+        description: "Terjadi kesalahan saat memeriksa status sinkronisasi di Firebase Cloud.",
+        variant: "error",
+      });
+    } finally {
+      setIsFetchingSyncStatus(false);
+      if (typeof window !== "undefined" && localStorage.getItem("syncMode") !== "online") {
+        await disableNetwork(db).catch(() => {});
+      }
     }
   };
 
@@ -510,6 +579,45 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-4">
+              {/* Last Synced Status Banner */}
+              <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <Clock className="w-4 h-4 text-primary shrink-0" />
+                  <div>
+                    <p className="font-semibold text-foreground">Waktu Terakhir Disinkronkan ke Cloud:</p>
+                    <p className="text-muted-foreground font-mono mt-0.5">
+                      {lastSyncedAt ? (
+                        <span className="text-primary font-bold">
+                          {new Date(lastSyncedAt).toLocaleString("id-ID", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit"
+                          })}
+                        </span>
+                      ) : (
+                        <span className="italic">Belum Ada Riwayat Sync</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFetchCloudSyncStatus}
+                  disabled={isFetchingSyncStatus}
+                  className="h-8 gap-1.5 text-xs shrink-0 self-start sm:self-auto"
+                  title="Cek waktu sinkronisasi paling baru di Firebase Cloud"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetchingSyncStatus ? "animate-spin" : ""}`} />
+                  <span>Cek Waktu Status Cloud</span>
+                </Button>
+              </div>
+
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border bg-muted/20 gap-4">
                 <div>
                   <p className="font-medium text-sm">Upload Local Changes</p>
