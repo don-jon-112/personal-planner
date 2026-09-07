@@ -378,7 +378,9 @@ export function SecretImportDialog({
                           {item.isValid ? (
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                           ) : (
-                            <AlertCircle className="w-3.5 h-3.5 text-destructive" title="Missing Key" />
+                            <span title="Missing Key">
+                              <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+                            </span>
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-xs py-1.5 font-medium">

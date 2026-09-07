@@ -53,6 +53,7 @@ import { DataTablePagination } from "@/components/ui/pagination";
 import { SecretDialog } from "./secret-dialog";
 import { SecretShareDialog } from "./secret-share-dialog";
 import { SecretImportDialog } from "./secret-import-dialog";
+import { cn } from "@/lib/utils";
 
 // Cell helper for masked value with click-to-reveal & copy button
 function SecretValueCell({ 
