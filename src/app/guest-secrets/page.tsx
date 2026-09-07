@@ -234,10 +234,10 @@ function GuestSecretsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col w-full">
       {/* Top Banner */}
-      <header className="border-b bg-card px-4 py-3 sticky top-0 z-20 shadow-xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="border-b bg-card px-4 sm:px-6 py-3 sticky top-0 z-20 shadow-xs w-full">
+        <div className="w-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
               <Key className="w-4 h-4" />
@@ -268,7 +268,7 @@ function GuestSecretsContent() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl w-full mx-auto p-4 sm:p-6 flex-1 space-y-4">
+      <main className="w-full flex-1 p-4 sm:p-6 space-y-4">
         {/* Search & Actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="relative w-full max-w-sm">
