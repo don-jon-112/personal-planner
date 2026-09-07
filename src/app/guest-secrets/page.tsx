@@ -199,7 +199,25 @@ function GuestSecretsContent() {
       });
     }
 
-    list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // Sort: PROD Diff entries at the top first, then alphabetically by Key ASC
+    const checkProdMismatch = (s: any) => {
+      const prodAscom = (s.valueProdAscom || "").trim();
+      const prod = (s.valueProd || "").trim();
+      return (prodAscom !== "" || prod !== "") && prodAscom !== prod;
+    };
+
+    list.sort((a, b) => {
+      const diffA = checkProdMismatch(a);
+      const diffB = checkProdMismatch(b);
+
+      if (diffA !== diffB) {
+        return diffA ? -1 : 1;
+      }
+
+      const keyA = (a.keyName || a.key || "").toLowerCase();
+      const keyB = (b.keyName || b.key || "").toLowerCase();
+      return keyA.localeCompare(keyB);
+    });
     return list;
   }, [secrets, searchQuery]);
 
