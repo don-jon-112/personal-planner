@@ -23,16 +23,38 @@ import {
   Lock, 
   ShieldAlert, 
   Loader2,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 import { enableNetwork, disableNetwork, getDocs, collection } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { DataTablePagination } from "@/components/ui/pagination";
+import { cn } from "@/lib/utils";
 
-function SecretValueCell({ value, isMasked }: { value?: string; isMasked: boolean }) {
+function SecretValueCell({ 
+  value, 
+  isGlobalMasked, 
+  hasMismatch = false 
+}: { 
+  value?: string; 
+  isGlobalMasked: boolean; 
+  hasMismatch?: boolean;
+}) {
+  const [isSelfRevealed, setIsSelfRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const displayVal = value || "-";
+
+  useEffect(() => {
+    setIsSelfRevealed(false);
+  }, [isGlobalMasked]);
+
+  const isMasked = isGlobalMasked ? !isSelfRevealed : false;
+
+  const toggleReveal = () => {
+    if (!value) return;
+    setIsSelfRevealed((prev) => !prev);
+  };
 
   const handleCopy = () => {
     if (!value) return;
@@ -42,8 +64,25 @@ function SecretValueCell({ value, isMasked }: { value?: string; isMasked: boolea
   };
 
   return (
-    <div className="flex items-center justify-between gap-1 group/cell max-w-[200px]">
-      <span className="font-mono text-xs truncate">
+    <div className={cn(
+      "flex items-center justify-between gap-1 group/cell max-w-[200px] px-1.5 py-1 rounded transition-colors",
+      hasMismatch && "bg-amber-500/10 border border-amber-500/30"
+    )}>
+      <span
+        onClick={toggleReveal}
+        title={
+          value
+            ? isMasked
+              ? "Click to reveal value"
+              : "Click to hide value"
+            : undefined
+        }
+        className={cn(
+          "font-mono text-xs truncate select-all",
+          value && "cursor-pointer hover:text-primary transition-colors font-medium",
+          isMasked && value && "hover:bg-muted/60 px-1 rounded"
+        )}
+      >
         {displayVal === "-" ? (
           <span className="text-muted-foreground/60 italic">-</span>
         ) : isMasked ? (
@@ -58,7 +97,7 @@ function SecretValueCell({ value, isMasked }: { value?: string; isMasked: boolea
           type="button"
           onClick={handleCopy}
           title="Copy value"
-          className="opacity-0 group-hover/cell:opacity-100 focus:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-opacity rounded"
+          className="opacity-0 group-hover/cell:opacity-100 focus:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-opacity rounded shrink-0"
         >
           {copied ? (
             <Check className="w-3.5 h-3.5 text-emerald-500" />
@@ -288,28 +327,45 @@ function GuestSecretsContent() {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedSecrets.map((secret, idx) => (
-                  <TableRow key={secret.id} className="hover:bg-muted/30">
-                    <TableCell className="font-semibold text-xs py-2.5 text-muted-foreground pl-3">
-                      {(currentPage - 1) * pageSize + idx + 1}
-                    </TableCell>
-                    <TableCell className="font-mono font-medium text-xs py-2.5 text-foreground">
-                      {secret.keyName || secret.key || "-"}
-                    </TableCell>
-                    <TableCell className="py-2.5">
-                      <SecretValueCell value={secret.valueSit} isMasked={isGlobalMasked} />
-                    </TableCell>
-                    <TableCell className="py-2.5">
-                      <SecretValueCell value={secret.valueUat} isMasked={isGlobalMasked} />
-                    </TableCell>
-                    <TableCell className="py-2.5">
-                      <SecretValueCell value={secret.valueProdAscom} isMasked={isGlobalMasked} />
-                    </TableCell>
-                    <TableCell className="py-2.5">
-                      <SecretValueCell value={secret.valueProd} isMasked={isGlobalMasked} />
-                    </TableCell>
-                  </TableRow>
-                ))
+                paginatedSecrets.map((secret, idx) => {
+                  const prodAscom = (secret.valueProdAscom || "").trim();
+                  const prod = (secret.valueProd || "").trim();
+                  const isProdMismatch = (prodAscom !== "" || prod !== "") && prodAscom !== prod;
+
+                  return (
+                    <TableRow key={secret.id} className="hover:bg-muted/30">
+                      <TableCell className="font-semibold text-xs py-2.5 text-muted-foreground pl-3">
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </TableCell>
+                      <TableCell className="font-mono font-medium text-xs py-2.5 text-foreground">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>{secret.keyName || secret.key || "-"}</span>
+                          {isProdMismatch && (
+                            <span
+                              title="Warning: Value (PROD - ASCOM) and Value (PROD) are different!"
+                              className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+                            >
+                              <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                              PROD Diff
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <SecretValueCell value={secret.valueSit} isGlobalMasked={isGlobalMasked} />
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <SecretValueCell value={secret.valueUat} isGlobalMasked={isGlobalMasked} />
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <SecretValueCell value={secret.valueProdAscom} isGlobalMasked={isGlobalMasked} hasMismatch={isProdMismatch} />
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <SecretValueCell value={secret.valueProd} isGlobalMasked={isGlobalMasked} hasMismatch={isProdMismatch} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

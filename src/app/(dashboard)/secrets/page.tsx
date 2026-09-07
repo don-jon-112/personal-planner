@@ -23,7 +23,9 @@ import {
   Edit3, 
   Trash2, 
   Share2, 
-  GripVertical 
+  GripVertical,
+  Upload,
+  AlertTriangle
 } from "lucide-react";
 import {
   DndContext,
@@ -50,19 +52,33 @@ import { useConfirm } from "@/components/confirm-dialog-provider";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { SecretDialog } from "./secret-dialog";
 import { SecretShareDialog } from "./secret-share-dialog";
+import { SecretImportDialog } from "./secret-import-dialog";
 
-// Cell helper for masked value with copy button
+// Cell helper for masked value with click-to-reveal & copy button
 function SecretValueCell({ 
   value, 
-  isMasked, 
-  cellId 
+  isGlobalMasked, 
+  hasMismatch = false,
 }: { 
   value?: string; 
-  isMasked: boolean; 
-  cellId: string 
+  isGlobalMasked: boolean; 
+  hasMismatch?: boolean;
 }) {
+  const [isSelfRevealed, setIsSelfRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const displayVal = value || "-";
+
+  // Reset self-reveal when global mask mode changes
+  useEffect(() => {
+    setIsSelfRevealed(false);
+  }, [isGlobalMasked]);
+
+  const isMasked = isGlobalMasked ? !isSelfRevealed : false;
+
+  const toggleReveal = () => {
+    if (!value) return;
+    setIsSelfRevealed((prev) => !prev);
+  };
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,8 +89,25 @@ function SecretValueCell({
   };
 
   return (
-    <div className="flex items-center justify-between gap-1 group/cell max-w-[200px]">
-      <span className="font-mono text-xs truncate">
+    <div className={cn(
+      "flex items-center justify-between gap-1 group/cell max-w-[200px] px-1.5 py-1 rounded transition-colors",
+      hasMismatch && "bg-amber-500/10 border border-amber-500/30"
+    )}>
+      <span
+        onClick={toggleReveal}
+        title={
+          value
+            ? isMasked
+              ? "Click to reveal value"
+              : "Click to hide value"
+            : undefined
+        }
+        className={cn(
+          "font-mono text-xs truncate select-all",
+          value && "cursor-pointer hover:text-primary transition-colors font-medium",
+          isMasked && value && "hover:bg-muted/60 px-1 rounded"
+        )}
+      >
         {displayVal === "-" ? (
           <span className="text-muted-foreground/60 italic">-</span>
         ) : isMasked ? (
@@ -89,7 +122,7 @@ function SecretValueCell({
           type="button"
           onClick={handleCopy}
           title="Copy value"
-          className="opacity-0 group-hover/cell:opacity-100 focus:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-opacity rounded"
+          className="opacity-0 group-hover/cell:opacity-100 focus:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-opacity rounded shrink-0"
         >
           {copied ? (
             <Check className="w-3.5 h-3.5 text-emerald-500" />
@@ -131,6 +164,10 @@ function SortableSecretRow({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const prodAscom = (secret.valueProdAscom || "").trim();
+  const prod = (secret.valueProd || "").trim();
+  const isProdMismatch = (prodAscom !== "" || prod !== "") && prodAscom !== prod;
+
   return (
     <TableRow ref={setNodeRef} style={style} className="hover:bg-muted/30 group">
       <TableCell className="w-[40px] pl-3 py-2">
@@ -147,19 +184,30 @@ function SortableSecretRow({
         {index + 1}
       </TableCell>
       <TableCell className="font-mono font-medium text-xs py-2 text-foreground">
-        {secret.keyName || secret.key || "-"}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span>{secret.keyName || secret.key || "-"}</span>
+          {isProdMismatch && (
+            <span
+              title="Warning: Value (PROD - ASCOM) and Value (PROD) are different!"
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+            >
+              <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+              PROD Diff
+            </span>
+          )}
+        </div>
       </TableCell>
       <TableCell className="py-2">
-        <SecretValueCell value={secret.valueSit} isMasked={isMasked} cellId={`${secret.id}-sit`} />
+        <SecretValueCell value={secret.valueSit} isGlobalMasked={isMasked} />
       </TableCell>
       <TableCell className="py-2">
-        <SecretValueCell value={secret.valueUat} isMasked={isMasked} cellId={`${secret.id}-uat`} />
+        <SecretValueCell value={secret.valueUat} isGlobalMasked={isMasked} />
       </TableCell>
       <TableCell className="py-2">
-        <SecretValueCell value={secret.valueProdAscom} isMasked={isMasked} cellId={`${secret.id}-prodAscom`} />
+        <SecretValueCell value={secret.valueProdAscom} isGlobalMasked={isMasked} hasMismatch={isProdMismatch} />
       </TableCell>
       <TableCell className="py-2">
-        <SecretValueCell value={secret.valueProd} isMasked={isMasked} cellId={`${secret.id}-prod`} />
+        <SecretValueCell value={secret.valueProd} isGlobalMasked={isMasked} hasMismatch={isProdMismatch} />
       </TableCell>
       <TableCell className="w-[80px] text-right py-2 pr-3">
         <div className="flex items-center justify-end gap-1">
@@ -209,6 +257,7 @@ export default function SecretsPage() {
   const [editingSecret, setEditingSecret] = useState<any>(null);
   const [isSecretDialogOpen, setIsSecretDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -321,6 +370,16 @@ export default function SecretsPage() {
           <Button
             type="button"
             variant="outline"
+            onClick={() => setIsImportDialogOpen(true)}
+            className="shadow-xs text-xs h-9"
+          >
+            <Upload className="w-4 h-4 mr-1.5" />
+            Import Data
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
             onClick={() => setIsShareDialogOpen(true)}
             className="shadow-xs text-xs h-9"
           >
@@ -345,6 +404,10 @@ export default function SecretsPage() {
         open={isShareDialogOpen}
         onOpenChange={setIsShareDialogOpen}
         hasSecrets={activeSecrets.length > 0}
+      />
+      <SecretImportDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
       />
 
       <PanelContent className="space-y-4 flex-1 overflow-auto">
