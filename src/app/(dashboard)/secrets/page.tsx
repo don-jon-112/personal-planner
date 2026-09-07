@@ -27,7 +27,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 
-import { useCollection, useDeleteDocument } from "@/hooks/use-firestore";
+import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { useProject } from "@/components/project-context";
 import { useConfirm } from "@/components/confirm-dialog-provider";
 import { DataTablePagination } from "@/components/ui/pagination";
@@ -124,16 +124,19 @@ function SecretRow({
   isMasked,
   onEdit,
   onDelete,
+  onToggleExistInProd,
 }: {
   secret: any;
   index: number;
   isMasked: boolean;
   onEdit: (secret: any) => void;
   onDelete: (secret: any) => void;
+  onToggleExistInProd: (secret: any) => void;
 }) {
   const prodAscom = (secret.valueProdAscom || "").trim();
   const prod = (secret.valueProd || "").trim();
   const isProdMismatch = (prodAscom !== "" || prod !== "") && prodAscom !== prod;
+  const isExistInProd = Boolean(secret.existsInProd ?? secret.isExistInProd ?? false);
 
   return (
     <TableRow className="hover:bg-muted/30 group">
@@ -153,6 +156,31 @@ function SecretRow({
             </span>
           )}
         </div>
+      </TableCell>
+      <TableCell className="py-2.5">
+        <button
+          type="button"
+          onClick={() => onToggleExistInProd(secret)}
+          title="Click to toggle PROD existence status"
+          className={cn(
+            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all shadow-xs cursor-pointer select-none",
+            isExistInProd
+              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
+              : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+          )}
+        >
+          {isExistInProd ? (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              ✓ In PROD
+            </>
+          ) : (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+              Not in PROD
+            </>
+          )}
+        </button>
       </TableCell>
       <TableCell className="py-2.5">
         <SecretValueCell value={secret.valueSit} isGlobalMasked={isMasked} />
@@ -200,6 +228,7 @@ export default function SecretsPage() {
 
   const { data: rawSecrets = [], isLoading } = useCollection<any>("secretKeys");
   const { mutate: deleteSecret } = useDeleteDocument("secretKeys");
+  const { mutate: updateSecret } = useUpdateDocument("secretKeys");
 
   const activeSecrets = useMemo(() => {
     return rawSecrets.filter((s: any) => isItemInActiveProject(s.projectId));
@@ -275,6 +304,14 @@ export default function SecretsPage() {
   const handleEdit = (secret: any) => {
     setEditingSecret(secret);
     setIsSecretDialogOpen(true);
+  };
+
+  const handleToggleExistInProd = (secret: any) => {
+    const currentVal = Boolean(secret.existsInProd ?? secret.isExistInProd ?? false);
+    updateSecret({
+      id: secret.id,
+      data: { existsInProd: !currentVal },
+    });
   };
 
   const handleDelete = async (secret: any) => {
@@ -396,6 +433,7 @@ export default function SecretsPage() {
               <TableRow>
                 <TableHead className="w-[50px] font-semibold text-xs pl-3">No</TableHead>
                 <TableHead className="font-semibold text-xs">Key</TableHead>
+                <TableHead className="font-semibold text-xs">Exist in PROD</TableHead>
                 <TableHead className="font-semibold text-xs">Value (SIT - ASCOM)</TableHead>
                 <TableHead className="font-semibold text-xs">Value (UAT - ASCOM)</TableHead>
                 <TableHead className="font-semibold text-xs">Value (PROD - ASCOM)</TableHead>
@@ -406,13 +444,13 @@ export default function SecretsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     Loading secret keys...
                   </TableCell>
                 </TableRow>
               ) : processedSecrets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                     <p className="text-base font-medium">No secret keys found.</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
                       Click "New Secret Key" above to add your first secret.
@@ -428,6 +466,7 @@ export default function SecretsPage() {
                     isMasked={isGlobalMasked}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
+                    onToggleExistInProd={handleToggleExistInProd}
                   />
                 ))
               )}

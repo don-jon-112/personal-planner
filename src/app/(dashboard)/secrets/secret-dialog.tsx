@@ -24,6 +24,7 @@ const formSchema = z.object({
   valueUat: z.string().optional(),
   valueProdAscom: z.string().optional(),
   valueProd: z.string().optional(),
+  existsInProd: z.boolean(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -53,6 +54,7 @@ export function SecretDialog({
       valueUat: "",
       valueProdAscom: "",
       valueProd: "",
+      existsInProd: false,
     },
   });
 
@@ -65,6 +67,7 @@ export function SecretDialog({
           valueUat: secretToEdit.valueUat || "",
           valueProdAscom: secretToEdit.valueProdAscom || "",
           valueProd: secretToEdit.valueProd || "",
+          existsInProd: Boolean(secretToEdit.existsInProd ?? secretToEdit.isExistInProd ?? false),
         });
       } else {
         form.reset({
@@ -73,6 +76,7 @@ export function SecretDialog({
           valueUat: "",
           valueProdAscom: "",
           valueProd: "",
+          existsInProd: false,
         });
       }
     }
@@ -86,6 +90,7 @@ export function SecretDialog({
         valueUat: data.valueUat || "",
         valueProdAscom: data.valueProdAscom || "",
         valueProd: data.valueProd || "",
+        existsInProd: Boolean(data.existsInProd),
         projectId: activeProjectId || null,
       };
 
@@ -170,6 +175,19 @@ export function SecretDialog({
                 className="font-mono text-xs"
               />
             </div>
+          </div>
+
+          {/* Exist in PROD Boolean Checkbox */}
+          <div className="flex items-center space-x-2 pt-3 border-t">
+            <input
+              type="checkbox"
+              id="existsInProd"
+              {...form.register("existsInProd")}
+              className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+            />
+            <Label htmlFor="existsInProd" className="text-xs font-semibold cursor-pointer select-none">
+              Sudah Ada di PROD (Exists in PROD)
+            </Label>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

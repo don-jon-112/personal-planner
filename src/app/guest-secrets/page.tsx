@@ -328,6 +328,7 @@ function GuestSecretsContent() {
               <TableRow>
                 <TableHead className="w-[50px] font-semibold text-xs pl-3">No</TableHead>
                 <TableHead className="font-semibold text-xs">Key</TableHead>
+                <TableHead className="font-semibold text-xs">Exist in PROD</TableHead>
                 <TableHead className="font-semibold text-xs">Value (SIT - ASCOM)</TableHead>
                 <TableHead className="font-semibold text-xs">Value (UAT - ASCOM)</TableHead>
                 <TableHead className="font-semibold text-xs">Value (PROD - ASCOM)</TableHead>
@@ -337,7 +338,7 @@ function GuestSecretsContent() {
             <TableBody>
               {processedSecrets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <p className="text-base font-medium">Data Secret Key Belum Tersedia</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
                       Belum ada data Secret Key yang ditambahkan untuk project ini.
@@ -349,6 +350,7 @@ function GuestSecretsContent() {
                   const prodAscom = (secret.valueProdAscom || "").trim();
                   const prod = (secret.valueProd || "").trim();
                   const isProdMismatch = (prodAscom !== "" || prod !== "") && prodAscom !== prod;
+                  const isExistInProd = Boolean(secret.existsInProd ?? secret.isExistInProd ?? false);
 
                   return (
                     <TableRow key={secret.id} className="hover:bg-muted/30">
@@ -368,6 +370,28 @@ function GuestSecretsContent() {
                             </span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold select-none",
+                            isExistInProd
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                              : "bg-muted text-muted-foreground border border-border"
+                          )}
+                        >
+                          {isExistInProd ? (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              ✓ In PROD
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+                              Not in PROD
+                            </>
+                          )}
+                        </span>
                       </TableCell>
                       <TableCell className="py-2.5">
                         <SecretValueCell value={secret.valueSit} isGlobalMasked={isGlobalMasked} />
