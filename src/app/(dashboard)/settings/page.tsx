@@ -24,7 +24,8 @@ const ALL_COLLECTIONS = [
   "timelineTasks",
   "timelinePics",
   "timelineStatuses",
-  "weeklyReports"
+  "weeklyReports",
+  "secretKeys"
 ];
 
 // Helper to sanitize undefined values so Firestore never throws unsupported field errors

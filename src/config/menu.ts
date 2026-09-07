@@ -8,7 +8,8 @@ import {
   FolderKanban,
   Users,
   Layers,
-  Tag
+  Tag,
+  Key
 } from "lucide-react";
 
 export interface SubMenuItem {
@@ -37,6 +38,7 @@ export const projectMenuItems: MenuItem[] = [
       { name: "Task Status", href: "/statuses", icon: Tag },
     ],
   },
+  { name: "Secret Key", href: "/secrets", icon: Key },
   { name: "Bug & Report", href: "/bugs", icon: Bug },
 ];
 

@@ -18,6 +18,8 @@ export interface ProjectShareSettings {
   shareToken: string;
   createdAt?: any;
   expiresAt?: string | null;
+  isSecretsEnabled?: boolean;
+  secretsShareToken?: string;
 }
 
 export const PROJECT_STATUSES = [
