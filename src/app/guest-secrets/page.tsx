@@ -119,8 +119,8 @@ function GuestSecretsContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeProject, setActiveProject] = useState<any>(null);
   const [secrets, setSecrets] = useState<any[]>([]);
-
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "IN_PROD" | "NOT_IN_PROD" | "PROD_DIFF">("ALL");
   const [isGlobalMasked, setIsGlobalMasked] = useState(true);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -137,7 +137,6 @@ function GuestSecretsContent() {
     try {
       await enableNetwork(db).catch(() => {});
       
-      // 1. Fetch projects to find matching secret share token
       const projectsSnap = await getDocs(collection(db, "projects"));
       let matchedProj: any = null;
 
@@ -154,7 +153,6 @@ function GuestSecretsContent() {
       setActiveProject(matchedProj);
 
       if (matchedProj) {
-        // 2. Fetch secret keys for this project
         const secretsSnap = await getDocs(collection(db, "secretKeys"));
         const list: any[] = [];
         secretsSnap.forEach((d) => {
@@ -182,10 +180,36 @@ function GuestSecretsContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, pageSize]);
+  }, [searchQuery, statusFilter, pageSize]);
+
+  const counts = useMemo(() => {
+    let inProd = 0;
+    let notInProd = 0;
+    let prodDiff = 0;
+
+    secrets.forEach((s: any) => {
+      const isExist = Boolean(s.existsInProd ?? s.isExistInProd ?? false);
+      if (isExist) inProd++;
+      else notInProd++;
+
+      const pA = (s.valueProdAscom || "").trim();
+      const p = (s.valueProd || "").trim();
+      if ((pA !== "" || p !== "") && pA !== p) {
+        prodDiff++;
+      }
+    });
+
+    return { all: secrets.length, inProd, notInProd, prodDiff };
+  }, [secrets]);
 
   const processedSecrets = useMemo(() => {
     let list = [...secrets];
+
+    const checkProdMismatch = (s: any) => {
+      const prodAscom = (s.valueProdAscom || "").trim();
+      const prod = (s.valueProd || "").trim();
+      return (prodAscom !== "" || prod !== "") && prodAscom !== prod;
+    };
 
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
@@ -199,12 +223,15 @@ function GuestSecretsContent() {
       });
     }
 
-    // Sort: PROD Diff entries at the top first, then alphabetically by Key ASC
-    const checkProdMismatch = (s: any) => {
-      const prodAscom = (s.valueProdAscom || "").trim();
-      const prod = (s.valueProd || "").trim();
-      return (prodAscom !== "" || prod !== "") && prodAscom !== prod;
-    };
+    if (statusFilter !== "ALL") {
+      list = list.filter((s) => {
+        const isExistInProd = Boolean(s.existsInProd ?? s.isExistInProd ?? false);
+        if (statusFilter === "IN_PROD") return isExistInProd === true;
+        if (statusFilter === "NOT_IN_PROD") return isExistInProd === false;
+        if (statusFilter === "PROD_DIFF") return checkProdMismatch(s);
+        return true;
+      });
+    }
 
     list.sort((a, b) => {
       const diffA = checkProdMismatch(a);
@@ -218,33 +245,50 @@ function GuestSecretsContent() {
       const keyB = (b.keyName || b.key || "").toLowerCase();
       return keyA.localeCompare(keyB);
     });
+
     return list;
-  }, [secrets, searchQuery]);
+  }, [secrets, searchQuery, statusFilter]);
 
   const paginatedSecrets = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return processedSecrets.slice(start, start + pageSize);
   }, [processedSecrets, currentPage, pageSize]);
 
-  if (isLoading) {
+  if (!token) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
-        <p className="text-sm font-medium text-muted-foreground">Loading Secret Vault...</p>
+        <div className="max-w-md w-full p-6 bg-card border border-border rounded-xl shadow-lg text-center space-y-4">
+          <div className="w-12 h-12 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">Invalid Secret Share Link</h2>
+          <p className="text-sm text-muted-foreground">
+            No share token provided. Please verify the URL link you received.
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (!token || !activeProject) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-card border rounded-2xl p-6 text-center shadow-lg space-y-4">
-          <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
+        <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
+        <p className="text-sm text-muted-foreground font-medium">Loading Secret Key Vault...</p>
+      </div>
+    );
+  }
+
+  if (!activeProject) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full p-6 bg-card border border-border rounded-xl shadow-lg text-center space-y-4">
+          <div className="w-12 h-12 bg-amber-500/10 text-amber-600 rounded-full flex items-center justify-center mx-auto">
             <ShieldAlert className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-bold">Access Denied or Expired</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            The secret key link is invalid, expired, or has been disabled by the project administrator.
+          <h2 className="text-xl font-bold text-foreground">Access Revoked or Link Expired</h2>
+          <p className="text-sm text-muted-foreground">
+            This Secret Key share link is inactive or invalid. Please request a new share link.
           </p>
         </div>
       </div>
@@ -252,21 +296,20 @@ function GuestSecretsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col w-full">
-      {/* Top Banner */}
-      <header className="border-b bg-card px-4 sm:px-6 py-3 sticky top-0 z-20 shadow-xs w-full">
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b bg-card px-4 sm:px-6 py-4 sticky top-0 z-30 shadow-xs">
         <div className="w-full flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
-              <Key className="w-4 h-4" />
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 text-primary rounded-lg">
+              <Key className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-sm font-bold flex items-center gap-2">
-                {activeProject.name}
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
-                  <Lock className="w-2.5 h-2.5" /> Read-Only View
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-foreground">{activeProject.name}</h1>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  Guest Read-Only
                 </span>
-              </h1>
+              </div>
               <p className="text-[11px] text-muted-foreground">Shared Lower Environment Secret Vault</p>
             </div>
           </div>
@@ -285,19 +328,76 @@ function GuestSecretsContent() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="w-full flex-1 p-4 sm:p-6 space-y-4">
-        {/* Search & Actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search by key or value..."
-              className="pl-8 bg-muted/40 border-border"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 w-full sm:w-auto flex-1">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search by key or value..."
+                className="pl-8 bg-muted/40 border-border h-9 text-xs"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/60 text-xs shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setStatusFilter("ALL")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer",
+                  statusFilter === "ALL"
+                    ? "bg-background text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All ({counts.all})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("IN_PROD")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
+                  statusFilter === "IN_PROD"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                In PROD ({counts.inProd})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("NOT_IN_PROD")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
+                  statusFilter === "NOT_IN_PROD"
+                    ? "bg-muted-foreground/15 text-foreground border border-border font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+                Not in PROD ({counts.notInProd})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("PROD_DIFF")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
+                  statusFilter === "PROD_DIFF"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                PROD Diff ({counts.prodDiff})
+              </button>
+            </div>
           </div>
 
           <Button

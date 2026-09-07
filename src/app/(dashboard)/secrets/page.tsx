@@ -235,6 +235,7 @@ export default function SecretsPage() {
   }, [rawSecrets, isItemInActiveProject]);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "IN_PROD" | "NOT_IN_PROD" | "PROD_DIFF">("ALL");
   const [isGlobalMasked, setIsGlobalMasked] = useState(true);
 
   // Dialog states
@@ -249,11 +250,38 @@ export default function SecretsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, pageSize]);
+  }, [searchQuery, statusFilter, pageSize]);
 
-  // Processed (searched and sorted alphabetically by Key ASC)
+  // Counts for filter pills
+  const counts = useMemo(() => {
+    let inProd = 0;
+    let notInProd = 0;
+    let prodDiff = 0;
+
+    activeSecrets.forEach((s: any) => {
+      const isExist = Boolean(s.existsInProd ?? s.isExistInProd ?? false);
+      if (isExist) inProd++;
+      else notInProd++;
+
+      const pA = (s.valueProdAscom || "").trim();
+      const p = (s.valueProd || "").trim();
+      if ((pA !== "" || p !== "") && pA !== p) {
+        prodDiff++;
+      }
+    });
+
+    return { all: activeSecrets.length, inProd, notInProd, prodDiff };
+  }, [activeSecrets]);
+
+  // Processed (searched, filtered, and sorted alphabetically by Key ASC)
   const processedSecrets = useMemo(() => {
     let list = [...activeSecrets];
+
+    const checkProdMismatch = (s: any) => {
+      const prodAscom = (s.valueProdAscom || "").trim();
+      const prod = (s.valueProd || "").trim();
+      return (prodAscom !== "" || prod !== "") && prodAscom !== prod;
+    };
 
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
@@ -267,13 +295,17 @@ export default function SecretsPage() {
       });
     }
 
-    // Sort: PROD Diff entries at the top first, then alphabetically by Key ASC
-    const checkProdMismatch = (s: any) => {
-      const prodAscom = (s.valueProdAscom || "").trim();
-      const prod = (s.valueProd || "").trim();
-      return (prodAscom !== "" || prod !== "") && prodAscom !== prod;
-    };
+    if (statusFilter !== "ALL") {
+      list = list.filter((s) => {
+        const isExistInProd = Boolean(s.existsInProd ?? s.isExistInProd ?? false);
+        if (statusFilter === "IN_PROD") return isExistInProd === true;
+        if (statusFilter === "NOT_IN_PROD") return isExistInProd === false;
+        if (statusFilter === "PROD_DIFF") return checkProdMismatch(s);
+        return true;
+      });
+    }
 
+    // Sort: PROD Diff entries at the top first, then alphabetically by Key ASC
     list.sort((a, b) => {
       const diffA = checkProdMismatch(a);
       const diffB = checkProdMismatch(b);
@@ -288,7 +320,7 @@ export default function SecretsPage() {
     });
 
     return list;
-  }, [activeSecrets, searchQuery]);
+  }, [activeSecrets, searchQuery, statusFilter]);
 
   // Paginated Secrets
   const paginatedSecrets = useMemo(() => {
@@ -394,15 +426,75 @@ export default function SecretsPage() {
       <PanelContent className="space-y-4 flex-1 overflow-auto">
         {/* Search & Action Bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search by key or value..."
-              className="pl-8 bg-muted/40 border-border"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 w-full sm:w-auto flex-1">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search by key or value..."
+                className="pl-8 bg-muted/40 border-border h-9 text-xs"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Status Filter Pills */}
+            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/60 text-xs shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setStatusFilter("ALL")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer",
+                  statusFilter === "ALL"
+                    ? "bg-background text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All ({counts.all})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("IN_PROD")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
+                  statusFilter === "IN_PROD"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                In PROD ({counts.inProd})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("NOT_IN_PROD")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
+                  statusFilter === "NOT_IN_PROD"
+                    ? "bg-muted-foreground/15 text-foreground border border-border font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+                Not in PROD ({counts.notInProd})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("PROD_DIFF")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
+                  statusFilter === "PROD_DIFF"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                PROD Diff ({counts.prodDiff})
+              </button>
+            </div>
           </div>
 
           <Button
@@ -410,7 +502,7 @@ export default function SecretsPage() {
             variant="ghost"
             size="sm"
             onClick={() => setIsGlobalMasked(!isGlobalMasked)}
-            className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+            className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
           >
             {isGlobalMasked ? (
               <>
