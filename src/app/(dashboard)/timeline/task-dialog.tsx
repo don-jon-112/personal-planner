@@ -587,13 +587,13 @@ export function TaskDialog({
 
                   {/* Notes Table */}
                   <div className="border border-border/60 rounded-md overflow-hidden bg-card">
-                    <Table>
+                    <Table className="table-fixed w-full">
                       <TableHeader className="bg-muted/40">
                         <TableRow className="h-8 hover:bg-transparent">
                           <TableHead className="w-[36px] py-1 text-center text-xs font-semibold">#</TableHead>
                           <TableHead className="py-1 text-xs font-semibold">Note</TableHead>
-                          <TableHead className="py-1 text-xs font-semibold w-[140px]">Link</TableHead>
-                          <TableHead className="w-[40px] py-1 text-right text-xs"></TableHead>
+                          <TableHead className="py-1 text-xs font-semibold w-[130px]">Link</TableHead>
+                          <TableHead className="w-[38px] py-1 text-right text-xs"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -605,20 +605,20 @@ export function TaskDialog({
                           </TableRow>
                         ) : (
                           notes.map((note, idx) => (
-                            <TableRow key={note.id || idx} className="h-8 hover:bg-muted/20">
-                              <TableCell className="text-center text-xs text-muted-foreground py-1">
+                            <TableRow key={note.id || idx} className="hover:bg-muted/20 transition-colors">
+                              <TableCell className="text-center text-xs text-muted-foreground py-2 align-top">
                                 {idx + 1}
                               </TableCell>
-                              <TableCell className="text-xs font-medium py-1 break-words">
+                              <TableCell className="text-xs font-medium py-2 align-top whitespace-normal break-words [overflow-wrap:anywhere] leading-relaxed">
                                 {note.text}
                               </TableCell>
-                              <TableCell className="text-xs py-1">
+                              <TableCell className="text-xs py-2 align-top">
                                 {note.url ? (
                                   <a
                                     href={note.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-[11px] max-w-[130px] truncate"
+                                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-[11px] max-w-[120px] truncate"
                                     title={note.url}
                                     onClick={(e) => e.stopPropagation()}
                                   >
@@ -629,7 +629,7 @@ export function TaskDialog({
                                   <span className="text-muted-foreground text-[11px]">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-right py-1 pr-2">
+                              <TableCell className="text-right py-2 pr-2 align-top">
                                 <Button
                                   type="button"
                                   variant="ghost"

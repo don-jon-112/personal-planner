@@ -24,7 +24,8 @@ import {
   Trash2, 
   Share2, 
   Upload,
-  AlertTriangle
+  AlertTriangle,
+  Columns
 } from "lucide-react";
 
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
@@ -122,6 +123,7 @@ function SecretRow({
   secret,
   index,
   isMasked,
+  showProdAscom,
   onEdit,
   onDelete,
   onToggleExistInProd,
@@ -129,6 +131,7 @@ function SecretRow({
   secret: any;
   index: number;
   isMasked: boolean;
+  showProdAscom: boolean;
   onEdit: (secret: any) => void;
   onDelete: (secret: any) => void;
   onToggleExistInProd: (secret: any) => void;
@@ -146,7 +149,7 @@ function SecretRow({
       <TableCell className="font-mono font-medium text-xs py-2.5 text-foreground">
         <div className="flex items-center gap-2 flex-wrap">
           <span>{secret.keyName || secret.key || "-"}</span>
-          {isProdMismatch && (
+          {showProdAscom && isProdMismatch && (
             <span
               title="Warning: Value (PROD - ASCOM) and Value (PROD) are different!"
               className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
@@ -188,11 +191,13 @@ function SecretRow({
       <TableCell className="py-2.5">
         <SecretValueCell value={secret.valueUat} isGlobalMasked={isMasked} />
       </TableCell>
+      {showProdAscom && (
+        <TableCell className="py-2.5">
+          <SecretValueCell value={secret.valueProdAscom} isGlobalMasked={isMasked} hasMismatch={isProdMismatch} />
+        </TableCell>
+      )}
       <TableCell className="py-2.5">
-        <SecretValueCell value={secret.valueProdAscom} isGlobalMasked={isMasked} hasMismatch={isProdMismatch} />
-      </TableCell>
-      <TableCell className="py-2.5">
-        <SecretValueCell value={secret.valueProd} isGlobalMasked={isMasked} hasMismatch={isProdMismatch} />
+        <SecretValueCell value={secret.valueProd} isGlobalMasked={isMasked} hasMismatch={showProdAscom && isProdMismatch} />
       </TableCell>
       <TableCell className="w-[80px] text-right py-2.5 pr-3">
         <div className="flex items-center justify-end gap-1">
@@ -237,6 +242,18 @@ export default function SecretsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "IN_PROD" | "NOT_IN_PROD" | "PROD_DIFF">("ALL");
   const [isGlobalMasked, setIsGlobalMasked] = useState(true);
+
+  // PROD ASCOM visibility toggle (default hidden as requested, with localStorage persistence)
+  const [showProdAscom, setShowProdAscom] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("secrets_show_prod_ascom");
+      if (saved !== null) {
+        setShowProdAscom(saved === "true");
+      }
+    }
+  }, []);
 
   // Dialog states
   const [editingSecret, setEditingSecret] = useState<any>(null);
@@ -305,13 +322,15 @@ export default function SecretsPage() {
       });
     }
 
-    // Sort: PROD Diff entries at the top first, then alphabetically by Key ASC
+    // Sort: PROD Diff entries at the top first (only when PROD ASCOM column is visible), then alphabetically by Key ASC
     list.sort((a, b) => {
-      const diffA = checkProdMismatch(a);
-      const diffB = checkProdMismatch(b);
+      if (showProdAscom) {
+        const diffA = checkProdMismatch(a);
+        const diffB = checkProdMismatch(b);
 
-      if (diffA !== diffB) {
-        return diffA ? -1 : 1;
+        if (diffA !== diffB) {
+          return diffA ? -1 : 1;
+        }
       }
 
       const keyA = (a.keyName || a.key || "").toLowerCase();
@@ -320,7 +339,7 @@ export default function SecretsPage() {
     });
 
     return list;
-  }, [activeSecrets, searchQuery, statusFilter]);
+  }, [activeSecrets, searchQuery, statusFilter, showProdAscom]);
 
   // Paginated Secrets
   const paginatedSecrets = useMemo(() => {
@@ -481,41 +500,71 @@ export default function SecretsPage() {
                 Not in PROD ({counts.notInProd})
               </button>
 
-              <button
-                type="button"
-                onClick={() => setStatusFilter("PROD_DIFF")}
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
-                  statusFilter === "PROD_DIFF"
-                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                PROD Diff ({counts.prodDiff})
-              </button>
+              {showProdAscom && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("PROD_DIFF")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-medium transition-all select-none cursor-pointer flex items-center gap-1.5",
+                    statusFilter === "PROD_DIFF"
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                  PROD Diff ({counts.prodDiff})
+                </button>
+              )}
             </div>
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsGlobalMasked(!isGlobalMasked)}
-            className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
-          >
-            {isGlobalMasked ? (
-              <>
-                <Eye className="w-3.5 h-3.5" />
-                <span>Show Values</span>
-              </>
-            ) : (
-              <>
-                <EyeOff className="w-3.5 h-3.5" />
-                <span>Mask Values</span>
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const nextState = !showProdAscom;
+                setShowProdAscom(nextState);
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("secrets_show_prod_ascom", String(nextState));
+                }
+                if (!nextState && statusFilter === "PROD_DIFF") {
+                  setStatusFilter("ALL");
+                }
+              }}
+              className={cn(
+                "text-xs h-8 gap-1.5 shrink-0 transition-colors",
+                showProdAscom
+                  ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title={showProdAscom ? "Hide PROD ASCOM column & PROD Diff" : "Show PROD ASCOM column & PROD Diff"}
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span>{showProdAscom ? "Hide PROD ASCOM" : "Show PROD ASCOM"}</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsGlobalMasked(!isGlobalMasked)}
+              className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+            >
+              {isGlobalMasked ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Show Values</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>Mask Values</span>
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Secret Keys Table */}
@@ -528,7 +577,9 @@ export default function SecretsPage() {
                 <TableHead className="font-semibold text-xs">Exist in PROD</TableHead>
                 <TableHead className="font-semibold text-xs">Value (SIT - ASCOM)</TableHead>
                 <TableHead className="font-semibold text-xs">Value (UAT - ASCOM)</TableHead>
-                <TableHead className="font-semibold text-xs">Value (PROD - ASCOM)</TableHead>
+                {showProdAscom && (
+                  <TableHead className="font-semibold text-xs">Value (PROD - ASCOM)</TableHead>
+                )}
                 <TableHead className="font-semibold text-xs">Value (PROD)</TableHead>
                 <TableHead className="w-[80px] text-right font-semibold text-xs pr-3">Actions</TableHead>
               </TableRow>
@@ -536,13 +587,13 @@ export default function SecretsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={showProdAscom ? 8 : 7} className="text-center py-10 text-muted-foreground">
                     Loading secret keys...
                   </TableCell>
                 </TableRow>
               ) : processedSecrets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={showProdAscom ? 8 : 7} className="text-center py-12 text-muted-foreground">
                     <p className="text-base font-medium">No secret keys found.</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
                       Click "New Secret Key" above to add your first secret.
@@ -556,6 +607,7 @@ export default function SecretsPage() {
                     secret={secret}
                     index={(currentPage - 1) * pageSize + idx}
                     isMasked={isGlobalMasked}
+                    showProdAscom={showProdAscom}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     onToggleExistInProd={handleToggleExistInProd}
