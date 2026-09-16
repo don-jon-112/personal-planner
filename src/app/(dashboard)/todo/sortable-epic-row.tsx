@@ -48,7 +48,7 @@ export function SortableEpicRow({
 
   const epicTasks = tasks.filter((t) => t.epicId === epic.id);
   const totalTasks = epicTasks.length;
-  const totalMd = epicTasks.reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+  const totalMd = Number(epicTasks.reduce((sum, t) => sum + (parseFloat(t.md) || 0), 0).toFixed(3));
   const doneTasks = epicTasks.filter((t) => t.status === "DONE").length;
 
   return (

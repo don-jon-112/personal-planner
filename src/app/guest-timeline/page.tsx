@@ -189,16 +189,17 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
       const startIndex = dates.findIndex(d => d.getTime() === taskStart.getTime());
 
       let activeDateSet = new Set<number>();
-      if (startIndex !== -1 && task.md > 0) {
+      const targetMd = Math.ceil(parseFloat(task.md) || 0);
+      if (startIndex !== -1 && targetMd > 0) {
         let workingDays = 0;
         let currIdx = startIndex;
-        while (workingDays < task.md && currIdx < dates.length) {
+        while (workingDays < targetMd && currIdx < dates.length) {
           activeDateSet.add(currIdx);
           const d = dates[currIdx];
           if (!getDayStatus(d, holidays)) {
             workingDays++;
           }
-          if (workingDays < task.md) {
+          if (workingDays < targetMd) {
             currIdx++;
           }
         }

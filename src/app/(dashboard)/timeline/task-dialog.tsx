@@ -43,7 +43,7 @@ const formSchema = z.object({
   epicId: z.string(),
   pic: z.string().min(1, "PIC is required (select TBD if not yet decided)"),
   status: z.string().min(1, "Status is required"),
-  md: z.number().min(1, "MD must be at least 1"),
+  md: z.number().min(0.01, "MD must be greater than 0"),
   startDate: z.string().min(1, "Start Date is required"),
 });
 
@@ -523,7 +523,7 @@ export function TaskDialog({
                     <div className="h-[20px] flex items-end">
                       <Label>MD (Man Days)</Label>
                     </div>
-                    <Input type="number" min="1" {...form.register("md", { valueAsNumber: true })} />
+                    <Input type="number" step="any" min="0.01" placeholder="e.g. 0.5 or 1.5" {...form.register("md", { valueAsNumber: true })} />
                   </div>
                 </div>
 

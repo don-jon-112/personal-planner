@@ -174,6 +174,20 @@ export function useTaskStatuses(explicitProjectId?: string) {
     }
   }, [currentProjectId, allStatuses, addStatusDoc]);
 
+  // Auto-ensure standard default statuses (like TODO) exist in Firestore for active project
+  useEffect(() => {
+    if (isLoading || !currentProjectId) return;
+    const existingNames = new Set(
+      allStatuses
+        .filter((s) => s.projectId === currentProjectId)
+        .map((s) => (s.name || "").trim().toUpperCase())
+    );
+    const hasTodo = existingNames.has("TODO");
+    if (!hasTodo && !globalInitializingProjects.has(currentProjectId)) {
+      initializeDefaultStatuses(currentProjectId);
+    }
+  }, [isLoading, currentProjectId, allStatuses, initializeDefaultStatuses]);
+
   return {
     statuses: projectStatuses,
     hasCustomStatuses,

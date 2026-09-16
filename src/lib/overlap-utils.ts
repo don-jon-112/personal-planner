@@ -14,7 +14,8 @@ export function getTaskEndDate(startDate: Date, md: number, holidays: any[] = []
   curr.setHours(0, 0, 0, 0);
   let workingDays = 0;
   
-  const validMd = Math.max(1, Number(md) || 1);
+  // Float MD rounding up for Gantt chart box filling (e.g. 0.5 MD -> 1 day box, 2.5 MD -> 3 day boxes)
+  const validMd = Math.max(1, Math.ceil(Number(md) || 1));
   while (workingDays < validMd) {
     if (!getDayStatus(curr, holidays)) {
       workingDays++;
@@ -54,7 +55,7 @@ export function getTaskDateRange(task: { startDate?: string; md?: number }, holi
   }
   start.setHours(0, 0, 0, 0);
 
-  const md = Math.max(1, Number(task.md) || 1);
+  const md = Math.max(1, Math.ceil(Number(task.md) || 1));
   const end = getTaskEndDate(start, md, holidays);
   end.setHours(23, 59, 59, 999);
 

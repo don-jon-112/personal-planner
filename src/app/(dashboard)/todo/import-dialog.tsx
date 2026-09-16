@@ -162,7 +162,7 @@ export function ImportDialog({
 
       // Parse MD
       const rawMd = mdIdx !== -1 ? cols[mdIdx] : 1;
-      let md = typeof rawMd === "number" ? Math.round(rawMd) : parseInt(String(rawMd || "1"), 10);
+      let md = typeof rawMd === "number" ? rawMd : parseFloat(String(rawMd || "1"));
       if (isNaN(md) || md <= 0) md = 1;
 
       // Parse Status
