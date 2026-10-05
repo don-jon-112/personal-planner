@@ -30,6 +30,8 @@ interface SortableTodoRowProps {
   handleEdit: (task: any) => void;
   deleteTask: (id: string) => void;
   isDragDisabled?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 function getPicColor(name: string, pics: any[] = []) {
@@ -53,6 +55,8 @@ export function SortableTodoRow({
   handleEdit,
   deleteTask,
   isDragDisabled,
+  canEdit = true,
+  canDelete = true,
 }: SortableTodoRowProps) {
   const confirm = useConfirm();
   const { getStatusColor } = useTaskStatuses();
@@ -227,24 +231,28 @@ export function SortableTodoRow({
             <MoreHorizontal className="w-4 h-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(item)}>Edit Task</DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={async () => {
-                const ok = await confirm({
-                  title: "Delete Task?",
-                  description: `Are you sure you want to delete task "${item.name}"?`,
-                  confirmText: "Delete Task",
-                  cancelText: "Cancel",
-                  variant: "destructive",
-                });
-                if (ok) {
-                  deleteTask(item.id);
-                }
-              }}
-            >
-              Delete
+            <DropdownMenuItem onClick={() => handleEdit(item)}>
+              {canEdit !== false ? "Edit Task" : "View Task Details"}
             </DropdownMenuItem>
+            {canDelete !== false && (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Delete Task?",
+                    description: `Are you sure you want to delete task "${item.name}"?`,
+                    confirmText: "Delete Task",
+                    cancelText: "Cancel",
+                    variant: "destructive",
+                  });
+                  if (ok) {
+                    deleteTask(item.id);
+                  }
+                }}
+              >
+                Delete
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>

@@ -51,10 +51,17 @@ import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
 import { DataTablePagination } from "@/components/ui/pagination";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Lock, Eye } from "lucide-react";
 
 export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
   const { activeProject, isItemInActiveProject } = useProject();
+  const { canView, canEdit, canDelete } = usePermissions();
+
+  const hasView = canView("todo");
+  const hasEdit = canEdit("todo");
+  const hasDelete = canDelete("todo");
 
   // Firestore Collections
   const { data: tasks = [], isLoading: isTasksLoading } = useCollection<any>("timelineTasks");
@@ -352,8 +359,24 @@ export default function TodoPage() {
   };
 
   const totalFilterCount = statusFilters.length + picFilters.length + epicFilters.length;
-  const isTaskDragDisabled = taskSortConfig !== null;
-  const isEpicDragDisabled = epicSortConfig !== null;
+  const isTaskDragDisabled = taskSortConfig !== null || !hasEdit;
+  const isEpicDragDisabled = epicSortConfig !== null || !hasEdit;
+
+  if (!hasView) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <Panel className="max-w-md text-center p-8 border-destructive/30 bg-destructive/5">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground">
+            You do not have permission to view Task Plan in this project.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
 
   return (
     <Panel className="h-full border-t-4 border-t-primary flex flex-col">
@@ -366,6 +389,12 @@ export default function TodoPage() {
               <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
                 {activeProject.name}
+              </span>
+            )}
+            {!hasEdit && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
+                <Eye className="w-3 h-3" />
+                Watch Only
               </span>
             )}
           </PanelTitle>
@@ -545,20 +574,24 @@ export default function TodoPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsImportDialogOpen(true)} 
-                  className="shadow-xs w-full sm:w-auto h-9 text-xs"
-                >
-                  <Upload className="w-4 h-4 mr-1.5" />
-                  Import Data
-                </Button>
+                {hasEdit && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsImportDialogOpen(true)} 
+                    className="shadow-xs w-full sm:w-auto h-9 text-xs"
+                  >
+                    <Upload className="w-4 h-4 mr-1.5" />
+                    Import Data
+                  </Button>
+                )}
 
-                <Button onClick={handleCreateTask} className="shadow-sm w-full sm:w-auto h-9 text-xs">
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  New Task
-                </Button>
+                {hasEdit && (
+                  <Button onClick={handleCreateTask} className="shadow-sm w-full sm:w-auto h-9 text-xs">
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    New Task
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -631,7 +664,7 @@ export default function TodoPage() {
                       <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                         <p className="text-base font-medium">No tasks found.</p>
                         <p className="text-xs text-muted-foreground/70 mt-1">
-                          Click "New Task" above to create your first task.
+                          {hasEdit ? 'Click "New Task" above to create your first task.' : 'No tasks recorded in this project.'}
                         </p>
                       </TableCell>
                     </TableRow>
@@ -656,6 +689,8 @@ export default function TodoPage() {
                             handleEdit={handleEditTask}
                             deleteTask={deleteTask}
                             isDragDisabled={isTaskDragDisabled}
+                            canEdit={hasEdit}
+                            canDelete={hasDelete}
                           />
                         ))}
                       </SortableContext>
@@ -692,20 +727,24 @@ export default function TodoPage() {
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsImportDialogOpen(true)} 
-                  className="shadow-xs w-full sm:w-auto h-9 text-xs"
-                >
-                  <Upload className="w-4 h-4 mr-1.5" />
-                  Import Data
-                </Button>
+                {hasEdit && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsImportDialogOpen(true)} 
+                    className="shadow-xs w-full sm:w-auto h-9 text-xs"
+                  >
+                    <Upload className="w-4 h-4 mr-1.5" />
+                    Import Data
+                  </Button>
+                )}
 
-                <Button onClick={handleCreateEpic} className="shadow-sm w-full sm:w-auto h-9 text-xs">
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  New Epic
-                </Button>
+                {hasEdit && (
+                  <Button onClick={handleCreateEpic} className="shadow-sm w-full sm:w-auto h-9 text-xs">
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    New Epic
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -754,7 +793,7 @@ export default function TodoPage() {
                       <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                         <p className="text-base font-medium">No epics found.</p>
                         <p className="text-xs text-muted-foreground/70 mt-1">
-                          Click "New Epic" above to create an epic.
+                          {hasEdit ? 'Click "New Epic" above to create an epic.' : 'No epics recorded in this project.'}
                         </p>
                       </TableCell>
                     </TableRow>
@@ -777,6 +816,8 @@ export default function TodoPage() {
                             handleEdit={handleEditEpic}
                             deleteEpic={deleteEpic}
                             isDragDisabled={isEpicDragDisabled}
+                            canEdit={hasEdit}
+                            canDelete={hasDelete}
                           />
                         ))}
                       </SortableContext>

@@ -15,14 +15,16 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check if they have the correct password cookie
+  // Check if they have the correct password cookie or user session
   const password = request.cookies.get('site_password')?.value
+  const userSession = request.cookies.get('user_session')?.value
 
   const isMasterPassword = password === process.env.SITE_PASSWORD
   const isGuestPassword = password === process.env.GUESS_PASSWORD
+  const hasUserSession = Boolean(userSession) || password === 'authenticated_user'
 
-  if (isMasterPassword) {
-    // Master has access to everything
+  if (isMasterPassword || hasUserSession) {
+    // Master or authenticated user has access
     return NextResponse.next()
   }
 

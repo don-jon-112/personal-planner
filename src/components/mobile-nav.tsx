@@ -9,11 +9,13 @@ import { cn } from "@/lib/utils";
 import { projectMenuItems, globalMenuItems, MenuItem } from "@/config/menu";
 import { useDocument } from "@/hooks/use-firestore";
 import { ProjectSwitcher } from "@/components/project-switcher";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const { data: menuSettings } = useDocument<any>("appSettings", "menu");
+  const { canView } = usePermissions();
   const [isOnline, setIsOnline] = useState(false);
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -55,7 +57,11 @@ export function MobileNav() {
 
   const renderMenuItem = (item: MenuItem) => {
     if (item.children) {
-      const visibleChildren = item.children.filter((c) => !hiddenMenus.includes(c.href));
+      const visibleChildren = item.children.filter((c) => {
+        if (hiddenMenus.includes(c.href)) return false;
+        if (c.permissionKey && !canView(c.permissionKey)) return false;
+        return true;
+      });
       if (visibleChildren.length === 0) return null;
 
       const isGroupActive = visibleChildren.some(
@@ -118,6 +124,7 @@ export function MobileNav() {
     }
 
     if (hiddenMenus.includes(item.href || "")) return null;
+    if (item.permissionKey && !canView(item.permissionKey)) return null;
 
     const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
     const isReallyActive = item.href === "/" ? pathname === "/" : isActive;
@@ -169,9 +176,9 @@ export function MobileNav() {
                   <div className="flex items-center gap-2">
                     <h1 className="text-xl font-bold tracking-wide">Planner</h1>
                     {isOnline ? (
-                      <span title="Online Mode"><Cloud className="w-4 h-4 text-green-500" /></span>
+                      <span title="Online Mode"><Cloud className="w-3 h-3 text-green-500" /></span>
                     ) : (
-                      <span title="Offline Mode"><CloudOff className="w-4 h-4 text-muted-foreground" /></span>
+                      <span title="Offline Mode"><CloudOff className="w-3 h-3 text-muted-foreground" /></span>
                     )}
                   </div>
                 </div>
@@ -212,19 +219,21 @@ export function MobileNav() {
               </div>
             </div>
 
-            <div className="p-3 border-t border-sidebar-accent/50">
-              <Link
-                href="/settings"
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all duration-200 group text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent/50",
-                  pathname === "/settings" && "bg-sidebar-accent text-white font-semibold"
-                )}
-              >
-                <Settings className="w-5 h-5 opacity-80 group-hover:opacity-100 transition-opacity" />
-                <span>Settings</span>
-              </Link>
-            </div>
+            {canView("settings") && (
+              <div className="p-3 border-t border-sidebar-accent/50">
+                <Link
+                  href="/settings"
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all duration-200 group text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent/50",
+                    pathname === "/settings" && "bg-sidebar-accent text-white font-semibold"
+                  )}
+                >
+                  <Settings className="w-5 h-5 opacity-80 group-hover:opacity-100 transition-opacity" />
+                  <span>Settings</span>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

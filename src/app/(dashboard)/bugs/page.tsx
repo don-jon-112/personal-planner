@@ -13,7 +13,8 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Search, MoreHorizontal, Plus, LayoutGrid, List, ExternalLink } from "lucide-react";
+import { Search, MoreHorizontal, Plus, LayoutGrid, List, ExternalLink, Lock, Eye } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,6 +95,11 @@ export default function BugsPage() {
 
   const projectBugs = (rawBugs || []).filter((b: any) => isItemInActiveProject(b.projectId));
 
+  const { canView, canEdit, canDelete } = usePermissions();
+  const hasView = canView("bugs");
+  const hasEdit = canEdit("bugs");
+  const hasDelete = canDelete("bugs");
+
   const filteredBugs = projectBugs.filter((bug: any) => {
     const query = searchQuery.toLowerCase();
     return (
@@ -103,6 +109,22 @@ export default function BugsPage() {
       bug.jiraTicketNumber?.toLowerCase().includes(query)
     );
   });
+
+  if (!hasView) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <Panel className="max-w-md text-center p-8 border-destructive/30 bg-destructive/5">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground">
+            You do not have permission to view Bug & Report in this project.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
 
   return (
     <Panel className="h-full border-t-4 border-t-primary">
@@ -116,16 +138,24 @@ export default function BugsPage() {
                 {activeProject.name}
               </span>
             )}
+            {!hasEdit && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
+                <Eye className="w-3 h-3" />
+                Watch Only
+              </span>
+            )}
           </PanelTitle>
           <PanelDescription className="mt-1">
             Track issues and QA reports for {activeProject?.name || "this project"}.
           </PanelDescription>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button onClick={handleCreate} className="shadow-sm w-full sm:w-auto">
-            <Plus className="w-4 h-4 mr-2" />
-            Report Bug
-          </Button>
+          {hasEdit && (
+            <Button onClick={handleCreate} className="shadow-sm w-full sm:w-auto">
+              <Plus className="w-4 h-4 mr-2" />
+              Report Bug
+            </Button>
+          )}
           <BugDialog 
             open={isDialogOpen} 
             onOpenChange={setIsDialogOpen} 
@@ -295,24 +325,28 @@ export default function BugsPage() {
                             <MoreHorizontal className="h-4 w-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(bug)}>Edit</DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={async () => {
-                                const ok = await confirm({
-                                  title: "Delete Bug Report?",
-                                  description: `Are you sure you want to delete bug "${bug.summary}"?`,
-                                  confirmText: "Delete Bug",
-                                  cancelText: "Cancel",
-                                  variant: "destructive",
-                                });
-                                if (ok) {
-                                  deleteBug(bug.id);
-                                }
-                              }}
-                            >
-                              Delete
+                            <DropdownMenuItem onClick={() => handleEdit(bug)}>
+                              {hasEdit ? "Edit" : "View Details"}
                             </DropdownMenuItem>
+                            {hasDelete && (
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: "Delete Bug Report?",
+                                    description: `Are you sure you want to delete bug "${bug.summary}"?`,
+                                    confirmText: "Delete Bug",
+                                    cancelText: "Cancel",
+                                    variant: "destructive",
+                                  });
+                                  if (ok) {
+                                    deleteBug(bug.id);
+                                  }
+                                }}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

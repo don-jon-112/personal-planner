@@ -5,6 +5,8 @@ import { Project } from "@/types/project";
 import { useCollection, useAddDocument, useUpdateDocument, useDeleteDocument } from "@/hooks/use-firestore";
 import { DEFAULT_TASK_STATUSES } from "@/hooks/use-task-statuses";
 
+import { useAuth } from "@/components/auth-context";
+
 interface ProjectContextType {
   projects: Project[];
   activeProject: Project | null;
@@ -30,15 +32,30 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
 
-  // Normalize projects list sorted by creation or default first
+  // Safely get user info if AuthProvider is present
+  let isSuperAdmin = true;
+  let currentUser: any = null;
+  try {
+    const auth = useAuth();
+    isSuperAdmin = auth.isSuperAdmin;
+    currentUser = auth.currentUser;
+  } catch {
+    // default to superAdmin/unrestricted if outside AuthProvider
+  }
+
+  // Normalize projects list sorted by creation or default first, filtered by user project assignments
   const projects = useMemo(() => {
     if (!rawProjects) return [];
-    return [...rawProjects].sort((a, b) => {
+    const filtered = isSuperAdmin
+      ? rawProjects
+      : rawProjects.filter((p) => currentUser?.projectIds?.includes(p.id));
+
+    return [...filtered].sort((a, b) => {
       if (a.isDefault) return -1;
       if (b.isDefault) return 1;
       return (a.name || "").localeCompare(b.name || "");
     });
-  }, [rawProjects]);
+  }, [rawProjects, isSuperAdmin, currentUser]);
 
   // Auto-initialize default project if collection is loaded and completely empty
   useEffect(() => {

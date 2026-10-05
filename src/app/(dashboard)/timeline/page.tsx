@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Download, Share2, Calendar } from "lucide-react";
+import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Download, Share2, Calendar, Lock } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -621,6 +622,12 @@ export default function TimelinePage() {
   const { data: holidays } = useCollection<any>("timelineHolidays");
   const { data: pics } = useCollection<any>("timelinePics");
   const { statuses: taskStatuses, getStatusColor } = useTaskStatuses();
+  const { canView, canEdit, canDelete } = usePermissions();
+
+  const hasView = canView("timeline");
+  const hasEdit = canEdit("timeline");
+  const hasDelete = canDelete("timeline");
+
   const projectPics = useMemo(() => {
     return (pics || []).filter((p: any) => isItemInActiveProject(p.projectId));
   }, [pics, isItemInActiveProject]);
@@ -827,6 +834,22 @@ export default function TimelinePage() {
     }
   };
 
+  if (!hasView) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <Panel className="max-w-md text-center p-8 border-destructive/30 bg-destructive/5">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground">
+            You do not have permission to view Timeline in this project.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <Panel className="h-[calc(100dvh-104px)] min-h-0 border-t-4 border-t-primary flex flex-col">
       <PanelHeader className="flex flex-col xl:flex-row items-start justify-between border-b-0 pb-3 gap-4 shrink-0">
@@ -837,6 +860,12 @@ export default function TimelinePage() {
               <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
                 {activeProject.name}
+              </span>
+            )}
+            {!hasEdit && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
+                <Eye className="w-3 h-3" />
+                Watch Only
               </span>
             )}
           </PanelTitle>
@@ -935,21 +964,25 @@ export default function TimelinePage() {
             </DropdownMenu>
 
             {/* 4. Primary Actions */}
-            <Button
-              onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }}
-              variant="outline"
-              className="px-3 h-8 text-xs font-medium gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Epic</span>
-            </Button>
-            <Button
-              onClick={() => { setEditingTask(null); setIsTaskDialogOpen(true); }}
-              className="px-3 h-8 text-xs font-medium gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Task</span>
-            </Button>
+            {hasEdit && (
+              <Button
+                onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }}
+                variant="outline"
+                className="px-3 h-8 text-xs font-medium gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Epic</span>
+              </Button>
+            )}
+            {hasEdit && (
+              <Button
+                onClick={() => { setEditingTask(null); setIsTaskDialogOpen(true); }}
+                className="px-3 h-8 text-xs font-medium gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Task</span>
+              </Button>
+            )}
 
             {/* Modal Dialogs */}
             <EpicDialog 

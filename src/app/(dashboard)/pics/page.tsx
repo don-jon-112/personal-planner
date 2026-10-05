@@ -24,8 +24,11 @@ import {
   Edit2, 
   Check, 
   X,
-  Palette
+  Palette,
+  Lock,
+  Eye
 } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useCollection, useAddDocument, useUpdateDocument, useDeleteDocument } from "@/hooks/use-firestore";
 import { useConfirm } from "@/components/confirm-dialog-provider";
 import { useForm } from "react-hook-form";
@@ -105,6 +108,11 @@ export default function PicsPage() {
     }
   };
 
+  const { canView, canEdit, canDelete } = usePermissions();
+  const hasView = canView("pics");
+  const hasEdit = canEdit("pics");
+  const hasDelete = canDelete("pics");
+
   const filteredPics = useMemo(() => {
     let list = [...projectPics].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
     if (searchQuery.trim() !== "") {
@@ -113,6 +121,22 @@ export default function PicsPage() {
     }
     return list;
   }, [projectPics, searchQuery]);
+
+  if (!hasView) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <Panel className="max-w-md text-center p-8 border-destructive/30 bg-destructive/5">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground">
+            You do not have permission to view PICs in this project.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
 
   return (
     <Panel className="h-full border-t-4 border-t-primary flex flex-col">
@@ -127,6 +151,12 @@ export default function PicsPage() {
                 {activeProject.name}
               </span>
             )}
+            {!hasEdit && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
+                <Eye className="w-3 h-3" />
+                Watch Only
+              </span>
+            )}
           </PanelTitle>
           <PanelDescription className="mt-1">
             Manage Person In Charge (PIC), badge colors, and workload analytics for {activeProject?.name || "this project"}.
@@ -136,58 +166,60 @@ export default function PicsPage() {
 
       <PanelContent className="space-y-6 flex-1 overflow-auto p-6">
         {/* Top Section: Add New PIC Card */}
-        <div className="bg-card border rounded-xl p-5 shadow-xs">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3 flex items-center gap-2">
-            <Plus className="w-4 h-4 text-primary" /> Add New PIC
-          </h3>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-            <div className="space-y-1.5 flex-1 w-full sm:w-auto">
-              <Label htmlFor="picName" className="text-xs">
-                PIC Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="picName"
-                {...form.register("name")}
-                placeholder="e.g., Alice, Bob, or Team Lead"
-                className="bg-muted/30"
-              />
-              {form.formState.errors.name && (
-                <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs flex items-center gap-1">
-                <Palette className="w-3.5 h-3.5" /> Badge Color
-              </Label>
-              <div className="flex items-center gap-2">
+        {hasEdit && (
+          <div className="bg-card border rounded-xl p-5 shadow-xs">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-primary" /> Add New PIC
+            </h3>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+              <div className="space-y-1.5 flex-1 w-full sm:w-auto">
+                <Label htmlFor="picName" className="text-xs">
+                  PIC Name <span className="text-destructive">*</span>
+                </Label>
                 <Input
-                  type="color"
-                  {...form.register("color")}
-                  className="w-14 h-10 p-1 cursor-pointer bg-muted/30 border rounded-md"
-                  title="Pick Badge Color"
+                  id="picName"
+                  {...form.register("name")}
+                  placeholder="e.g., Alice, Bob, or Team Lead"
+                  className="bg-muted/30"
                 />
+                {form.formState.errors.name && (
+                  <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+                )}
               </div>
-            </div>
 
-            <div className="flex items-center gap-2 pb-2.5">
-              <input
-                type="checkbox"
-                id="showAnalytics"
-                {...form.register("showInAnalytics")}
-                className="rounded border-input text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-              />
-              <Label htmlFor="showAnalytics" className="text-xs cursor-pointer select-none">
-                Show in Analytics
-              </Label>
-            </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1">
+                  <Palette className="w-3.5 h-3.5" /> Badge Color
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="color"
+                    {...form.register("color")}
+                    className="w-14 h-10 p-1 cursor-pointer bg-muted/30 border rounded-md"
+                    title="Pick Badge Color"
+                  />
+                </div>
+              </div>
 
-            <Button type="submit" disabled={isAdding} className="w-full sm:w-auto h-10 shadow-xs">
-              <Plus className="w-4 h-4 mr-1.5" />
-              {isAdding ? "Adding..." : "Add PIC"}
-            </Button>
-          </form>
-        </div>
+              <div className="flex items-center gap-2 pb-2.5">
+                <input
+                  type="checkbox"
+                  id="showAnalytics"
+                  {...form.register("showInAnalytics")}
+                  className="rounded border-input text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                />
+                <Label htmlFor="showAnalytics" className="text-xs cursor-pointer select-none">
+                  Show in Analytics
+                </Label>
+              </div>
+
+              <Button type="submit" disabled={isAdding} className="w-full sm:w-auto h-10 shadow-xs">
+                <Plus className="w-4 h-4 mr-1.5" />
+                {isAdding ? "Adding..." : "Add PIC"}
+              </Button>
+            </form>
+          </div>
+        )}
 
         {/* Bottom Section: PICs Table */}
         <div className="space-y-3">
@@ -341,31 +373,33 @@ export default function PicsPage() {
 
                         {/* Delete Action */}
                         <TableCell className="text-right pr-4">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={async () => {
-                              const description = totalTasks > 0
-                                ? `PIC "${pic.name}" has ${totalTasks} associated task(s). Deleting this PIC preset will not delete the tasks, but the preset will be removed. Delete anyway?`
-                                : `Are you sure you want to delete PIC "${pic.name}"?`;
+                          {hasDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={async () => {
+                                const description = totalTasks > 0
+                                  ? `PIC "${pic.name}" has ${totalTasks} associated task(s). Deleting this PIC preset will not delete the tasks, but the preset will be removed. Delete anyway?`
+                                  : `Are you sure you want to delete PIC "${pic.name}"?`;
 
-                              const ok = await confirm({
-                                title: "Delete PIC?",
-                                description,
-                                confirmText: "Delete PIC",
-                                cancelText: "Cancel",
-                                variant: "destructive",
-                              });
+                                const ok = await confirm({
+                                  title: "Delete PIC?",
+                                  description,
+                                  confirmText: "Delete PIC",
+                                  cancelText: "Cancel",
+                                  variant: "destructive",
+                                });
 
-                              if (ok) {
-                                deletePic(pic.id);
-                              }
-                            }}
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            title="Delete PIC"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                                if (ok) {
+                                  deletePic(pic.id);
+                                }
+                              }}
+                              className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                              title="Delete PIC"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     );

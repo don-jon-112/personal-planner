@@ -25,12 +25,14 @@ import {
   Share2, 
   Upload,
   AlertTriangle,
-  Columns
+  Columns,
+  Lock
 } from "lucide-react";
 
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { useProject } from "@/components/project-context";
 import { useConfirm } from "@/components/confirm-dialog-provider";
+import { usePermissions } from "@/hooks/use-permissions";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { SecretDialog } from "./secret-dialog";
 import { SecretShareDialog } from "./secret-share-dialog";
@@ -127,6 +129,8 @@ function SecretRow({
   onEdit,
   onDelete,
   onToggleExistInProd,
+  canEdit = true,
+  canDelete = true,
 }: {
   secret: any;
   index: number;
@@ -135,6 +139,8 @@ function SecretRow({
   onEdit: (secret: any) => void;
   onDelete: (secret: any) => void;
   onToggleExistInProd: (secret: any) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }) {
   const prodAscom = (secret.valueProdAscom || "").trim();
   const prod = (secret.valueProd || "").trim();
@@ -201,26 +207,30 @@ function SecretRow({
       </TableCell>
       <TableCell className="w-[80px] text-right py-2.5 pr-3">
         <div className="flex items-center justify-end gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onEdit(secret)}
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-            title="Edit secret"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onDelete(secret)}
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-            title="Delete secret"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          {canEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onEdit(secret)}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              title="Edit secret"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onDelete(secret)}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+              title="Delete secret"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          )}
         </div>
       </TableCell>
     </TableRow>
@@ -365,6 +375,11 @@ export default function SecretsPage() {
     });
   };
 
+  const { canView, canEdit, canDelete } = usePermissions();
+  const hasView = canView("secrets");
+  const hasEdit = canEdit("secrets");
+  const hasDelete = canDelete("secrets");
+
   const handleDelete = async (secret: any) => {
     const ok = await confirm({
       title: "Delete Secret Key?",
@@ -379,6 +394,22 @@ export default function SecretsPage() {
     }
   };
 
+  if (!hasView) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <Panel className="max-w-md text-center p-8 border-destructive/30 bg-destructive/5">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground">
+            You do not have permission to view Secret Key Vault in this project.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <Panel className="h-full border-t-4 border-t-primary flex flex-col">
       {/* Header */}
@@ -392,6 +423,12 @@ export default function SecretsPage() {
                 {activeProject.name}
               </span>
             )}
+            {!hasEdit && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
+                <Eye className="w-3 h-3" />
+                Watch Only
+              </span>
+            )}
           </PanelTitle>
           <PanelDescription className="mt-1">
             Manage lower environment secrets, credentials, and API keys for {activeProject?.name || "this project"}.
@@ -399,15 +436,17 @@ export default function SecretsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setIsImportDialogOpen(true)}
-            className="shadow-xs text-xs h-9"
-          >
-            <Upload className="w-4 h-4 mr-1.5" />
-            Import Data
-          </Button>
+          {hasEdit && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsImportDialogOpen(true)}
+              className="shadow-xs text-xs h-9"
+            >
+              <Upload className="w-4 h-4 mr-1.5" />
+              Import Data
+            </Button>
+          )}
 
           <Button
             type="button"
@@ -419,10 +458,12 @@ export default function SecretsPage() {
             Share Link
           </Button>
 
-          <Button onClick={handleCreate} className="shadow-sm text-xs h-9">
-            <Plus className="w-4 h-4 mr-1.5" />
-            New Secret Key
-          </Button>
+          {hasEdit && (
+            <Button onClick={handleCreate} className="shadow-sm text-xs h-9">
+              <Plus className="w-4 h-4 mr-1.5" />
+              New Secret Key
+            </Button>
+          )}
         </div>
       </PanelHeader>
 
@@ -611,6 +652,8 @@ export default function SecretsPage() {
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     onToggleExistInProd={handleToggleExistInProd}
+                    canEdit={hasEdit}
+                    canDelete={hasDelete}
                   />
                 ))
               )}

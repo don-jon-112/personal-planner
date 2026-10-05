@@ -9,24 +9,45 @@ import {
   Cloud,
   CloudOff,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { projectMenuItems, globalMenuItems, MenuItem } from "@/config/menu";
 import { useDocument } from "@/hooks/use-firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ProjectSwitcher } from "@/components/project-switcher";
+import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/components/auth-context";
 
 export function Sidebar() {
   const { isSidebarHidden } = useSidebar();
   const pathname = usePathname();
   const { data: menuSettings } = useDocument<any>("appSettings", "menu");
+  const { canView, activeProjectRoles } = usePermissions();
+  const { currentUser, isSuperAdmin } = useAuth();
   
   const [isOnline, setIsOnline] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     "Project Plan": true,
   });
+
+  const displayName = currentUser?.name || currentUser?.username || "Admin";
+  const initials = displayName
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "AD";
+
+  const roleBadge = useMemo(() => {
+    if (isSuperAdmin) return "Super Admin";
+    if (activeProjectRoles.length > 0) {
+      return activeProjectRoles.map((r) => r.name).join(", ");
+    }
+    return "Member";
+  }, [isSuperAdmin, activeProjectRoles]);
 
   useEffect(() => {
     const checkMode = () => {
@@ -66,7 +87,11 @@ export function Sidebar() {
   const renderMenuItem = (item: MenuItem) => {
     // Case 1: Group with Submenu
     if (item.children) {
-      const visibleChildren = item.children.filter((c) => !hiddenMenus.includes(c.href));
+      const visibleChildren = item.children.filter((c) => {
+        if (hiddenMenus.includes(c.href)) return false;
+        if (c.permissionKey && !canView(c.permissionKey)) return false;
+        return true;
+      });
       if (visibleChildren.length === 0) return null;
 
       const isGroupActive = visibleChildren.some(
@@ -130,6 +155,7 @@ export function Sidebar() {
 
     // Case 2: Standard Single Menu Item
     if (hiddenMenus.includes(item.href || "")) return null;
+    if (item.permissionKey && !canView(item.permissionKey)) return null;
 
     const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
     const isReallyActive = item.href === "/" ? pathname === "/" : isActive;
@@ -168,7 +194,7 @@ export function Sidebar() {
       {/* Profile Quick Info */}
       <div className="p-3.5 flex items-center gap-3 border-b border-sidebar-accent/50">
         <div className="w-10 h-10 rounded-full border-2 border-sidebar-accent/50 p-0.5 overflow-hidden flex items-center justify-center bg-primary shrink-0">
-          <span className="text-white font-bold text-sm">AD</span>
+          <span className="text-white font-bold text-sm">{initials}</span>
         </div>
         <div className="min-w-0">
           <p className="text-[11px] text-sidebar-foreground/70 flex items-center gap-1">
@@ -179,7 +205,11 @@ export function Sidebar() {
               <span title="Offline Mode"><CloudOff className="w-3 h-3 text-muted-foreground" /></span>
             )}
           </p>
-          <h2 className="text-sm font-semibold truncate">Admin</h2>
+          <h2 className="text-sm font-semibold truncate">{displayName}</h2>
+          <span className="inline-flex items-center gap-1 text-[10px] text-sidebar-foreground/80 bg-sidebar-accent/50 px-1.5 py-0.5 rounded font-medium truncate max-w-[140px]" title={roleBadge}>
+            {isSuperAdmin && <ShieldCheck className="w-3 h-3 text-primary flex-shrink-0" />}
+            <span className="truncate">{roleBadge}</span>
+          </span>
         </div>
       </div>
 
@@ -214,18 +244,20 @@ export function Sidebar() {
       </div>
 
       {/* Footer Settings */}
-      <div className="p-3 border-t border-sidebar-accent/50">
-        <Link
-          href="/settings"
-          className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded text-sm transition-all duration-200 group text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent/50",
-            pathname === "/settings" && "bg-sidebar-accent text-white font-semibold"
-          )}
-        >
-          <Settings className="w-4 h-4 opacity-80 group-hover:opacity-100 transition-opacity" />
-          <span>Settings</span>
-        </Link>
-      </div>
+      {canView("settings") && (
+        <div className="p-3 border-t border-sidebar-accent/50">
+          <Link
+            href="/settings"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded text-sm transition-all duration-200 group text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent/50",
+              pathname === "/settings" && "bg-sidebar-accent text-white font-semibold"
+            )}
+          >
+            <Settings className="w-4 h-4 opacity-80 group-hover:opacity-100 transition-opacity" />
+            <span>Settings</span>
+          </Link>
+        </div>
+      )}
     </aside>
   );
 }

@@ -20,6 +20,8 @@ interface SortableEpicRowProps {
   handleEdit: (epic: any) => void;
   deleteEpic: (id: string) => void;
   isDragDisabled?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export function SortableEpicRow({
@@ -28,6 +30,8 @@ export function SortableEpicRow({
   handleEdit,
   deleteEpic,
   isDragDisabled,
+  canEdit,
+  canDelete,
 }: SortableEpicRowProps) {
   const confirm = useConfirm();
   const {
@@ -105,29 +109,33 @@ export function SortableEpicRow({
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(epic)}>Edit Epic</DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-              onClick={async () => {
-                const description = totalTasks > 0
-                  ? `Epic "${epic.name}" has ${totalTasks} associated task(s). Deleting this epic will move those tasks to backlog (unassigned epic). Are you sure?`
-                  : `Are you sure you want to delete epic "${epic.name}"?`;
-                
-                const ok = await confirm({
-                  title: "Delete Epic?",
-                  description,
-                  confirmText: "Delete Epic",
-                  cancelText: "Cancel",
-                  variant: "destructive",
-                });
-                
-                if (ok) {
-                  deleteEpic(epic.id);
-                }
-              }}
-            >
-              Delete Epic
+            <DropdownMenuItem onClick={() => handleEdit(epic)}>
+              {canEdit !== false ? "Edit Epic" : "View Epic Details"}
             </DropdownMenuItem>
+            {canDelete !== false && (
+              <DropdownMenuItem
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                onClick={async () => {
+                  const description = totalTasks > 0
+                    ? `Epic "${epic.name}" has ${totalTasks} associated task(s). Deleting this epic will move those tasks to backlog (unassigned epic). Are you sure?`
+                    : `Are you sure you want to delete epic "${epic.name}"?`;
+                  
+                  const ok = await confirm({
+                    title: "Delete Epic?",
+                    description,
+                    confirmText: "Delete Epic",
+                    cancelText: "Cancel",
+                    variant: "destructive",
+                  });
+                  
+                  if (ok) {
+                    deleteEpic(epic.id);
+                  }
+                }}
+              >
+                Delete Epic
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
