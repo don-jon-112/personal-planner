@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, enableIndexedDbPersistence, disableNetwork, enableNetwork } from 'firebase/firestore';
+import { getFirestore, enableMultiTabIndexedDbPersistence, disableNetwork, enableNetwork } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -18,21 +18,25 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
 if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db).catch((err) => {
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
     if (err.code == 'failed-precondition') {
-      console.warn("Multiple tabs open, persistence can only be enabled in one tab at a a time.");
+      console.warn("Multiple tabs open, persistence fallback.");
     } else if (err.code == 'unimplemented') {
       console.warn("Browser doesn't support indexedDB persistence.");
     }
   });
 
-  const isGuestTimeline = window.location.pathname.startsWith('/guest-timeline');
-  if (isGuestTimeline) {
-    // Guest timeline MUST always be connected to fetch live cloud data for visitors
+  const pathname = window.location.pathname;
+  const isAlwaysOnline =
+    pathname.startsWith('/guest-timeline') ||
+    pathname.startsWith('/guest-secrets') ||
+    pathname === '/login';
+
+  if (isAlwaysOnline) {
+    // Guest timelines and Login MUST always be connected to fetch live cloud data
     enableNetwork(db).catch(console.error);
   } else {
-    // By default, we keep the network disabled to use zero quota.
-    // The user can trigger a manual sync from the Settings page.
+    // By default in dashboard, we respect zero quota mode if local
     const syncMode = localStorage.getItem('syncMode');
     if (syncMode !== 'online') {
       disableNetwork(db).catch(console.error);

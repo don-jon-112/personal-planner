@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { loginWithMaster, setAuthSession } from './actions'
+import { loginWithMaster, setAuthSession, authenticateUser } from './actions'
 import { db } from '@/firebase/config'
-import { collection, getDocs, getDocsFromCache, enableNetwork } from 'firebase/firestore'
+import { collection, getDocsFromCache } from 'firebase/firestore'
 import { Lock, User, KeyRound, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
@@ -26,8 +26,8 @@ export default function LoginPage() {
       const rawPass = password
       const trimmedPass = password.trim()
 
-      // Mode 1: Master Admin Password quick unlock
-      if (useMasterOnly || !trimmedUser) {
+      // Mode 1: Master Admin Password quick unlock (when toggled to Master Password mode)
+      if (useMasterOnly) {
         const result = await loginWithMaster(trimmedPass)
         if (result.success) {
           if (result.session) {
@@ -41,18 +41,29 @@ export default function LoginPage() {
           router.refresh()
           return
         }
-        if (useMasterOnly) {
-          setError(result.error || 'Invalid master password')
-          setLoading(false)
-          return
-        }
+        setError(result.error || 'Invalid master password')
+        setLoading(false)
+        return
       }
 
-      // Mode 2: Multi-source User Authentication
-      // Accumulate users from localStorage cache, IndexedDB cache, and Cloud Firestore
-      const userMap = new Map<string, any>()
+      // Mode 2: Primary Server-Side User Authentication against Firestore Cloud
+      const serverAuth = await authenticateUser(trimmedUser, rawPass)
+      if (serverAuth.success && serverAuth.session) {
+        localStorage.setItem('planner_auth_session', JSON.stringify(serverAuth.session))
+        router.push('/')
+        router.refresh()
+        return
+      }
 
-      // Source A: LocalStorage cache (instant, always available on the device)
+      // If the server explicitly reported an incorrect password for the found user, show it directly
+      if (serverAuth.error && serverAuth.error.includes('Incorrect password')) {
+        setError(serverAuth.error)
+        setLoading(false)
+        return
+      }
+
+      // Mode 3: Local Offline Cache Fallback (for zero-quota / offline local databases)
+      const userMap = new Map<string, any>()
       try {
         const localCached = localStorage.getItem('planner_cached_users')
         if (localCached) {
@@ -65,11 +76,8 @@ export default function LoginPage() {
             }
           }
         }
-      } catch (err) {
-        console.warn('LocalStorage users cache read error:', err)
-      }
+      } catch (_) {}
 
-      // Source B: Firestore local IndexedDB cache (works offline / zero quota)
       try {
         const usersRef = collection(db, 'users')
         const cacheSnap = await getDocsFromCache(usersRef)
@@ -79,55 +87,10 @@ export default function LoginPage() {
             userMap.set(data.username.toString().trim().toLowerCase(), { id: doc.id, ...data })
           }
         })
-      } catch (cacheErr) {
-        console.warn('Firestore cache fetch skipped or empty:', cacheErr)
-      }
+      } catch (_) {}
 
-      // Source C: Firestore Cloud network query (fetch newest users if online)
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        try {
-          await enableNetwork(db).catch(() => {})
-          const usersRef = collection(db, 'users')
-          // Timeout race so slow connection never hangs authentication
-          const fetchPromise = getDocs(usersRef)
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Network timeout')), 4000)
-          )
-          const netSnap = await Promise.race([fetchPromise, timeoutPromise])
-          netSnap.forEach((doc: any) => {
-            const data = doc.data()
-            if (data?.username) {
-              userMap.set(data.username.toString().trim().toLowerCase(), { id: doc.id, ...data })
-            }
-          })
-
-          // Save newly discovered users to localStorage for instant subsequent logins
-          try {
-            const allUsers = Array.from(userMap.values())
-            localStorage.setItem('planner_cached_users', JSON.stringify(allUsers))
-          } catch (_) {}
-        } catch (netErr) {
-          console.warn('Firestore network query skipped or timed out:', netErr)
-        }
-      }
-
-      // Check if user exists in any collected source
-      const userKey = trimmedUser.toLowerCase()
-      let candidateUser = userMap.get(userKey)
-
-      // Fallback for default seeded Super Admin
-      if (!candidateUser && userKey === 'admin') {
-        candidateUser = {
-          id: 'admin_default',
-          username: 'admin',
-          name: 'Super Administrator',
-          password: 'AdminPassword2026!',
-          isSuperAdmin: true,
-        }
-      }
-
+      const candidateUser = userMap.get(trimmedUser.toLowerCase())
       if (candidateUser) {
-        // Password validation: match exact or trimmed
         const storedPass = (candidateUser.password || '').toString()
         const isPasswordCorrect =
           storedPass === rawPass ||
@@ -147,43 +110,22 @@ export default function LoginPage() {
           router.refresh()
           return
         }
-
-        // Check if Master Password was entered as a super admin override
-        const masterCheck = await loginWithMaster(trimmedPass)
-        if (masterCheck.success && !masterCheck.isGuest) {
-          const session = {
-            userId: candidateUser.id || `user_${candidateUser.username}`,
-            username: candidateUser.username,
-            name: candidateUser.name || candidateUser.username,
-            isSuperAdmin: Boolean(candidateUser.isSuperAdmin),
-          }
-          localStorage.setItem('planner_auth_session', JSON.stringify(session))
-          await setAuthSession(session)
-          router.push('/')
-          router.refresh()
-          return
-        }
-
         setError(`Incorrect password for user "${candidateUser.username}". Please check your password.`)
         return
       }
 
-      // If user wasn't found, check if password entered is the master password
+      // Fallback: Check if password entered is the master password
       const masterCheck = await loginWithMaster(trimmedPass)
       if (masterCheck.success) {
         if (masterCheck.session) {
           localStorage.setItem('planner_auth_session', JSON.stringify(masterCheck.session))
         }
-        if (masterCheck.isGuest) {
-          router.push('/guest-timeline')
-        } else {
-          router.push('/')
-        }
+        router.push(masterCheck.isGuest ? '/guest-timeline' : '/')
         router.refresh()
         return
       }
 
-      setError(`User "${trimmedUser}" not found. Please verify the username or sign in with Master Password.`)
+      setError(serverAuth.error || `User "${trimmedUser}" not found. Please verify your credentials.`)
     } catch (err: any) {
       console.error('Authentication error:', err)
       setError('An error occurred during authentication. Please try again.')
@@ -225,7 +167,7 @@ export default function LoginPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
-                    placeholder="e.g. john.doe"
+                    placeholder="e.g. inal.mahpud"
                     autoCapitalize="none"
                     autoCorrect="off"
                     required={!useMasterOnly}
