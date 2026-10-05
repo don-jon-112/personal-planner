@@ -64,7 +64,6 @@ export function useAddDocument(collectionName: string) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      if (mode !== 'online') return { id: docRef.id, ...sanitized };
       await writePromise;
       return { id: docRef.id, ...sanitized };
     },
@@ -87,7 +86,6 @@ export function useUpdateDocument(collectionName: string) {
         ...sanitized,
         updatedAt: serverTimestamp(),
       });
-      if (mode !== 'online') return { id, ...sanitized };
       await writePromise;
       return { id, ...sanitized };
     },
@@ -106,7 +104,6 @@ export function useDeleteDocument(collectionName: string) {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
       const writePromise = deleteDoc(docRef);
-      if (mode !== 'online') return id;
       await writePromise;
       return id;
     },
@@ -133,7 +130,6 @@ export function useUpdateBatch(collectionName: string) {
         });
       });
       const writePromise = batch.commit();
-      if (mode !== 'online') return updates;
       await writePromise;
       return updates;
     },

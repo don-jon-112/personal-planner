@@ -40,6 +40,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { mutateAsync: addUserDoc } = useAddDocument("users");
   const { mutateAsync: addRoleDoc } = useAddDocument("roles");
 
+  // Keep localStorage cache of users in sync so login is always instantaneous
+  useEffect(() => {
+    if (users && users.length > 0) {
+      try {
+        localStorage.setItem("planner_cached_users", JSON.stringify(users));
+      } catch (e) {
+        console.warn("Failed to cache users in localStorage:", e);
+      }
+    }
+  }, [users]);
+
   // Auto-seed default Super Admin if collection loaded and empty
   useEffect(() => {
     if (!isUsersLoading && users && users.length === 0) {

@@ -232,11 +232,48 @@ export default function UsersRolesPage() {
         projectRoles: userFormData.projectRoles,
       };
 
+      let savedId = editingUserId;
       if (editingUserId) {
         await updateUser({ id: editingUserId, data: payload });
       } else {
-        await addUser(payload);
+        const res = await addUser(payload);
+        savedId = res?.id;
       }
+
+      // Update localStorage cached users immediately for instant login
+      try {
+        const rawCached = localStorage.getItem("planner_cached_users");
+        let cachedUsers: UserProfile[] = rawCached ? JSON.parse(rawCached) : [...users];
+        const idx = cachedUsers.findIndex(
+          (u) => u.id === savedId || u.username.toLowerCase() === payload.username!.toLowerCase()
+        );
+        const record = {
+          id: savedId || `user_${Date.now()}`,
+          ...payload,
+        } as UserProfile;
+        if (idx >= 0) {
+          cachedUsers[idx] = { ...cachedUsers[idx], ...record };
+        } else {
+          cachedUsers.push(record);
+        }
+        localStorage.setItem("planner_cached_users", JSON.stringify(cachedUsers));
+      } catch (cacheErr) {
+        console.warn("Failed to update planner_cached_users:", cacheErr);
+      }
+
+      // Flush pending writes to Firebase Cloud if online
+      if (typeof window !== "undefined" && navigator.onLine) {
+        try {
+          const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+          const { db } = await import("@/firebase/config");
+          await enableNetwork(db).catch(() => {});
+          await waitForPendingWrites(db).catch(() => {});
+          if (localStorage.getItem("syncMode") !== "online") {
+            await disableNetwork(db).catch(() => {});
+          }
+        } catch (_) {}
+      }
+
       setIsUserModalOpen(false);
     } catch (err: any) {
       console.error(err);
@@ -279,6 +316,28 @@ export default function UsersRolesPage() {
     if (confirmed) {
       try {
         await deleteUser(user.id);
+        // Remove from localStorage cached users
+        try {
+          const rawCached = localStorage.getItem("planner_cached_users");
+          if (rawCached) {
+            const cachedUsers: UserProfile[] = JSON.parse(rawCached);
+            const nextCached = cachedUsers.filter((u) => u.id !== user.id && u.username !== user.username);
+            localStorage.setItem("planner_cached_users", JSON.stringify(nextCached));
+          }
+        } catch (_) {}
+
+        // Flush delete to Firebase Cloud if online
+        if (typeof window !== "undefined" && navigator.onLine) {
+          try {
+            const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+            const { db } = await import("@/firebase/config");
+            await enableNetwork(db).catch(() => {});
+            await waitForPendingWrites(db).catch(() => {});
+            if (localStorage.getItem("syncMode") !== "online") {
+              await disableNetwork(db).catch(() => {});
+            }
+          } catch (_) {}
+        }
       } catch (err: any) {
         console.error(err);
         await alertModal({
@@ -907,10 +966,16 @@ export default function UsersRolesPage() {
                       className="h-7 w-7 text-muted-foreground hover:text-foreground"
                       onClick={() => {
                         navigator.clipboard.writeText(userFormData.password);
+                        setCopiedUserId("modal_pwd");
+                        setTimeout(() => setCopiedUserId(null), 2000);
                       }}
                       title="Copy Password"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      {copiedUserId === "modal_pwd" ? (
+                        <Check className="w-3.5 h-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
                     </Button>
                   </div>
                 </div>

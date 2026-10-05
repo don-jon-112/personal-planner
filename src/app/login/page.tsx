@@ -4,12 +4,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { loginWithMaster, setAuthSession } from './actions'
 import { db } from '@/firebase/config'
-import { collection, getDocs, query, where, enableNetwork } from 'firebase/firestore'
-import { Lock, User, KeyRound, ArrowRight, ShieldCheck } from 'lucide-react'
+import { collection, getDocs, getDocsFromCache, enableNetwork } from 'firebase/firestore'
+import { Lock, User, KeyRound, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [useMasterOnly, setUseMasterOnly] = useState(false)
@@ -22,6 +23,7 @@ export default function LoginPage() {
 
     try {
       const trimmedUser = username.trim()
+      const rawPass = password
       const trimmedPass = password.trim()
 
       // Mode 1: Master Admin Password quick unlock
@@ -46,53 +48,98 @@ export default function LoginPage() {
         }
       }
 
-      // Mode 2: Username + Password authentication against Firestore
+      // Mode 2: Multi-source User Authentication
+      // Accumulate users from localStorage cache, IndexedDB cache, and Cloud Firestore
+      const userMap = new Map<string, any>()
+
+      // Source A: LocalStorage cache (instant, always available on the device)
       try {
-        // Ensure network is active to pull cloud data if available
-        try {
-          await enableNetwork(db)
-        } catch (_) {
-          // ignore if already active or unsupported
+        const localCached = localStorage.getItem('planner_cached_users')
+        if (localCached) {
+          const parsed = JSON.parse(localCached)
+          if (Array.isArray(parsed)) {
+            for (const u of parsed) {
+              if (u?.username) {
+                userMap.set(u.username.toString().trim().toLowerCase(), u)
+              }
+            }
+          }
         }
+      } catch (err) {
+        console.warn('LocalStorage users cache read error:', err)
+      }
 
+      // Source B: Firestore local IndexedDB cache (works offline / zero quota)
+      try {
         const usersRef = collection(db, 'users')
-        let matchedUser: any = null
+        const cacheSnap = await getDocsFromCache(usersRef)
+        cacheSnap.forEach((doc) => {
+          const data = doc.data()
+          if (data?.username) {
+            userMap.set(data.username.toString().trim().toLowerCase(), { id: doc.id, ...data })
+          }
+        })
+      } catch (cacheErr) {
+        console.warn('Firestore cache fetch skipped or empty:', cacheErr)
+      }
 
-        // First attempt: Exact match query
+      // Source C: Firestore Cloud network query (fetch newest users if online)
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
         try {
-          const q = query(usersRef, where('username', '==', trimmedUser))
-          const snapshot = await getDocs(q)
-          snapshot.forEach((doc) => {
+          await enableNetwork(db).catch(() => {})
+          const usersRef = collection(db, 'users')
+          // Timeout race so slow connection never hangs authentication
+          const fetchPromise = getDocs(usersRef)
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Network timeout')), 4000)
+          )
+          const netSnap = await Promise.race([fetchPromise, timeoutPromise])
+          netSnap.forEach((doc: any) => {
             const data = doc.data()
-            if (data.password === trimmedPass) {
-              matchedUser = { id: doc.id, ...data }
+            if (data?.username) {
+              userMap.set(data.username.toString().trim().toLowerCase(), { id: doc.id, ...data })
             }
           })
-        } catch (queryErr) {
-          console.warn('Exact username query failed, trying full scan:', queryErr)
-        }
 
-        // Second attempt: Case-insensitive fallback match across users
-        if (!matchedUser) {
-          const allSnapshot = await getDocs(usersRef)
-          allSnapshot.forEach((doc) => {
-            const data = doc.data()
-            const docUsername = (data.username || '').toString().trim()
-            if (
-              docUsername.toLowerCase() === trimmedUser.toLowerCase() &&
-              data.password === trimmedPass
-            ) {
-              matchedUser = { id: doc.id, ...data }
-            }
-          })
+          // Save newly discovered users to localStorage for instant subsequent logins
+          try {
+            const allUsers = Array.from(userMap.values())
+            localStorage.setItem('planner_cached_users', JSON.stringify(allUsers))
+          } catch (_) {}
+        } catch (netErr) {
+          console.warn('Firestore network query skipped or timed out:', netErr)
         }
+      }
 
-        if (matchedUser) {
+      // Check if user exists in any collected source
+      const userKey = trimmedUser.toLowerCase()
+      let candidateUser = userMap.get(userKey)
+
+      // Fallback for default seeded Super Admin
+      if (!candidateUser && userKey === 'admin') {
+        candidateUser = {
+          id: 'admin_default',
+          username: 'admin',
+          name: 'Super Administrator',
+          password: 'AdminPassword2026!',
+          isSuperAdmin: true,
+        }
+      }
+
+      if (candidateUser) {
+        // Password validation: match exact or trimmed
+        const storedPass = (candidateUser.password || '').toString()
+        const isPasswordCorrect =
+          storedPass === rawPass ||
+          storedPass === trimmedPass ||
+          storedPass.trim() === trimmedPass
+
+        if (isPasswordCorrect) {
           const session = {
-            userId: matchedUser.id,
-            username: matchedUser.username,
-            name: matchedUser.name || matchedUser.username,
-            isSuperAdmin: Boolean(matchedUser.isSuperAdmin),
+            userId: candidateUser.id || `user_${candidateUser.username}`,
+            username: candidateUser.username,
+            name: candidateUser.name || candidateUser.username,
+            isSuperAdmin: Boolean(candidateUser.isSuperAdmin),
           }
           localStorage.setItem('planner_auth_session', JSON.stringify(session))
           await setAuthSession(session)
@@ -100,24 +147,45 @@ export default function LoginPage() {
           router.refresh()
           return
         }
-      } catch (dbErr) {
-        console.warn('Firestore query failed, attempting master password fallback...', dbErr)
+
+        // Check if Master Password was entered as a super admin override
+        const masterCheck = await loginWithMaster(trimmedPass)
+        if (masterCheck.success && !masterCheck.isGuest) {
+          const session = {
+            userId: candidateUser.id || `user_${candidateUser.username}`,
+            username: candidateUser.username,
+            name: candidateUser.name || candidateUser.username,
+            isSuperAdmin: Boolean(candidateUser.isSuperAdmin),
+          }
+          localStorage.setItem('planner_auth_session', JSON.stringify(session))
+          await setAuthSession(session)
+          router.push('/')
+          router.refresh()
+          return
+        }
+
+        setError(`Incorrect password for user "${candidateUser.username}". Please check your password.`)
+        return
       }
 
-      // Fallback: Check if entered password is master password
+      // If user wasn't found, check if password entered is the master password
       const masterCheck = await loginWithMaster(trimmedPass)
       if (masterCheck.success) {
         if (masterCheck.session) {
           localStorage.setItem('planner_auth_session', JSON.stringify(masterCheck.session))
         }
-        router.push('/')
+        if (masterCheck.isGuest) {
+          router.push('/guest-timeline')
+        } else {
+          router.push('/')
+        }
         router.refresh()
         return
       }
 
-      setError('Incorrect username or password. Please verify your credentials.')
+      setError(`User "${trimmedUser}" not found. Please verify the username or sign in with Master Password.`)
     } catch (err: any) {
-      console.error(err)
+      console.error('Authentication error:', err)
       setError('An error occurred during authentication. Please try again.')
     } finally {
       setLoading(false)
@@ -160,6 +228,7 @@ export default function LoginPage() {
                     placeholder="e.g. john.doe"
                     autoCapitalize="none"
                     autoCorrect="off"
+                    required={!useMasterOnly}
                   />
                 </div>
               </div>
@@ -188,18 +257,26 @@ export default function LoginPage() {
                 <KeyRound className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
+                  className="w-full pl-9 pr-10 py-2.5 rounded-lg border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition font-mono"
                   placeholder={useMasterOnly ? 'Enter master site password' : 'Enter your password'}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs text-center font-medium">
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs text-center font-medium leading-relaxed">
                 {error}
               </div>
             )}
