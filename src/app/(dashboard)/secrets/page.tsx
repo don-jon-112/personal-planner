@@ -24,6 +24,7 @@ import {
   Trash2, 
   Share2, 
   Upload,
+  Download,
   AlertTriangle,
   Columns,
   Lock
@@ -37,6 +38,7 @@ import { DataTablePagination } from "@/components/ui/pagination";
 import { SecretDialog } from "./secret-dialog";
 import { SecretShareDialog } from "./secret-share-dialog";
 import { SecretImportDialog } from "./secret-import-dialog";
+import { SecretExportDialog } from "./secret-export-dialog";
 import { cn } from "@/lib/utils";
 
 // Cell helper for masked value with click-to-reveal & copy button
@@ -270,6 +272,7 @@ export default function SecretsPage() {
   const [isSecretDialogOpen, setIsSecretDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -451,6 +454,17 @@ export default function SecretsPage() {
           <Button
             type="button"
             variant="outline"
+            onClick={() => setIsExportDialogOpen(true)}
+            className="shadow-xs text-xs h-9"
+            title="Export secret keys to .env, Excel, JSON or CSV"
+          >
+            <Download className="w-4 h-4 mr-1.5" />
+            Export Secrets
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
             onClick={() => setIsShareDialogOpen(true)}
             className="shadow-xs text-xs h-9"
           >
@@ -481,6 +495,12 @@ export default function SecretsPage() {
       <SecretImportDialog
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
+      />
+      <SecretExportDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        secrets={activeSecrets}
+        activeProject={activeProject}
       />
 
       <PanelContent className="space-y-4 flex-1 overflow-auto">

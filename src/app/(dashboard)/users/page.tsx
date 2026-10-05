@@ -259,6 +259,15 @@ export default function UsersRolesPage() {
       return;
     }
 
+    if (user.isSuperAdmin || user.username?.toLowerCase() === "admin") {
+      await alertModal({
+        title: "Super Admin Protected",
+        description: "The Super Administrator account cannot be deleted under any circumstances.",
+        variant: "error",
+      });
+      return;
+    }
+
     const confirmed = await confirm({
       title: "Delete User?",
       description: `Are you sure you want to permanently delete user "${user.name}" (@${user.username})?`,
@@ -655,9 +664,22 @@ export default function UsersRolesPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleDeleteUser(user)}
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              title="Delete user"
-                              disabled={user.id === currentUser?.id}
+                              className={cn(
+                                "h-8 w-8 text-muted-foreground",
+                                user.isSuperAdmin || user.username?.toLowerCase() === "admin"
+                                  ? "opacity-30 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground"
+                                  : "hover:text-destructive hover:bg-destructive/10"
+                              )}
+                              title={
+                                user.isSuperAdmin || user.username?.toLowerCase() === "admin"
+                                  ? "Super Admin cannot be deleted"
+                                  : "Delete user"
+                              }
+                              disabled={
+                                user.id === currentUser?.id ||
+                                Boolean(user.isSuperAdmin) ||
+                                user.username?.toLowerCase() === "admin"
+                              }
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -791,7 +813,7 @@ export default function UsersRolesPage() {
 
       {/* ================= USER CREATE/EDIT DIALOG ================= */}
       <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl w-[calc(100vw-2rem)] max-w-full max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleSaveUser}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1047,7 +1069,7 @@ export default function UsersRolesPage() {
 
       {/* ================= ROLE CREATE/EDIT DIALOG ================= */}
       <Dialog open={isRoleModalOpen} onOpenChange={setIsRoleModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[96vw] w-[calc(100vw-2rem)] max-w-full lg:max-w-[1400px] max-h-[92vh] overflow-y-auto p-6">
           <form onSubmit={handleSaveRole}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">

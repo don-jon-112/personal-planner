@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { loginWithMaster, setAuthSession } from './actions'
 import { db } from '@/firebase/config'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, getDocs, query, where, enableNetwork } from 'firebase/firestore'
 import { Lock, User, KeyRound, ArrowRight, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
@@ -48,25 +48,38 @@ export default function LoginPage() {
 
       // Mode 2: Username + Password authentication against Firestore
       try {
+        // Ensure network is active to pull cloud data if available
+        try {
+          await enableNetwork(db)
+        } catch (_) {
+          // ignore if already active or unsupported
+        }
+
         const usersRef = collection(db, 'users')
-        const q = query(usersRef, where('username', '==', trimmedUser))
-        const snapshot = await getDocs(q)
-
         let matchedUser: any = null
-        snapshot.forEach((doc) => {
-          const data = doc.data()
-          if (data.password === trimmedPass) {
-            matchedUser = { id: doc.id, ...data }
-          }
-        })
 
-        // Also check case-insensitive if not found directly
+        // First attempt: Exact match query
+        try {
+          const q = query(usersRef, where('username', '==', trimmedUser))
+          const snapshot = await getDocs(q)
+          snapshot.forEach((doc) => {
+            const data = doc.data()
+            if (data.password === trimmedPass) {
+              matchedUser = { id: doc.id, ...data }
+            }
+          })
+        } catch (queryErr) {
+          console.warn('Exact username query failed, trying full scan:', queryErr)
+        }
+
+        // Second attempt: Case-insensitive fallback match across users
         if (!matchedUser) {
           const allSnapshot = await getDocs(usersRef)
           allSnapshot.forEach((doc) => {
             const data = doc.data()
+            const docUsername = (data.username || '').toString().trim()
             if (
-              data.username?.toLowerCase() === trimmedUser.toLowerCase() &&
+              docUsername.toLowerCase() === trimmedUser.toLowerCase() &&
               data.password === trimmedPass
             ) {
               matchedUser = { id: doc.id, ...data }
