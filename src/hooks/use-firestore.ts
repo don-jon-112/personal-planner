@@ -82,10 +82,10 @@ export function useUpdateDocument(collectionName: string) {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
       const sanitized = cleanUndefined(data);
-      const writePromise = updateDoc(docRef, {
+      const writePromise = setDoc(docRef, {
         ...sanitized,
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
       await writePromise;
       return { id, ...sanitized };
     },

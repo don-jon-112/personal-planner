@@ -127,8 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: session.name,
       password: "",
       isSuperAdmin: session.isSuperAdmin,
-      projectIds: [],
-      projectRoles: {},
+      projectIds: session.projectIds || [],
+      projectRoles: session.projectRoles || {},
     };
   }, [session, users]);
 
@@ -142,6 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       username: user.username,
       name: user.name,
       isSuperAdmin: Boolean(user.isSuperAdmin),
+      projectIds: user.projectIds || [],
+      projectRoles: user.projectRoles || {},
     };
     if (typeof window !== "undefined") {
       localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(sessionData));

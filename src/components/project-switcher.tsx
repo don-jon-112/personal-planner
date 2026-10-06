@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Check, ChevronDown, FolderPlus, Layers, Plus } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/components/auth-context";
 
 interface ProjectSwitcherProps {
   variant?: "sidebar" | "header";
@@ -22,6 +24,9 @@ interface ProjectSwitcherProps {
 
 export function ProjectSwitcher({ variant = "sidebar", className }: ProjectSwitcherProps) {
   const { projects, activeProject, activeProjectId, setActiveProjectId, isLoading } = useProject();
+  const { canEdit } = usePermissions();
+  const { isSuperAdmin } = useAuth();
+  const canCreateProject = isSuperAdmin || canEdit("projects");
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -124,14 +129,18 @@ export function ProjectSwitcher({ variant = "sidebar", className }: ProjectSwitc
             })}
           </div>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setDialogOpen(true)}
-            className="flex items-center gap-2 px-2.5 py-2 text-xs cursor-pointer text-primary hover:bg-primary/10 font-semibold rounded-md"
-          >
-            <FolderPlus className="w-4 h-4" />
-            <span>Create New Project</span>
-          </DropdownMenuItem>
+          {canCreateProject && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setDialogOpen(true)}
+                className="flex items-center gap-2 px-2.5 py-2 text-xs cursor-pointer text-primary hover:bg-primary/10 font-semibold rounded-md"
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span>Create New Project</span>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

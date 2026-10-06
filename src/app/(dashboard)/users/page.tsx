@@ -398,6 +398,20 @@ export default function UsersRolesPage() {
       } else {
         await addRole(payload);
       }
+
+      // Flush pending writes to Firebase Cloud if online
+      if (typeof window !== "undefined" && navigator.onLine) {
+        try {
+          const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+          const { db } = await import("@/firebase/config");
+          await enableNetwork(db).catch(() => {});
+          await waitForPendingWrites(db).catch(() => {});
+          if (localStorage.getItem("syncMode") !== "online") {
+            await disableNetwork(db).catch(() => {});
+          }
+        } catch (_) {}
+      }
+
       setIsRoleModalOpen(false);
     } catch (err: any) {
       console.error(err);
@@ -430,6 +444,19 @@ export default function UsersRolesPage() {
     if (confirmed) {
       try {
         await deleteRole(role.id);
+
+        // Flush delete to Firebase Cloud if online
+        if (typeof window !== "undefined" && navigator.onLine) {
+          try {
+            const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+            const { db } = await import("@/firebase/config");
+            await enableNetwork(db).catch(() => {});
+            await waitForPendingWrites(db).catch(() => {});
+            if (localStorage.getItem("syncMode") !== "online") {
+              await disableNetwork(db).catch(() => {});
+            }
+          } catch (_) {}
+        }
       } catch (err: any) {
         console.error(err);
         await alertModal({

@@ -7,19 +7,55 @@ import {
   PanelTitle, 
   PanelDescription 
 } from "@/components/ui/panel";
-import { Bug, CheckSquare, Clock, CheckCircle2, ArrowRight, Layers } from "lucide-react";
+import { Bug, CheckSquare, Clock, CheckCircle2, ArrowRight, Layers, Lock, ShieldAlert } from "lucide-react";
 import { useCollection } from "@/hooks/use-firestore";
 import { formatDistanceToNow } from "date-fns";
 import { useProject } from "@/components/project-context";
+import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/components/auth-context";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export default function Home() {
-  const { activeProject, isItemInActiveProject } = useProject();
+  const { projects, activeProject, isItemInActiveProject } = useProject();
+  const { canView } = usePermissions();
+  const { isSuperAdmin } = useAuth();
+
   const { data: allTasks } = useCollection<any>("timelineTasks");
   const { data: allEpics } = useCollection<any>("timelineEpics");
   const { data: allBugs } = useCollection<any>("bugReports");
+
+  // Check if role allows viewing dashboard
+  if (!isSuperAdmin && !canView("dashboard")) {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 rounded-2xl border border-border bg-card text-center shadow-xs">
+        <div className="w-12 h-12 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-3">
+          <Lock className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold tracking-tight">Dashboard Overview Restricted</h2>
+        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+          Your assigned role does not grant permission to view the Dashboard overview.
+          Please use the sidebar menu to navigate to other features you have access to.
+        </p>
+      </div>
+    );
+  }
+
+  // Check if user has no assigned projects
+  if (!isSuperAdmin && projects.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 rounded-2xl border border-dashed border-border bg-card text-center shadow-xs">
+        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+          <Layers className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold tracking-tight">No Assigned Projects</h2>
+        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+          You are currently not assigned to any project workspaces. Please contact your administrator to grant you access to one or more projects.
+        </p>
+      </div>
+    );
+  }
 
   // Filter tasks, epics & bugs scoped to the active project
   const tasks = (allTasks || []).filter((t: any) => isItemInActiveProject(t.projectId));
@@ -87,20 +123,24 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Link
-            href="/projects"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs h-8 gap-1.5")}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Switch Project</span>
-          </Link>
-          <Link
-            href="/timeline"
-            className={cn(buttonVariants({ size: "sm" }), "text-xs h-8 gap-1.5")}
-          >
-            <span>View Timeline</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          {canView("projects") && (
+            <Link
+              href="/projects"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs h-8 gap-1.5")}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Switch Project</span>
+            </Link>
+          )}
+          {canView("timeline") && (
+            <Link
+              href="/timeline"
+              className={cn(buttonVariants({ size: "sm" }), "text-xs h-8 gap-1.5")}
+            >
+              <span>View Timeline</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          )}
         </div>
       </div>
 

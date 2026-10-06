@@ -161,7 +161,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
    * items with undefined or null projectId will also be treated as matching for backward compatibility.
    */
   const isItemInActiveProject = useCallback((itemProjectId?: string) => {
-    if (!activeProject) return true;
+    if (!activeProject) return false;
     if (itemProjectId) {
       return itemProjectId === activeProject.id;
     }

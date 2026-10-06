@@ -7,6 +7,8 @@ export interface SessionData {
   username: string;
   name: string;
   isSuperAdmin: boolean;
+  projectIds?: string[];
+  projectRoles?: Record<string, string[]>;
 }
 
 export async function loginWithMaster(password: string) {
@@ -158,6 +160,8 @@ export async function authenticateUser(username: string, password: string) {
         username: matchedUser.username,
         name: matchedUser.name || matchedUser.username,
         isSuperAdmin: Boolean(matchedUser.isSuperAdmin),
+        projectIds: matchedUser.projectIds || [],
+        projectRoles: matchedUser.projectRoles || {},
       };
       await setAuthSession(session);
       return { success: true, session };

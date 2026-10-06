@@ -31,11 +31,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/components/auth-context";
 
 export default function ProjectsPage() {
   const { projects, activeProjectId, setActiveProjectId, deleteProject } = useProject();
   const { data: allTasks } = useCollection<any>("timelineTasks");
   const { data: allBugs } = useCollection<any>("bugReports");
+
+  const { canEdit, canDelete } = usePermissions();
+  const { isSuperAdmin } = useAuth();
+  const canCreateProject = isSuperAdmin || canEdit("projects");
+  const canDeleteProject = isSuperAdmin || canDelete("projects");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
@@ -132,10 +139,12 @@ export default function ProjectsPage() {
             Manage your project workspaces, track roadmap progress, and switch between project contexts.
           </p>
         </div>
-        <Button onClick={handleCreate} className="gap-2 shrink-0">
-          <FolderPlus className="w-4 h-4" />
-          <span>New Project</span>
-        </Button>
+        {canCreateProject && (
+          <Button onClick={handleCreate} className="gap-2 shrink-0">
+            <FolderPlus className="w-4 h-4" />
+            <span>New Project</span>
+          </Button>
+        )}
       </div>
 
       {/* Overview Stat Cards */}
@@ -226,16 +235,22 @@ export default function ProjectsPage() {
                         <DropdownMenuItem onClick={() => setActiveProjectId(project.id)} className="cursor-pointer">
                           <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Set as Active
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(project)} className="cursor-pointer">
-                          <Edit className="w-3.5 h-3.5 mr-2" /> Edit Project
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(project)}
-                          className="text-destructive focus:text-destructive cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
-                        </DropdownMenuItem>
+                        {canCreateProject && (
+                          <DropdownMenuItem onClick={() => handleEdit(project)} className="cursor-pointer">
+                            <Edit className="w-3.5 h-3.5 mr-2" /> Edit Project
+                          </DropdownMenuItem>
+                        )}
+                        {canDeleteProject && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(project)}
+                              className="text-destructive focus:text-destructive cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
