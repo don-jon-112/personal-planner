@@ -64,7 +64,15 @@ export function useAddDocument(collectionName: string) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      await writePromise;
+      if (mode !== 'online') return { id: docRef.id, ...sanitized };
+      try {
+        await Promise.race([
+          writePromise,
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+      } catch (err) {
+        console.warn("Write pending sync:", err);
+      }
       return { id: docRef.id, ...sanitized };
     },
     onSuccess: () => {
@@ -86,7 +94,15 @@ export function useUpdateDocument(collectionName: string) {
         ...sanitized,
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      await writePromise;
+      if (mode !== 'online') return { id, ...sanitized };
+      try {
+        await Promise.race([
+          writePromise,
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+      } catch (err) {
+        console.warn("Update pending sync:", err);
+      }
       return { id, ...sanitized };
     },
     onSuccess: () => {
@@ -104,7 +120,15 @@ export function useDeleteDocument(collectionName: string) {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
       const writePromise = deleteDoc(docRef);
-      await writePromise;
+      if (mode !== 'online') return id;
+      try {
+        await Promise.race([
+          writePromise,
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+      } catch (err) {
+        console.warn("Delete pending sync:", err);
+      }
       return id;
     },
     onSuccess: () => {
@@ -130,7 +154,15 @@ export function useUpdateBatch(collectionName: string) {
         });
       });
       const writePromise = batch.commit();
-      await writePromise;
+      if (mode !== 'online') return updates;
+      try {
+        await Promise.race([
+          writePromise,
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+      } catch (err) {
+        console.warn("Batch pending sync:", err);
+      }
       return updates;
     },
     onSuccess: () => {
@@ -170,7 +202,14 @@ export function useSetDocument(collectionName: string) {
         updatedAt: serverTimestamp(),
       }, { merge: true });
       if (mode !== 'online') return { id, ...sanitized };
-      await writePromise;
+      try {
+        await Promise.race([
+          writePromise,
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+      } catch (err) {
+        console.warn("SetDoc pending sync:", err);
+      }
       return { id, ...sanitized };
     },
     onSuccess: (data, variables) => {

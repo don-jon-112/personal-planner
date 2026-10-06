@@ -50,6 +50,8 @@ export default function LoginPage() {
       const serverAuth = await authenticateUser(trimmedUser, rawPass)
       if (serverAuth.success && serverAuth.session) {
         localStorage.setItem('planner_auth_session', JSON.stringify(serverAuth.session))
+        localStorage.setItem('syncMode', 'online')
+        window.dispatchEvent(new Event('syncModeChanged'))
         router.push('/')
         router.refresh()
         return
@@ -103,8 +105,12 @@ export default function LoginPage() {
             username: candidateUser.username,
             name: candidateUser.name || candidateUser.username,
             isSuperAdmin: Boolean(candidateUser.isSuperAdmin),
+            projectIds: candidateUser.projectIds || [],
+            projectRoles: candidateUser.projectRoles || {},
           }
           localStorage.setItem('planner_auth_session', JSON.stringify(session))
+          localStorage.setItem('syncMode', 'online')
+          window.dispatchEvent(new Event('syncModeChanged'))
           await setAuthSession(session)
           router.push('/')
           router.refresh()

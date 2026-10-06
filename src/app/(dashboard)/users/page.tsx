@@ -261,20 +261,25 @@ export default function UsersRolesPage() {
         console.warn("Failed to update planner_cached_users:", cacheErr);
       }
 
-      // Flush pending writes to Firebase Cloud if online
-      if (typeof window !== "undefined" && navigator.onLine) {
-        try {
-          const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
-          const { db } = await import("@/firebase/config");
-          await enableNetwork(db).catch(() => {});
-          await waitForPendingWrites(db).catch(() => {});
-          if (localStorage.getItem("syncMode") !== "online") {
-            await disableNetwork(db).catch(() => {});
-          }
-        } catch (_) {}
-      }
-
       setIsUserModalOpen(false);
+
+      // Background flush pending writes to Firebase Cloud if online (non-blocking)
+      if (typeof window !== "undefined" && navigator.onLine) {
+        (async () => {
+          try {
+            const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+            const { db } = await import("@/firebase/config");
+            await enableNetwork(db).catch(() => {});
+            await Promise.race([
+              waitForPendingWrites(db),
+              new Promise((r) => setTimeout(r, 1500))
+            ]).catch(() => {});
+            if (localStorage.getItem("syncMode") === "local") {
+              await disableNetwork(db).catch(() => {});
+            }
+          } catch (_) {}
+        })();
+      }
     } catch (err: any) {
       console.error(err);
       await alertModal({
@@ -326,17 +331,22 @@ export default function UsersRolesPage() {
           }
         } catch (_) {}
 
-        // Flush delete to Firebase Cloud if online
+        // Flush delete to Firebase Cloud if online (non-blocking)
         if (typeof window !== "undefined" && navigator.onLine) {
-          try {
-            const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
-            const { db } = await import("@/firebase/config");
-            await enableNetwork(db).catch(() => {});
-            await waitForPendingWrites(db).catch(() => {});
-            if (localStorage.getItem("syncMode") !== "online") {
-              await disableNetwork(db).catch(() => {});
-            }
-          } catch (_) {}
+          (async () => {
+            try {
+              const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+              const { db } = await import("@/firebase/config");
+              await enableNetwork(db).catch(() => {});
+              await Promise.race([
+                waitForPendingWrites(db),
+                new Promise((r) => setTimeout(r, 1500))
+              ]).catch(() => {});
+              if (localStorage.getItem("syncMode") === "local") {
+                await disableNetwork(db).catch(() => {});
+              }
+            } catch (_) {}
+          })();
         }
       } catch (err: any) {
         console.error(err);
@@ -399,20 +409,25 @@ export default function UsersRolesPage() {
         await addRole(payload);
       }
 
-      // Flush pending writes to Firebase Cloud if online
-      if (typeof window !== "undefined" && navigator.onLine) {
-        try {
-          const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
-          const { db } = await import("@/firebase/config");
-          await enableNetwork(db).catch(() => {});
-          await waitForPendingWrites(db).catch(() => {});
-          if (localStorage.getItem("syncMode") !== "online") {
-            await disableNetwork(db).catch(() => {});
-          }
-        } catch (_) {}
-      }
-
       setIsRoleModalOpen(false);
+
+      // Background flush pending writes to Firebase Cloud if online (non-blocking)
+      if (typeof window !== "undefined" && navigator.onLine) {
+        (async () => {
+          try {
+            const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+            const { db } = await import("@/firebase/config");
+            await enableNetwork(db).catch(() => {});
+            await Promise.race([
+              waitForPendingWrites(db),
+              new Promise((r) => setTimeout(r, 1500))
+            ]).catch(() => {});
+            if (localStorage.getItem("syncMode") === "local") {
+              await disableNetwork(db).catch(() => {});
+            }
+          } catch (_) {}
+        })();
+      }
     } catch (err: any) {
       console.error(err);
       await alertModal({
@@ -445,17 +460,22 @@ export default function UsersRolesPage() {
       try {
         await deleteRole(role.id);
 
-        // Flush delete to Firebase Cloud if online
+        // Flush delete to Firebase Cloud if online (non-blocking)
         if (typeof window !== "undefined" && navigator.onLine) {
-          try {
-            const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
-            const { db } = await import("@/firebase/config");
-            await enableNetwork(db).catch(() => {});
-            await waitForPendingWrites(db).catch(() => {});
-            if (localStorage.getItem("syncMode") !== "online") {
-              await disableNetwork(db).catch(() => {});
-            }
-          } catch (_) {}
+          (async () => {
+            try {
+              const { enableNetwork, waitForPendingWrites, disableNetwork } = await import("firebase/firestore");
+              const { db } = await import("@/firebase/config");
+              await enableNetwork(db).catch(() => {});
+              await Promise.race([
+                waitForPendingWrites(db),
+                new Promise((r) => setTimeout(r, 1500))
+              ]).catch(() => {});
+              if (localStorage.getItem("syncMode") === "local") {
+                await disableNetwork(db).catch(() => {});
+              }
+            } catch (_) {}
+          })();
         }
       } catch (err: any) {
         console.error(err);

@@ -18,13 +18,22 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export default function Home() {
-  const { projects, activeProject, isItemInActiveProject } = useProject();
+  const { projects, activeProject, isItemInActiveProject, isLoading } = useProject();
   const { canView } = usePermissions();
   const { isSuperAdmin } = useAuth();
 
   const { data: allTasks } = useCollection<any>("timelineTasks");
   const { data: allEpics } = useCollection<any>("timelineEpics");
   const { data: allBugs } = useCollection<any>("bugReports");
+
+  // Show loading state while project data is loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   // Check if role allows viewing dashboard
   if (!isSuperAdmin && !canView("dashboard")) {

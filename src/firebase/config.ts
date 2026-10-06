@@ -36,10 +36,13 @@ if (typeof window !== 'undefined') {
     // Guest timelines and Login MUST always be connected to fetch live cloud data
     enableNetwork(db).catch(console.error);
   } else {
-    // By default in dashboard, we respect zero quota mode if local
     const syncMode = localStorage.getItem('syncMode');
-    if (syncMode !== 'online') {
+    if (syncMode === 'local') {
+      // Respect user's explicit local-only offline mode
       disableNetwork(db).catch(console.error);
+    } else {
+      // Default to online so users load projects, roles, and collections
+      enableNetwork(db).catch(console.error);
     }
   }
 }

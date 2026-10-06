@@ -21,6 +21,14 @@ export function usePermissions() {
     return allRoles.filter((r) => assignedRoleIds.includes(r.id));
   }, [isSuperAdmin, currentUser, activeProject, allRoles]);
 
+  // All assigned roles across any of the user's projects (used for global menus & fallback)
+  const allUserRoles = useMemo<ProjectRole[]>(() => {
+    if (isSuperAdmin || !currentUser || !currentUser.projectRoles) return [];
+    const allAssignedIds = Array.from(new Set(Object.values(currentUser.projectRoles).flat()));
+    if (!allAssignedIds.length) return [];
+    return allRoles.filter((r) => allAssignedIds.includes(r.id));
+  }, [isSuperAdmin, currentUser, allRoles]);
+
   /**
    * Check if user can view a menu / feature
    */
@@ -34,19 +42,33 @@ export function usePermissions() {
         return Boolean(currentUser.isSuperAdmin);
       }
 
-      // If user has no roles in active project, check if they belong to project
-      if (activeProjectRoles.length === 0) {
-        // Fallback: if user is assigned to this project, default to view-only
-        return currentUser.projectIds?.includes(activeProject?.id || "") ?? false;
+      // If active project has assigned roles for this user, check them
+      if (activeProjectRoles.length > 0) {
+        return activeProjectRoles.some((role) => {
+          const perm = role.permissions?.[featureKey];
+          return perm ? perm.canView : false;
+        });
       }
 
-      // Check if ANY assigned role grants view permission
-      return activeProjectRoles.some((role) => {
-        const perm = role.permissions?.[featureKey];
-        return perm ? perm.canView : false;
-      });
+      // If active project is selected but no specific role doc matched yet
+      if (activeProject) {
+        // Fallback: if user is assigned to this project, default to view-only
+        return currentUser.projectIds?.includes(activeProject.id) ?? false;
+      }
+
+      // If no active project is resolved yet (loading or global view):
+      // Check if ANY assigned role across user's projects grants view permission
+      if (allUserRoles.length > 0) {
+        return allUserRoles.some((role) => {
+          const perm = role.permissions?.[featureKey];
+          return perm ? perm.canView : false;
+        });
+      }
+
+      // Fallback: if user belongs to at least one project, allow view
+      return (currentUser.projectIds?.length ?? 0) > 0;
     },
-    [isSuperAdmin, currentUser, activeProjectRoles, activeProject]
+    [isSuperAdmin, currentUser, activeProjectRoles, activeProject, allUserRoles]
   );
 
   /**
