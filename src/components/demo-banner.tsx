@@ -27,9 +27,9 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     isSuperAdmin: true,
     icon: Shield,
     badgeColor: "text-amber-500 bg-amber-500/10 border-amber-500/20",
-    projectIds: ["proj-digiroom", "proj-mobile"],
+    projectIds: ["proj-core", "proj-mobile"],
     projectRoles: {
-      "proj-digiroom": ["role-superadmin"],
+      "proj-core": ["role-superadmin"],
       "proj-mobile": ["role-superadmin"],
     },
   },
@@ -40,9 +40,9 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     isSuperAdmin: false,
     icon: Edit3,
     badgeColor: "text-blue-500 bg-blue-500/10 border-blue-500/20",
-    projectIds: ["proj-digiroom", "proj-mobile"],
+    projectIds: ["proj-core", "proj-mobile"],
     projectRoles: {
-      "proj-digiroom": ["role-contributor"],
+      "proj-core": ["role-contributor"],
       "proj-mobile": ["role-contributor"],
     },
   },
@@ -53,9 +53,9 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     isSuperAdmin: false,
     icon: Eye,
     badgeColor: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-    projectIds: ["proj-digiroom"],
+    projectIds: ["proj-core"],
     projectRoles: {
-      "proj-digiroom": ["role-viewer"],
+      "proj-core": ["role-viewer"],
     },
   },
 ];

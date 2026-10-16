@@ -1,7 +1,7 @@
 import { getDefaultDemoData } from "./demo-data";
 
 const STORAGE_PREFIX = "planner_demo_col_";
-const INIT_KEY = "planner_demo_initialized";
+const INIT_KEY = "planner_demo_initialized_v2";
 
 export const IS_DEMO_BUILD = true; // In this demo branch, demo mode is enabled
 
@@ -28,7 +28,7 @@ export function resetDemoData(): void {
 
   // Ensure demo auth session default to admin if none exists
   const currentSession = localStorage.getItem("planner_auth_session");
-  if (!currentSession) {
+  if (!currentSession || currentSession.includes("proj-digiroom")) {
     const adminUser = defaultData.users.find((u) => u.username === "admin");
     if (adminUser) {
       const session = {
@@ -44,7 +44,7 @@ export function resetDemoData(): void {
   }
 
   // Set default active project
-  localStorage.setItem("planner_active_project_id", "proj-digiroom");
+  localStorage.setItem("planner_active_project_id", "proj-core");
   localStorage.setItem(INIT_KEY, "true");
   localStorage.setItem("syncMode", "demo");
 

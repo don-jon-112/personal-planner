@@ -9,15 +9,15 @@ export function getRelativeDate(offsetDays: number): string {
 }
 
 export function getDefaultDemoData() {
-  const proj1Id = "proj-digiroom";
+  const proj1Id = "proj-core";
   const proj2Id = "proj-mobile";
 
   // 1. Projects
   const projects: Project[] = [
     {
       id: proj1Id,
-      name: "DIGIROOM REWRITE",
-      key: "DR",
+      name: "Core Platform Modernization",
+      key: "CPM",
       color: "#10b981",
       description: "Modernizing core architecture, performance tuning, and redesigning web experience.",
       status: "ACTIVE",
@@ -26,9 +26,9 @@ export function getDefaultDemoData() {
       endDate: getRelativeDate(60),
       shareSettings: {
         isEnabled: true,
-        shareToken: "demo-share-dr",
+        shareToken: "demo-share-cpm",
         isSecretsEnabled: true,
-        secretsShareToken: "demo-sec-dr",
+        secretsShareToken: "demo-sec-cpm",
       },
       createdAt: { seconds: Math.floor(Date.now() / 1000) - 86400 * 30 },
       updatedAt: { seconds: Math.floor(Date.now() / 1000) },
@@ -357,7 +357,7 @@ export function getDefaultDemoData() {
     {
       id: "sec-1",
       key: "API_GATEWAY_URL",
-      value: "https://api-gateway.digiroom.internal/v2",
+      value: "https://api-gateway.coreplatform.internal/v2",
       description: "Internal production API gateway endpoint",
       category: "Backend",
       projectId: proj1Id,
