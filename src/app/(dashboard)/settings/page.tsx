@@ -12,6 +12,7 @@ import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collectio
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
+import { isDemoMode } from "@/lib/demo-storage";
 
 const ALL_COLLECTIONS = [
   "appSettings",
@@ -132,6 +133,15 @@ export default function SettingsPage() {
   };
 
   const handleSyncToFirebase = async () => {
+    if (isDemoMode()) {
+      await alertModal({
+        title: "Demo Sandbox Active",
+        description: "Aplikasi sedang berjalan dalam Demo Sandbox Mode. Fitur push ke Cloud Firebase dinonaktifkan demi keamanan data production.",
+        variant: "info",
+      });
+      return;
+    }
+
     const ok = await confirm({
       title: "Push Data to Cloud Firebase?",
       description: "Are you sure you want to push all local changes to Firebase? Server conflicts will be overwritten with local data.",
@@ -180,6 +190,15 @@ export default function SettingsPage() {
   };
 
   const handleSyncFromFirebase = async () => {
+    if (isDemoMode()) {
+      await alertModal({
+        title: "Demo Sandbox Active",
+        description: "Aplikasi sedang berjalan dalam Demo Sandbox Mode. Gunakan tombol 'Reset Demo Data' di sidebar untuk mengembalikan data dummy awal.",
+        variant: "info",
+      });
+      return;
+    }
+
     const ok = await confirm({
       title: "Overwrite Data from Cloud?",
       description: "Are you sure you want to overwrite all local data with data from Cloud? Your local database will be cleared and unsynced local changes will be lost.",

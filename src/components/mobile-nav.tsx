@@ -10,6 +10,7 @@ import { projectMenuItems, globalMenuItems, MenuItem } from "@/config/menu";
 import { useDocument } from "@/hooks/use-firestore";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { usePermissions } from "@/hooks/use-permissions";
+import { DemoBanner } from "@/components/demo-banner";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
@@ -217,6 +218,11 @@ export function MobileNav() {
                   {globalMenuItems.map(renderMenuItem)}
                 </nav>
               </div>
+            </div>
+
+            {/* Demo Sandbox Control */}
+            <div className="px-3 pb-2">
+              <DemoBanner />
             </div>
 
             {canView("settings") && (
