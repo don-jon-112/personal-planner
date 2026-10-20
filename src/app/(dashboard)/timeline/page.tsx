@@ -109,7 +109,7 @@ function computeOffsets(widths: ColWidths) {
   const md = status + widths.status;
   const actions = md + widths.md;
   const totalHeader = actions + widths.actions;
-  const epicTitle = md; // Epic title spans task + pic + status + md
+  const epicTitle = actions; // Epic title spans task + pic + status + md (up to actions column)
   return { task, pic, status, md, actions, totalHeader, epicTitle };
 }
 
