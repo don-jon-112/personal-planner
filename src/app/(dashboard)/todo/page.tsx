@@ -409,11 +409,13 @@ export default function TodoPage() {
         open={isTaskDialogOpen}
         onOpenChange={setIsTaskDialogOpen}
         taskToEdit={editingTask}
+        readOnly={!hasEdit}
       />
       <EpicDialog
         open={isEpicDialogOpen}
         onOpenChange={setIsEpicDialogOpen}
         epicToEdit={editingEpic}
+        readOnly={!hasEdit}
         onSelectTask={(task) => {
           setIsEpicDialogOpen(false);
           setEditingTask(task);

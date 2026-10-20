@@ -54,11 +54,13 @@ export function TaskDialog({
   open: controlledOpen,
   onOpenChange: setControlledOpen,
   fromTimeline = false,
+  readOnly = false,
 }: { 
   taskToEdit?: any, 
   open?: boolean,
   onOpenChange?: (open: boolean) => void,
   fromTimeline?: boolean,
+  readOnly?: boolean,
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
@@ -337,7 +339,9 @@ export function TaskDialog({
         <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isEditing 
+              {readOnly
+                ? "Task Details"
+                : isEditing 
                 ? "Edit Task" 
                 : mode === "backlog" 
                 ? "Assign Task from Backlog" 
@@ -346,7 +350,7 @@ export function TaskDialog({
           </DialogHeader>
 
           {/* Mode Selector for New Task (shown when backlog tasks exist) */}
-          {!isEditing && backlogTasks.length > 0 && (
+          {!readOnly && !isEditing && backlogTasks.length > 0 && (
             <div className="flex bg-muted/60 p-1 rounded-lg gap-1 mb-2">
               <button
                 type="button"
@@ -420,13 +424,13 @@ export function TaskDialog({
             {/* Task Name */}
             <div className="space-y-2">
               <Label>
-                Task Name <span className="text-destructive">*</span>
+                Task Name {!readOnly && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 {...form.register("name")}
                 placeholder="e.g., Design Database Schema"
-                disabled={mode === "backlog"}
-                className={cn(mode === "backlog" && "bg-muted text-foreground font-semibold")}
+                disabled={readOnly || mode === "backlog"}
+                className={cn((mode === "backlog" || readOnly) && "bg-muted text-foreground font-semibold")}
               />
               {form.formState.errors.name && (
                 <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
@@ -435,10 +439,14 @@ export function TaskDialog({
 
             {/* Epic Selection */}
             <div className="space-y-2">
-              <Label>Epic {fromTimeline && <span className="text-destructive">*</span>}</Label>
+              <Label>Epic {fromTimeline && !readOnly && <span className="text-destructive">*</span>}</Label>
               <select
                 {...form.register("epicId")}
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                disabled={readOnly}
+                className={cn(
+                  "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring",
+                  readOnly && "bg-muted text-muted-foreground cursor-not-allowed opacity-90"
+                )}
               >
                 <option value="">{fromTimeline ? "Select an Epic" : "None (Backlog)"}</option>
                 {filteredEpics?.map((epic: any) => (
@@ -456,11 +464,15 @@ export function TaskDialog({
                 <div className="flex gap-3">
                   <div className="space-y-2 flex-1">
                     <Label>
-                      PIC <span className="text-destructive">*</span>
+                      PIC {!readOnly && <span className="text-destructive">*</span>}
                     </Label>
                     <select
                       {...form.register("pic")}
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      disabled={readOnly}
+                      className={cn(
+                        "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring",
+                        readOnly && "bg-muted text-muted-foreground cursor-not-allowed opacity-90"
+                      )}
                     >
                       <option value="">Select PIC</option>
                       <option value="TBD">TBD</option>
@@ -480,7 +492,11 @@ export function TaskDialog({
                     <Label>Status</Label>
                     <select
                       {...form.register("status")}
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      disabled={readOnly}
+                      className={cn(
+                        "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring",
+                        readOnly && "bg-muted text-muted-foreground cursor-not-allowed opacity-90"
+                      )}
                     >
                       {taskStatuses.map((s) => (
                         <option key={s.id} value={s.name}>
@@ -501,20 +517,22 @@ export function TaskDialog({
                           type="checkbox"
                           id="tbdDate"
                           checked={isTbdDate}
+                          disabled={readOnly}
                           onChange={(e) => {
+                            if (readOnly) return;
                             setIsTbdDate(e.target.checked);
                             if (e.target.checked) form.setValue("startDate", "TBD");
                             else form.setValue("startDate", new Date().toISOString().split("T")[0]);
                           }}
                           className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
                         />
-                        <label htmlFor="tbdDate" className="text-xs cursor-pointer text-muted-foreground select-none">
+                        <label htmlFor="tbdDate" className={cn("text-xs select-none", readOnly ? "cursor-not-allowed text-muted-foreground/70" : "cursor-pointer text-muted-foreground")}>
                           TBD
                         </label>
                       </div>
                     </div>
                     {!isTbdDate ? (
-                      <Input type="date" {...form.register("startDate")} />
+                      <Input type="date" disabled={readOnly} {...form.register("startDate")} className={cn(readOnly && "bg-muted text-muted-foreground cursor-not-allowed")} />
                     ) : (
                       <Input type="text" value="TBD" disabled className="bg-muted text-muted-foreground" />
                     )}
@@ -523,7 +541,7 @@ export function TaskDialog({
                     <div className="h-[20px] flex items-end">
                       <Label>MD (Man Days)</Label>
                     </div>
-                    <Input type="number" step="any" min="0.01" placeholder="e.g. 0.5 or 1.5" {...form.register("md", { valueAsNumber: true })} />
+                    <Input type="number" step="any" min="0.01" placeholder="e.g. 0.5 or 1.5" disabled={readOnly} className={cn(readOnly && "bg-muted text-muted-foreground cursor-not-allowed")} {...form.register("md", { valueAsNumber: true })} />
                   </div>
                 </div>
 
@@ -542,48 +560,50 @@ export function TaskDialog({
                   </div>
 
                   {/* Add Note Inputs */}
-                  <div className="space-y-1.5 p-2.5 rounded-lg bg-muted/30 border border-border/60">
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Input
-                        value={newNoteText}
-                        onChange={(e) => setNewNoteText(e.target.value)}
-                        placeholder="Note / Jira link (e.g. PROJ-123 or https://jira...)"
-                        className="text-xs h-8 bg-background"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleAddNote();
-                          }
-                        }}
-                      />
-                      <Input
-                        value={newNoteUrl}
-                        onChange={(e) => setNewNoteUrl(e.target.value)}
-                        placeholder="URL (optional, https://...)"
-                        className="text-xs h-8 sm:w-[170px] bg-background"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleAddNote();
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleAddNote}
-                        disabled={!newNoteText.trim() && !newNoteUrl.trim()}
-                        className="h-8 px-3 text-xs shrink-0"
-                      >
-                        <Plus className="w-3.5 h-3.5 mr-1" /> Add
-                      </Button>
+                  {!readOnly && (
+                    <div className="space-y-1.5 p-2.5 rounded-lg bg-muted/30 border border-border/60">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Input
+                          value={newNoteText}
+                          onChange={(e) => setNewNoteText(e.target.value)}
+                          placeholder="Note / Jira link (e.g. PROJ-123 or https://jira...)"
+                          className="text-xs h-8 bg-background"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleAddNote();
+                            }
+                          }}
+                        />
+                        <Input
+                          value={newNoteUrl}
+                          onChange={(e) => setNewNoteUrl(e.target.value)}
+                          placeholder="URL (optional, https://...)"
+                          className="text-xs h-8 sm:w-[170px] bg-background"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleAddNote();
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleAddNote}
+                          disabled={!newNoteText.trim() && !newNoteUrl.trim()}
+                          className="h-8 px-3 text-xs shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Add
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Tip: Kamu bisa langsung paste link Jira di Note atau cantumkan URL terpisah. Tekan Enter untuk menambah.
+                      </p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      Tip: Kamu bisa langsung paste link Jira di Note atau cantumkan URL terpisah. Tekan Enter untuk menambah.
-                    </p>
-                  </div>
+                  )}
 
                   {/* Notes Table */}
                   <div className="border border-border/60 rounded-md overflow-hidden bg-card">
@@ -593,14 +613,14 @@ export function TaskDialog({
                           <TableHead className="w-[36px] py-1 text-center text-xs font-semibold">#</TableHead>
                           <TableHead className="py-1 text-xs font-semibold">Note</TableHead>
                           <TableHead className="py-1 text-xs font-semibold w-[130px]">Link</TableHead>
-                          <TableHead className="w-[38px] py-1 text-right text-xs"></TableHead>
+                          {!readOnly && <TableHead className="w-[38px] py-1 text-right text-xs"></TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {notes.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground">
-                              Belum ada notes atau link Jira. Tambahkan di atas.
+                            <TableCell colSpan={readOnly ? 3 : 4} className="text-center py-4 text-xs text-muted-foreground">
+                              {readOnly ? "Tidak ada notes atau link Jira." : "Belum ada notes atau link Jira. Tambahkan di atas."}
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -629,18 +649,20 @@ export function TaskDialog({
                                   <span className="text-muted-foreground text-[11px]">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-right py-2 pr-2 align-top">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleDeleteNote(note.id)}
-                                  title="Hapus note"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              </TableCell>
+                              {!readOnly && (
+                                <TableCell className="text-right py-2 pr-2 align-top">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => handleDeleteNote(note.id)}
+                                    title="Hapus note"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </TableCell>
+                              )}
                             </TableRow>
                           ))
                         )}
@@ -650,7 +672,7 @@ export function TaskDialog({
                 </div>
 
                 {/* Live Overlap Warning Preview inside Dialog */}
-                {liveOverlap.hasOverlap && (
+                {!readOnly && liveOverlap.hasOverlap && (
                   <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs space-y-1.5 animate-in fade-in-50">
                     <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
                       <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -676,48 +698,59 @@ export function TaskDialog({
                 )}
 
             <div className="flex justify-between items-center pt-3 gap-2">
-              {isEditing ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={async () => {
-                    if (!taskToEdit?.id) return;
-                    const ok = await confirm({
-                      title: "Hapus Task?",
-                      description: `Apakah Anda yakin ingin menghapus task "${taskToEdit.name}"? Tindakan ini tidak dapat dibatalkan.`,
-                      confirmText: "Hapus Task",
-                      cancelText: "Batal",
-                      variant: "destructive",
-                    });
-                    if (ok) {
-                      await deleteTask(taskToEdit.id);
-                      setOpen(false);
-                    }
-                  }}
-                  disabled={isPending || isDeleting}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Hapus Task</span>
-                </Button>
+              {readOnly ? (
+                <>
+                  <div />
+                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                    Close
+                  </Button>
+                </>
               ) : (
-                <div />
+                <>
+                  {isEditing ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        if (!taskToEdit?.id) return;
+                        const ok = await confirm({
+                          title: "Hapus Task?",
+                          description: `Apakah Anda yakin ingin menghapus task "${taskToEdit.name}"? Tindakan ini tidak dapat dibatalkan.`,
+                          confirmText: "Hapus Task",
+                          cancelText: "Batal",
+                          variant: "destructive",
+                        });
+                        if (ok) {
+                          await deleteTask(taskToEdit.id);
+                          setOpen(false);
+                        }
+                      }}
+                      disabled={isPending || isDeleting}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus Task</span>
+                    </Button>
+                  ) : (
+                    <div />
+                  )}
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isPending || isDeleting}>
+                      {isPending || isDeleting
+                        ? "Saving..."
+                        : isEditing
+                        ? "Save Changes"
+                        : mode === "backlog"
+                        ? "Assign Backlog to Epic"
+                        : "Save Task"}
+                    </Button>
+                  </div>
+                </>
               )}
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isPending || isDeleting}>
-                  {isPending || isDeleting
-                    ? "Saving..."
-                    : isEditing
-                    ? "Save Changes"
-                    : mode === "backlog"
-                    ? "Assign Backlog to Epic"
-                    : "Save Task"}
-                </Button>
-              </div>
             </div>
           </form>
         </DialogContent>

@@ -23,8 +23,10 @@ import {
   Lock,
   Search,
   X,
+  UserCheck,
+  ClipboardCheck,
 } from "lucide-react";
-import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
+import { useCollection, useDeleteDocument, useUpdateDocument, useAddDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
 import { HolidaysDialog } from "./holidays-dialog";
@@ -394,6 +396,10 @@ function TaskRow({
   onEdit,
   onDelete,
   onUpdateStatus,
+  onAssignToMe,
+  onSetInReview,
+  hasEdit = true,
+  hasDelete = true,
   taskStatuses = [],
   getStatusColor,
   colWidths,
@@ -407,6 +413,10 @@ function TaskRow({
   onEdit: any;
   onDelete: any;
   onUpdateStatus: any;
+  onAssignToMe?: (task: any) => void;
+  onSetInReview?: (task: any) => void;
+  hasEdit?: boolean;
+  hasDelete?: boolean;
   taskStatuses?: any[];
   getStatusColor?: (name: string) => string;
   colWidths: ColWidths;
@@ -419,7 +429,7 @@ function TaskRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, data: { type: "Task", task } });
+  } = useSortable({ id: task.id, data: { type: "Task", task }, disabled: !hasEdit });
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -428,6 +438,9 @@ function TaskRow({
   };
 
   const hasOverlap = Boolean(overlapInfo?.hasOverlap);
+  const normalizedStatus = (task.status || "TODO").trim().toUpperCase();
+  const isTodo = normalizedStatus === "TODO";
+  const isOnProgress = normalizedStatus === "ON PROGRESS" || normalizedStatus === "IN PROGRESS";
 
   return (
     <div 
@@ -440,9 +453,13 @@ function TaskRow({
         style={{ width: `${colWidths.task}px` }}
         className="md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2 overflow-hidden"
       >
-        <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-1 p-1 z-10 bg-background">
-          <GripVertical className="w-4 h-4" />
-        </div>
+        {hasEdit ? (
+          <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-1 p-1 z-10 bg-background">
+            <GripVertical className="w-4 h-4" />
+          </div>
+        ) : (
+          <div className="w-1.5 shrink-0 mr-1" />
+        )}
         {hasOverlap && (
           <TooltipProvider delay={100}>
             <Tooltip>
@@ -491,28 +508,41 @@ function TaskRow({
         style={{ width: `${colWidths.status}px`, left: `${offsets.status}px` }}
         className="md:sticky md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 overflow-hidden"
       >
-        <DropdownMenu>
-          <DropdownMenuTrigger className="focus:outline-none">
-            <span
-              className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-full block"
-              style={{
-                backgroundColor: `${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}20`,
-                color: getStatusColor ? getStatusColor(task.status) : "#94a3b8",
-                border: `1px solid ${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}50`,
-              }}
-            >
-              {task.status || "TODO"}
-            </span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center">
-            {taskStatuses.map((s: any) => (
-              <DropdownMenuItem key={s.id} onClick={() => onUpdateStatus(task.id, s.name)}>
-                <span className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: s.color }} />
-                {s.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {hasEdit ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="focus:outline-none cursor-pointer">
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-full block hover:opacity-80 transition-opacity"
+                style={{
+                  backgroundColor: `${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}20`,
+                  color: getStatusColor ? getStatusColor(task.status) : "#94a3b8",
+                  border: `1px solid ${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}50`,
+                }}
+              >
+                {task.status || "TODO"}
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center">
+              {taskStatuses.map((s: any) => (
+                <DropdownMenuItem key={s.id} onClick={() => onUpdateStatus(task.id, s.name)}>
+                  <span className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: s.color }} />
+                  {s.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-full block cursor-default select-none"
+            style={{
+              backgroundColor: `${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}20`,
+              color: getStatusColor ? getStatusColor(task.status) : "#94a3b8",
+              border: `1px solid ${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}50`,
+            }}
+          >
+            {task.status || "TODO"}
+          </span>
+        )}
       </div>
 
       {/* 4. MD Column */}
@@ -533,8 +563,40 @@ function TaskRow({
             <MoreHorizontal className="w-4 h-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(task)}>Edit Task</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onClick={() => onDelete(task)}>Delete</DropdownMenuItem>
+            {hasEdit ? (
+              <>
+                <DropdownMenuItem onClick={() => onEdit(task)}>Edit Task</DropdownMenuItem>
+                {hasDelete && (
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(task)}>
+                    Delete
+                  </DropdownMenuItem>
+                )}
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem onClick={() => onEdit(task)}>
+                  View Task Details
+                </DropdownMenuItem>
+                {isTodo && onAssignToMe && (
+                  <DropdownMenuItem
+                    className="text-primary font-medium focus:text-primary cursor-pointer"
+                    onClick={() => onAssignToMe(task)}
+                  >
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    <span>Assign To Me</span>
+                  </DropdownMenuItem>
+                )}
+                {isOnProgress && onSetInReview && (
+                  <DropdownMenuItem
+                    className="text-purple-600 dark:text-purple-400 font-medium focus:text-purple-600 cursor-pointer"
+                    onClick={() => onSetInReview(task)}
+                  >
+                    <ClipboardCheck className="w-4 h-4 mr-2" />
+                    <span>IN REVIEW</span>
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -644,6 +706,10 @@ function EpicSegmentGroup({
   onDeleteTask,
   onUpdateTaskStatus,
   onAddTaskToEpic,
+  onAssignToMe,
+  onSetInReview,
+  hasEdit = true,
+  hasDelete = true,
   taskStatuses,
   getStatusColor,
   colWidths,
@@ -662,6 +728,10 @@ function EpicSegmentGroup({
   onDeleteTask: any;
   onUpdateTaskStatus: any;
   onAddTaskToEpic: any;
+  onAssignToMe?: (task: any) => void;
+  onSetInReview?: (task: any) => void;
+  hasEdit?: boolean;
+  hasDelete?: boolean;
   taskStatuses: any[];
   getStatusColor?: (name: string) => string;
   colWidths: ColWidths;
@@ -679,7 +749,7 @@ function EpicSegmentGroup({
   } = useSortable({
     id: epic.id,
     data: { type: "Epic", epic },
-    disabled: isContinuation, // Continuation headers don't reorder the epic
+    disabled: isContinuation || !hasEdit, // Continuation headers don't reorder the epic, also disabled for read-only
   });
 
   const style = {
@@ -705,7 +775,7 @@ function EpicSegmentGroup({
           style={{ width: `${offsets.epicTitle}px` }} 
           className="md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2 overflow-hidden"
         >
-          {!isContinuation ? (
+          {!isContinuation && hasEdit ? (
             <div 
               {...attributes} 
               {...listeners} 
@@ -751,16 +821,22 @@ function EpicSegmentGroup({
           style={{ width: `${colWidths.actions}px`, left: `${offsets.epicTitle}px` }} 
           className="md:sticky md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2 overflow-hidden"
         >
-          <DropdownMenu>
-            <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded" onClick={(e) => e.stopPropagation()}>
-              <MoreHorizontal className="w-4 h-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddTaskToEpic(epic); }}>Add Task</DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditEpic(epic); }}>Edit Epic</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteEpic(epic); }}>Delete Epic</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {hasEdit ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded" onClick={(e) => e.stopPropagation()}>
+                <MoreHorizontal className="w-4 h-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddTaskToEpic(epic); }}>Add Task</DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditEpic(epic); }}>Edit Epic</DropdownMenuItem>
+                {hasDelete && (
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteEpic(epic); }}>
+                    Delete Epic
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
         
         {/* Empty cells for epic row */}
@@ -789,6 +865,10 @@ function EpicSegmentGroup({
                 onEdit={onEditTask} 
                 onDelete={onDeleteTask}
                 onUpdateStatus={onUpdateTaskStatus}
+                onAssignToMe={onAssignToMe}
+                onSetInReview={onSetInReview}
+                hasEdit={hasEdit}
+                hasDelete={hasDelete}
                 taskStatuses={taskStatuses}
                 getStatusColor={getStatusColor}
                 colWidths={colWidths}
@@ -816,15 +896,17 @@ export default function TimelinePage() {
   const { data: holidays } = useCollection<any>("timelineHolidays");
   const { data: pics } = useCollection<any>("timelinePics");
   const { statuses: taskStatuses, getStatusColor } = useTaskStatuses();
-  const { canView, canEdit } = usePermissions();
+  const { canView, canEdit, canDelete, currentUser } = usePermissions();
 
   const hasView = canView("timeline");
   const hasEdit = canEdit("timeline");
+  const hasDelete = canDelete("timeline");
 
   const projectPics = useMemo(() => {
     return (pics || []).filter((p: any) => isItemInActiveProject(p.projectId));
   }, [pics, isItemInActiveProject]);
 
+  const { mutateAsync: addPic } = useAddDocument("timelinePics");
   const { mutateAsync: updateEpic } = useUpdateDocument("timelineEpics");
   const { mutateAsync: updateTask } = useUpdateDocument("timelineTasks");
   const { mutateAsync: deleteEpic } = useDeleteDocument("timelineEpics");
@@ -948,6 +1030,52 @@ export default function TimelinePage() {
       await updateTask({ id: taskId, data: { status: newStatus } });
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleAssignToMe = async (task: any) => {
+    const viewerName = currentUser?.name || currentUser?.username || "Viewer";
+
+    // Auto-create PIC in project if not exists
+    const picExists = projectPics.some(
+      (p: any) => p.name?.toLowerCase().trim() === viewerName.toLowerCase().trim()
+    );
+    if (!picExists && activeProject?.id) {
+      try {
+        await addPic({
+          name: viewerName,
+          color: "#3b82f6",
+          projectId: activeProject.id,
+          showInAnalytics: true,
+        });
+      } catch (e) {
+        console.error("Failed to auto-register PIC for viewer:", e);
+      }
+    }
+
+    try {
+      await updateTask({
+        id: task.id,
+        data: {
+          status: "ON PROGRESS",
+          pic: viewerName,
+        },
+      });
+    } catch (e) {
+      console.error("Failed to assign task to me:", e);
+    }
+  };
+
+  const handleSetInReview = async (task: any) => {
+    try {
+      await updateTask({
+        id: task.id,
+        data: {
+          status: "IN REVIEW",
+        },
+      });
+    } catch (e) {
+      console.error("Failed to set task status to IN REVIEW:", e);
     }
   };
 
@@ -1430,13 +1558,14 @@ export default function TimelinePage() {
               open={isEpicDialogOpen} 
               onOpenChange={setIsEpicDialogOpen} 
               epicToEdit={editingEpic}
+              readOnly={!hasEdit}
               onSelectTask={(task) => {
                 setIsEpicDialogOpen(false);
                 setEditingTask(task);
                 setIsTaskDialogOpen(true);
               }}
             />
-            <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} />
+            <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} readOnly={!hasEdit} />
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
             <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
             <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={projectPics} statuses={taskStatuses} />
@@ -1664,9 +1793,9 @@ export default function TimelinePage() {
               <DndContext 
                 sensors={sensors} 
                 collisionDetection={closestCenter} 
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragEnd={handleDragEnd}
+                onDragStart={hasEdit ? handleDragStart : undefined}
+                onDragOver={hasEdit ? handleDragOver : undefined}
+                onDragEnd={hasEdit ? handleDragEnd : undefined}
               >
                 <SortableContext 
                   items={currentEpicSegments.filter(s => !s.isContinuation).map(s => s.epic.id)} 
@@ -1695,6 +1824,10 @@ export default function TimelinePage() {
                             onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
                             onDeleteTask={handleDeleteTask}
                             onUpdateTaskStatus={handleUpdateTaskStatus}
+                            onAssignToMe={handleAssignToMe}
+                            onSetInReview={handleSetInReview}
+                            hasEdit={hasEdit}
+                            hasDelete={hasDelete}
                             taskStatuses={taskStatuses}
                             getStatusColor={getStatusColor}
                             colWidths={colWidths}

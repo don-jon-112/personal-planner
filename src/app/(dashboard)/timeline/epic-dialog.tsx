@@ -25,6 +25,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Layers, CheckSquare, Clock, ArrowRight, FileText, User } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -49,11 +50,13 @@ export function EpicDialog({
   open: controlledOpen,
   onOpenChange: setControlledOpen,
   onSelectTask,
+  readOnly = false,
 }: { 
   epicToEdit?: any, 
   open?: boolean,
   onOpenChange?: (open: boolean) => void,
   onSelectTask?: (task: any) => void,
+  readOnly?: boolean,
 }) {
   const { activeProjectId, isItemInActiveProject } = useProject();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -119,11 +122,11 @@ export function EpicDialog({
             </div>
             <div>
               <DialogTitle className="text-lg font-bold">
-                {isEditing ? "Edit Epic" : "Create New Epic"}
+                {readOnly ? "Epic Details" : isEditing ? "Edit Epic" : "Create New Epic"}
               </DialogTitle>
               {isEditing && (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Update nama epic dan tinjau daftar task yang terkait.
+                  {readOnly ? "Tinjau nama epic dan daftar task yang terkait." : "Update nama epic dan tinjau daftar task yang terkait."}
                 </p>
               )}
             </div>
@@ -138,16 +141,19 @@ export function EpicDialog({
               <Input 
                 {...form.register("name")} 
                 placeholder="e.g., Auth Module Revamp" 
-                className="h-9 text-sm"
+                disabled={readOnly}
+                className={cn("h-9 text-sm", readOnly && "bg-muted text-muted-foreground cursor-not-allowed")}
               />
               {form.formState.errors.name && (
                 <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
               )}
             </div>
 
-            <Button type="submit" disabled={isPending} className="h-9 shrink-0">
-              {isPending ? "Saving..." : isEditing ? "Save Epic Name" : "Create Epic"}
-            </Button>
+            {!readOnly && (
+              <Button type="submit" disabled={isPending} className="h-9 shrink-0">
+                {isPending ? "Saving..." : isEditing ? "Save Epic Name" : "Create Epic"}
+              </Button>
+            )}
           </div>
         </form>
 
