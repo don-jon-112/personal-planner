@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,30 +136,34 @@ export default function UsersRolesPage() {
     return { duplicateCount, duplicateGroups, map };
   }, [roles]);
 
-  // Prune Duplicate Roles
-  const handlePruneDuplicateRoles = async () => {
+  // Prune Duplicate Roles Internal Logic
+  const executePruneRoles = async (silent = false) => {
     if (duplicateStats.duplicateCount === 0) {
-      await alertModal({
-        title: "Koleksi Role Sudah Bersih",
-        description: "Tidak ditemukan role duplikat. Semua role saat ini unik.",
-        variant: "info",
-      });
+      if (!silent) {
+        await alertModal({
+          title: "Koleksi Role Sudah Bersih",
+          description: "Tidak ditemukan role duplikat. Semua role saat ini unik.",
+          variant: "info",
+        });
+      }
       return;
     }
 
-    const groupSummary = duplicateStats.duplicateGroups
-      .map((g) => `• ${g.name}: ${g.roles.length} buah role`)
-      .join("\n");
+    if (!silent) {
+      const groupSummary = duplicateStats.duplicateGroups
+        .map((g) => `• ${g.name}: ${g.roles.length} buah role`)
+        .join("\n");
 
-    const confirmed = await confirm({
-      title: "Prune Role Duplikat?",
-      description: `Ditemukan ${duplicateStats.duplicateCount} role duplikat yang berlebih:\n${groupSummary}\n\nProses pembersihan ini akan:\n1. Mempertahankan 1 role utama untuk setiap tipe.\n2. Memigrasi penugasan user ke role utama agar izin akses tidak hilang.\n3. Menghapus role duplikat yang berlebih dari Firestore.\n\nLanjutkan pembersihan?`,
-      confirmText: `Prune ${duplicateStats.duplicateCount} Duplikat`,
-      variant: "destructive",
-      icon: "trash",
-    });
+      const confirmed = await confirm({
+        title: "Prune Role Duplikat?",
+        description: `Ditemukan ${duplicateStats.duplicateCount} role duplikat yang berlebih:\n${groupSummary}\n\nProses pembersihan ini akan:\n1. Mempertahankan 1 role utama untuk setiap tipe.\n2. Memigrasi penugasan user ke role utama agar izin akses tidak hilang.\n3. Menghapus role duplikat yang berlebih dari Firestore.\n\nLanjutkan pembersihan?`,
+        confirmText: `Prune ${duplicateStats.duplicateCount} Duplikat`,
+        variant: "destructive",
+        icon: "trash",
+      });
 
-    if (!confirmed) return;
+      if (!confirmed) return;
+    }
 
     setIsPruning(true);
     try {
@@ -265,22 +269,40 @@ export default function UsersRolesPage() {
         } catch (_) {}
       }
 
-      await alertModal({
-        title: "Pembersihan Selesai!",
-        description: `Berhasil membersihkan ${rolesToDelete.length} role duplikat dan menyelaraskan ${migratedUsers} penugasan user. Koleksi role Anda kini rapi dan optimal.`,
-        variant: "success",
-      });
+      if (!silent) {
+        await alertModal({
+          title: "Pembersihan Selesai!",
+          description: `Berhasil membersihkan ${rolesToDelete.length} role duplikat dan menyelaraskan ${migratedUsers} penugasan user. Koleksi role Anda kini rapi dan optimal.`,
+          variant: "success",
+        });
+      } else {
+        console.log(`[Self-Healing] Successfully pruned ${rolesToDelete.length} duplicate roles in background.`);
+      }
     } catch (err: any) {
       console.error("Failed to prune roles:", err);
-      await alertModal({
-        title: "Gagal Membersihkan Role",
-        description: err.message || "Terjadi kesalahan saat menghapus role duplikat.",
-        variant: "error",
-      });
+      if (!silent) {
+        await alertModal({
+          title: "Gagal Membersihkan Role",
+          description: err.message || "Terjadi kesalahan saat menghapus role duplikat.",
+          variant: "error",
+        });
+      }
     } finally {
       setIsPruning(false);
     }
   };
+
+  const handlePruneDuplicateRoles = () => executePruneRoles(false);
+
+  // Self-healing: Auto-clean duplicate roles silently in the background on load
+  const hasAutoPrunedRef = useRef(false);
+  useEffect(() => {
+    if (isRolesLoading || isUsersLoading || hasAutoPrunedRef.current || !isSuperAdmin) return;
+    if (duplicateStats.duplicateCount > 0 && !isPruning) {
+      hasAutoPrunedRef.current = true;
+      executePruneRoles(true);
+    }
+  }, [duplicateStats.duplicateCount, isRolesLoading, isUsersLoading, isSuperAdmin, isPruning]);
 
   // User Dialog State
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -332,9 +354,35 @@ export default function UsersRolesPage() {
     });
   }, [users, searchQuery, projectFilter]);
 
-  // Filtered Roles
+  // Deduplicated & Filtered Roles (Guarantees zero UI duplication)
   const filteredRoles = useMemo(() => {
-    return roles.filter((r) => {
+    const uniqueMap = new Map<string, ProjectRole & { duplicateCount: number; duplicateIds: string[] }>();
+
+    roles.forEach((r) => {
+      const normName = (r.name || "").trim().toLowerCase();
+      const scope = r.projectId || "_global_";
+      const key = `${normName}::${scope}`;
+
+      const existing = uniqueMap.get(key);
+      if (!existing) {
+        uniqueMap.set(key, { ...r, duplicateCount: 1, duplicateIds: [r.id] });
+      } else {
+        existing.duplicateCount += 1;
+        existing.duplicateIds.push(r.id);
+        // Prefer deterministic default ID if available
+        if (r.id.startsWith("default_") && !existing.id.startsWith("default_")) {
+          uniqueMap.set(key, {
+            ...r,
+            duplicateCount: existing.duplicateCount,
+            duplicateIds: existing.duplicateIds,
+          });
+        }
+      }
+    });
+
+    const uniqueRoles = Array.from(uniqueMap.values());
+
+    return uniqueRoles.filter((r) => {
       const q = searchQuery.toLowerCase();
       const matchSearch =
         (r.name || "").toLowerCase().includes(q) ||
@@ -566,7 +614,8 @@ export default function UsersRolesPage() {
   // Save Role
   const handleSaveRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleFormData.name.trim()) {
+    const cleanName = roleFormData.name.trim();
+    if (!cleanName) {
       await alertModal({
         title: "Validation Error",
         description: "Role Name is required.",
@@ -575,9 +624,28 @@ export default function UsersRolesPage() {
       return;
     }
 
+    // Check duplicate role name in the same scope
+    const isDuplicate = roles.some((r) => {
+      const sameName = (r.name || "").trim().toLowerCase() === cleanName.toLowerCase();
+      const sameScope = (r.projectId || "_global_") === (roleFormData.projectId || "_global_");
+      const isDifferentRole = editingRoleId ? r.id !== editingRoleId : true;
+      return sameName && sameScope && isDifferentRole;
+    });
+
+    if (isDuplicate) {
+      await alertModal({
+        title: "Role Name Already Exists",
+        description: `A role named "${cleanName}" already exists in this scope (${
+          roleFormData.projectId === "_global_" ? "Global" : "Current Project"
+        }). Please choose a unique name or edit the existing role.`,
+        variant: "error",
+      });
+      return;
+    }
+
     try {
       const payload: Partial<ProjectRole> = {
-        name: roleFormData.name.trim(),
+        name: cleanName,
         description: roleFormData.description.trim(),
         projectId: roleFormData.projectId,
         permissions: roleFormData.permissions,
@@ -586,7 +654,25 @@ export default function UsersRolesPage() {
       if (editingRoleId) {
         await updateRole({ id: editingRoleId, data: payload });
       } else {
-        await addRole(payload);
+        // Deterministic ID to guarantee no duplicates even on double-click or network retry
+        const scopeSlug = roleFormData.projectId === "_global_" || !roleFormData.projectId ? "global" : roleFormData.projectId;
+        const nameSlug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30);
+        const deterministicId = `role_${scopeSlug}_${nameSlug}`;
+
+        const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+        const { db } = await import("@/firebase/config");
+
+        await setDoc(
+          doc(db, "roles", deterministicId),
+          {
+            ...payload,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        await queryClient.invalidateQueries({ queryKey: ["roles"] });
       }
 
       setIsRoleModalOpen(false);
@@ -619,9 +705,13 @@ export default function UsersRolesPage() {
   };
 
   // Delete Role
-  const handleDeleteRole = async (role: ProjectRole) => {
+  const handleDeleteRole = async (role: ProjectRole & { duplicateIds?: string[] }) => {
+    const allIds = role.duplicateIds && role.duplicateIds.length > 0 ? role.duplicateIds : [role.id];
+
     const isAssigned = users.some((u) =>
-      Object.values(u.projectRoles || {}).some((roleIds) => roleIds.includes(role.id))
+      Object.values(u.projectRoles || {}).some((roleIds) =>
+        roleIds.some((id) => allIds.includes(id))
+      )
     );
 
     const description = isAssigned
@@ -638,7 +728,27 @@ export default function UsersRolesPage() {
 
     if (confirmed) {
       try {
-        await deleteRole(role.id);
+        await Promise.all(allIds.map((id) => deleteRole(id)));
+
+        // Clean up user assignments for deleted role IDs
+        const userUpdates: Promise<any>[] = [];
+        users.forEach((u) => {
+          let changed = false;
+          const nextRoles: Record<string, string[]> = {};
+          Object.entries(u.projectRoles || {}).forEach(([pId, rIds]) => {
+            const filtered = rIds.filter((id) => !allIds.includes(id));
+            if (filtered.length !== rIds.length) changed = true;
+            nextRoles[pId] = filtered;
+          });
+          if (changed) {
+            userUpdates.push(
+              updateUser({ id: u.id, data: { projectRoles: nextRoles } })
+            );
+          }
+        });
+        if (userUpdates.length > 0) {
+          await Promise.all(userUpdates);
+        }
 
         // Flush delete to Firebase Cloud if online (non-blocking)
         if (typeof window !== "undefined" && navigator.onLine) {

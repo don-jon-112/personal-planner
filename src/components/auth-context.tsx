@@ -90,27 +90,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isUsersLoading, users]);
 
-  // Auto-seed standard default roles with deterministic IDs if collection is empty
+  // Auto-seed standard default roles with deterministic IDs if collection is completely empty
   useEffect(() => {
     if (isRolesLoading || hasSeededRolesRef.current) return;
 
-    const hasAdminRole = roles.some(
-      (r) => r.id === "default_project_admin" || r.name?.toLowerCase().trim() === "project admin"
-    );
-    const hasEditorRole = roles.some(
-      (r) => r.id === "default_contributor_editor" || r.name?.toLowerCase().trim() === "contributor / editor"
-    );
-    const hasViewerRole = roles.some(
-      (r) => r.id === "default_viewer_watch_only" || r.name?.toLowerCase().trim() === "viewer (watch only)"
-    );
+    if (typeof window !== "undefined" && sessionStorage.getItem("roles_seeded_guard")) {
+      hasSeededRolesRef.current = true;
+      return;
+    }
 
-    if (roles.length > 0 && hasAdminRole && hasEditorRole && hasViewerRole) {
+    if (roles.length > 0) {
       hasSeededRolesRef.current = true;
       return;
     }
 
     if (roles.length === 0) {
       hasSeededRolesRef.current = true;
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("roles_seeded_guard", "true");
+      }
       const initDefaultRoles = async () => {
         try {
           await Promise.all([
