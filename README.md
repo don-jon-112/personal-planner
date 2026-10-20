@@ -1,157 +1,78 @@
-# 📅 Work Planner & Timeline Hub
+# 📅 Personal Planner & Timeline
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.2.12-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2.4-blue?style=for-the-badge&logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
-[![Firebase](https://img.shields.io/badge/Firebase_Firestore-12.16-FFCA28?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-
-An enterprise-ready, offline-first **Work Planner, Project Timeline, and Sprint Management System** built with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and **Firebase Cloud Firestore**.
-
-Designed for agile engineering teams, project managers, and product leads to plan, track, and execute multi-workspace roadmaps with granular Role-Based Access Control (RBAC), interactive Gantt charts, and secure sharing capabilities.
+A modern, fast, and feature-rich **Work Planner & Project Timeline Management Application** built with **Next.js (App Router)**, **Tailwind CSS**, and **Firebase Cloud Firestore**.
 
 ---
 
-## 🌟 Key Features
+## ✨ Features
 
-### 🏢 1. Multi-Project Workspace Isolation
-* **Independent Workspaces**: Manage multiple client or internal projects within a single unified interface.
-* **Granular Scope**: Tasks, epics, timeline schedules, PIC allocations, secrets, and issue trackers are strictly partitioned per project.
-* **Instant Project Switcher**: Fast keyboard-friendly workspace switcher accessible from the global sidebar and mobile navigation.
-
-### 📊 2. Visual Gantt Timeline & Scheduling
-* **Interactive Timeline**: Plan sprints and epics with multi-level zoom (Day, Week, Month views).
-* **Collision & Overlap Detection**: Intelligent algorithm that detects team member workload overlaps and conflicts in real time.
-* **Holidays & Weekends**: Customizable non-working day highlights and sprint duration calculations.
-* **Executive Roadmaps**: High-resolution timeline export (PNG up to 3x ratio without clipping) and print-ready landscape PDF reports with executive summary metrics.
-
-### 📋 3. Task Plan & Kanban Management
-* **Epic-Driven Hierarchies**: Group deliverables into color-coded epics with progression bars and status filters.
-* **Drag-and-Drop Workflows**: Powered by `@dnd-kit` for fluid ordering, backlog grooming, and stage transitions.
-* **Custom Task Statuses**: Configurable project workflows (`TODO`, `ON PROGRESS`, `IN REVIEW`, `DONE`, `WON'T DO`) with custom hex colors and ordering.
-* **Spreadsheet Integration**: Import tasks in bulk directly from Excel (`.xlsx`) templates.
-
-### 🔐 4. Enterprise Role-Based Access Control (RBAC)
-* **Multi-Tier User Management**: Assign customized roles to users per project workspace.
-* **Granular Permission Matrix**: Configure explicit `canView`, `canEdit`, and `canDelete` permissions across 12 distinct feature modules (Dashboard, Timeline, Tasks, Secrets, Reports, Users, etc.).
-* **Super Administrator Protection**: Immutable root administrator account safeguarded against deletion or unauthorized privilege revocation.
-* **Built-in Password Generator**: Cryptographically strong credential generator with 1-click clipboard copy.
-
-### 🔑 5. Secret Key Vault & Environment Manager
-* **Encrypted Credentials**: Securely store API tokens, database connection strings, and webhook secrets scoped by workspace and environment category.
-* **Multi-Format Export**: Export workspace secrets into `.env`, Excel (`.xlsx`), JSON (`.json`), or CSV (`.csv`) for developer onboarding.
-* **Per-Project Secrets Sharing**: Dedicated passwordless share token for external DevOps or partner teams with optional expiration dates.
-
-### 🔗 6. Secure Passwordless Sharing Links
-* **Token-Based Guest Access**: Generate distinct secret read-only URLs (`/guest-timeline?token=...`) per project workspace.
-* **Strict Tenant Boundary**: External clients and executive stakeholders can view live timelines and roadmaps without an account, restricted exclusively to the shared project.
-
-### 👥 7. Team PICs & Workload Allocation
-* **Team Roster Management**: Maintain members with role descriptions, color avatars, and contact information.
-* **Workload Insights**: Monitor man-day distribution per team member across active sprints to prevent burnout and bottlenecks.
-
-### 📝 8. Weekly Reports & Issue Tracking
-* **Sprint Summary Generator**: Compile achievements, active blockers, and upcoming milestones into structured weekly reports.
-* **Bug Tracker**: Log defects with severity levels (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), resolution stages, and direct PIC assignment.
-* **Personal & Workspace Notes**: Rich-text scratchpad documentation with pinning support.
-
-### ⚡ 9. Offline-First Architecture & Data Backup
-* **Zero-Quota Local Caching**: Optimized multi-tab IndexedDB storage engine that reduces Firestore read/write costs by up to 90%.
-* **Full Database Backup & Restore**: Export complete system snapshots into structured `.json` files and restore them with automated transactional batch validation.
-* **PWA Ready**: Installable as a native desktop or mobile application on macOS, Windows, iOS, and Android.
+- 🏢 **Multi-Project Management Workspace**: Manage multiple projects within a single app. Seamlessly switch between projects using the header selector; each project maintains its own tasks, epics, timeline, PICs, and bug reports.
+- 📋 **Todo & Epic Planner**: Manage tasks grouped by Epics with drag-and-drop ordering, status tracking, mandays estimation, and bulk Excel (`.xlsx`) import.
+- 📊 **Interactive Timeline & Gantt View**: Visual project schedule with zoom levels (Day, Week, Month), progress indicators, weekend/holiday toggles, and custom date ranges.
+- 🔗 **Per-Project Share Link (Passwordless View-Only)**: Generate secure, secret shareable URLs (`/guest-timeline?token=shr_...`) per project. Recipients can instantly view the timeline without logging in or entering a password, strictly isolated to that specific project.
+- 🖼️ / 📄 **High-Res Roadmap Export (PNG & PDF)**: Export the entire timeline at high resolution (2x/3x ratio, no clipping) or as a print-ready landscape PDF document featuring an Executive Summary Header (Project Key, Status, Epics & Tasks metrics, timestamp).
+- 👥 **Project-Scoped PIC & Workload Allocation**: Assign tasks to team members with customizable color badges and workload analytics, uniquely scoped to each individual project.
+- 📝 **Weekly Report Generator**: Generate structured weekly summaries ready to copy or export based on the active project.
+- 🐛 **Bug Tracker**: Log, prioritize, and track issue resolutions alongside sprint tasks for the active project.
+- 📝 **Personal Scratchpad Notes**: Global notes system that acts as your personal "second brain" across all projects.
+- ⚡ **Offline-First Persistence with Cloud Sync**: Powered by IndexedDB cache to minimize Firebase quota usage, complete with 1-click cloud sync buttons.
+- 💾 **Local Database Backup & Restore (.json)**: Export complete database snapshots to structured JSON files on your local computer, and restore them directly to Cloud Firebase anytime with automated batch commit and integrity validation.
+- 📱 **Progressive Web App (PWA)**: Installable as an app on Windows, macOS, Android, and iOS.
 
 ---
 
-## 🛠️ Technology Stack
+## 🛠️ Tech Stack
 
-| Layer | Technology |
-| :--- | :--- |
-| **Framework** | Next.js 16 (App Router, Server Actions, Dynamic Middleware) |
-| **Language** | TypeScript 5.0 (Strict Typing) |
-| **Styling & UI** | Tailwind CSS v4, shadcn/ui, Radix Primitives, Lucide Icons |
-| **Database** | Firebase Cloud Firestore (with Offline IndexedDB Multi-Tab Persistence) |
-| **State & Cache** | TanStack React Query v5 |
-| **Drag & Drop** | `@dnd-kit/core`, `@dnd-kit/sortable` |
-| **Document Export** | `jsPDF`, `html-to-image`, `xlsx` |
-| **PWA Support** | `@ducanh2912/next-pwa` (Workbox Service Worker) |
+- **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
+- **UI & Styling**: [Tailwind CSS v4](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/), Lucide Icons
+- **Database & Sync**: [Firebase Cloud Firestore](https://firebase.google.com/) (with offline persistence & online sync)
+- **Document & Image Export**: [html2canvas-pro](https://github.com/niklasvh/html2canvas), [jsPDF](https://github.com/parallax/jsPDF)
+- **Drag & Drop**: [@dnd-kit](https://dndkit.com/)
+- **Spreadsheet Processing**: [SheetJS (xlsx)](https://sheetjs.com/)
+- **Deployment**: [Vercel](https://vercel.com/)
 
 ---
 
-## 📂 Project Structure
+## 🚀 Quick Deployment Guide
 
-```text
-personal-planner/
-├── public/                 # Static assets, icons, PWA manifest, and service worker
-├── src/
-│   ├── app/                # Next.js App Router
-│   │   ├── (dashboard)/    # Authenticated dashboard workspace routes
-│   │   │   ├── timeline/   # Gantt timeline & scheduling
-│   │   │   ├── todo/       # Kanban task plan
-│   │   │   ├── projects/   # Workspace management
-│   │   │   ├── users/      # RBAC user accounts & roles matrix
-│   │   │   ├── secrets/    # Credential vault
-│   │   │   ├── weekly-report/ # Executive reports
-│   │   │   ├── bugs/       # Issue tracker
-│   │   │   └── notes/      # Documentation notes
-│   │   ├── guest-timeline/ # Public tokenized roadmap viewer
-│   │   ├── guest-secrets/  # Public tokenized secrets viewer
-│   │   └── login/          # Authentication & session actions
-│   ├── components/         # Shared UI components & layout systems
-│   ├── config/             # Navigation menus and system constants
-│   ├── context/            # React context providers (Auth, Project, Confirm)
-│   ├── firebase/           # Firebase initialization & multi-tab persistence
-│   ├── hooks/              # Custom data hooks (Firestore, Permissions, Statuses)
-│   ├── lib/                # Utility helpers & timeline overlap algorithms
-│   └── types/              # TypeScript interfaces (Projects, RBAC, Tasks)
-├── next.config.ts          # Next.js compiler & PWA configurations
-├── tailwind.config.ts      # Tailwind CSS theme tokens
-└── tsconfig.json           # TypeScript configuration
-```
+You can deploy your own instance in a few simple steps:
+
+### Step 1: Fork or Save to Your GitHub
+1. Click the **Fork** button at the top right of this repository to copy it into your own GitHub account.
+2. (Optional) You can make your forked repository **Public** or **Private**.
 
 ---
 
-## 🚀 Getting Started
+### Step 2: Setup Firebase
 
-### Prerequisites
-* **Node.js**: `v20.x` or higher
-* **Package Manager**: `npm`, `yarn`, or `pnpm`
-* A **Firebase Project** with Cloud Firestore enabled
+The application uses **Firebase Cloud Firestore** as its database.
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/your-username/personal-planner.git
-cd personal-planner
-```
+#### 1. Create a Firebase Project
+1. Open the [Firebase Console](https://console.firebase.google.com/).
+2. Click **Add project** (or **Create a project**).
+3. Enter a project name (e.g. `my-work-planner`) and complete the creation steps.
 
-### 2. Install Dependencies
-```bash
-npm install
-```
+#### 2. Register a Web App
+1. In your Firebase Project Overview, click the **Web icon (`</>`)** to add a new web app.
+2. Give it a nickname (e.g. `Work Planner Web`) and click **Register app**.
+3. You will see your `firebaseConfig` keys:
+   - `apiKey`
+   - `authDomain`
+   - `projectId`
+   - `storageBucket`
+   - `messagingSenderId`
+   - `appId`
+   - `measurementId` (optional)
+   *(Keep this tab open or copy these values for Vercel Environment Variables).*
 
-### 3. Configure Environment Variables
-Create a `.env.local` file in the root directory:
+#### 3. Enable Cloud Firestore
+1. In the Firebase left sidebar, go to **Build** -> **Firestore Database**.
+2. Click **Create database**.
+3. Select your preferred server location (e.g. `asia-southeast2` for Jakarta / `asia-east1` for Singapore/Tokyo).
+4. Start in **Production mode** (or Test mode).
 
-```env
-# Firebase Client SDK Configuration
-NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_web_app_id
-NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
-
-# Security Passwords
-SITE_PASSWORD=YourStrongMasterPassword2026!
-GUESS_PASSWORD=OptionalGuestFallbackPassword2026!
-
-# Integrations (Optional)
-NEXT_PUBLIC_JIRA_BASE_URL=https://your-org.atlassian.net/browse/
-```
-
-### 4. Configure Firestore Security Rules
-In your Firebase Console, navigate to **Firestore Database** -> **Rules** and apply:
+#### 4. Configure Firestore Security Rules
+Go to the **Rules** tab in Cloud Firestore and paste the following rules:
 
 ```javascript
 rules_version = '2';
@@ -163,38 +84,52 @@ service cloud.firestore {
   }
 }
 ```
+Click **Publish**.
 
-### 5. Run the Development Server
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+> 💡 **Note**: The app automatically creates all necessary Firestore collections (`timelineEpics`, `timelineTasks`, `timelinePics`, `bugs`, `notes`, `settings`) on first use.
 
 ---
 
-## 🚢 Production Deployment
+### Step 3: Deploy to Vercel
 
-### Deploying to Vercel
-
-1. Push your repository to GitHub.
-2. Log into [Vercel](https://vercel.com/) and click **Add New Project**.
-3. Select and import your `personal-planner` repository.
-4. Set the **Framework Preset** to `Next.js`.
-5. Under **Environment Variables**, add the variables specified in `.env.local`.
-6. Click **Deploy**.
+1. Log in to [Vercel](https://vercel.com/).
+2. Click **Add New...** -> **Project**.
+3. Select and **Import** your forked `personal-planner` repository from GitHub.
+4. **Framework Preset**: `Next.js` (detected automatically).
+5. Open the **Environment Variables** section and add the variables listed below.
 
 ---
 
-## 🔒 Security & Access Model
+## 🔑 Environment Variables Reference
 
-* **Master Password**: Bypasses role checks for emergency root access and configuration management.
-* **Role-Based Permissions**: All application features evaluate user roles assigned to the active workspace before rendering menus or permitting write/delete mutations.
-* **Tokenized Guest Access**: Read-only endpoints (`/guest-timeline` and `/guest-secrets`) validate cryptographically random UUID tokens stored on the project document without exposing internal database keys.
-* **Client-Side Persistence**: Offline writes utilize optimistic local caching and synchronize gracefully in the background once network connectivity is verified.
+Add the following environment variables in your **Vercel Project Settings** (or `.env.local` if running locally):
+
+| Variable Name | Required | Description | Example / Source |
+| :--- | :---: | :--- | :--- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | **Yes** | Firebase Web API Key | `AIzaSy...` (from Firebase Config) |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | **Yes** | Firebase Auth Domain | `your-project-id.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | **Yes** | Firebase Project ID | `your-project-id` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | **Yes** | Firebase Storage Bucket URL | `your-project-id.firebasestorage.app` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | **Yes** | Firebase Messaging Sender ID | `1234567890` (numeric) |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | **Yes** | Firebase Web App ID | `1:1234567890:web:abcdef...` |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | No | Google Analytics Measurement ID | `G-XXXXXXXXXX` (optional) |
+| `SITE_PASSWORD` | **Yes** | Master Admin access password | Any secret password (e.g. `AdminPassword2026!`) |
+| `GUESS_PASSWORD` | **Yes** | Guest / Client access password | Any password (e.g. `ClientView2026!`) |
+| `NEXT_PUBLIC_JIRA_BASE_URL` | No | JIRA Instance Base URL for bug ticket links | e.g. `https://your-company.atlassian.net/browse/` |
+
+### 🔒 Access & Sharing Roles Explained
+- **`SITE_PASSWORD`**: Provides full administrative access to all workspaces and features (Projects management, Todo, Epics, Gantt Timeline, PICs, Bugs, Notes, Settings, Import, and Export).
+- **Per-Project Share Links (`/guest-timeline?token=shr_...`)**: Instant, passwordless read-only access for team members, clients, or stakeholders to view a single project's roadmap without authentication.
+- **`GUESS_PASSWORD`**: Optional legacy fallback password granting general access to `/guest-timeline`.
+
+---
+
+### Step 4: Launch!
+1. Click **Deploy** in Vercel.
+2. Once the build completes, open your production URL (e.g., `https://your-planner.vercel.app`).
+3. Enter your `SITE_PASSWORD` to log in and start planning!
 
 ---
 
 ## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
+This project is open-source and available under the [MIT License](LICENSE).

@@ -14,38 +14,15 @@ import {
   writeBatch
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
-import { 
-  isDemoMode, 
-  getDemoCollection, 
-  getDemoDocument, 
-  addDemoDocument, 
-  updateDemoDocument, 
-  deleteDemoDocument, 
-  updateBatchDemoDocuments 
-} from "@/lib/demo-storage";
-import { useEffect } from "react";
 
 // Generic Hook to Fetch Documents
 export function useCollection<T>(collectionName: string) {
-  const queryClient = useQueryClient();
-
-  // Listen to demo reset events to immediately refresh queries
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleReset = () => {
-      queryClient.invalidateQueries({ queryKey: [collectionName] });
-    };
-    window.addEventListener("demoDataReset", handleReset);
-    return () => window.removeEventListener("demoDataReset", handleReset);
-  }, [queryClient, collectionName]);
-
   return useQuery({
     queryKey: [collectionName],
     queryFn: async () => {
-      if (isDemoMode()) {
-        return getDemoCollection<T>(collectionName);
-      }
-
+      // Create a query ordered by createdAt descending if possible
+      // Note: This requires an index in Firestore if combined with other filters,
+      // but simple orderBy is usually fine. Let's just fetch all for now.
       const q = query(collection(db, collectionName));
       const querySnapshot = await getDocs(q);
       const data: T[] = [];
@@ -79,13 +56,9 @@ export function useAddDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async (newData: any) => {
-      const sanitized = cleanUndefined(newData);
-      if (isDemoMode()) {
-        return addDemoDocument(collectionName, sanitized);
-      }
-
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(collection(db, collectionName));
+      const sanitized = cleanUndefined(newData);
       const writePromise = setDoc(docRef, {
         ...sanitized,
         createdAt: serverTimestamp(),
@@ -114,13 +87,9 @@ export function useUpdateDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const sanitized = cleanUndefined(data);
-      if (isDemoMode()) {
-        return updateDemoDocument(collectionName, id, sanitized);
-      }
-
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
+      const sanitized = cleanUndefined(data);
       const writePromise = setDoc(docRef, {
         ...sanitized,
         updatedAt: serverTimestamp(),
@@ -148,10 +117,6 @@ export function useDeleteDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      if (isDemoMode()) {
-        return deleteDemoDocument(collectionName, id);
-      }
-
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
       const writePromise = deleteDoc(docRef);
@@ -178,10 +143,6 @@ export function useUpdateBatch(collectionName: string) {
   
   return useMutation({
     mutationFn: async (updates: { id: string; data: any }[]) => {
-      if (isDemoMode()) {
-        return updateBatchDemoDocuments(collectionName, updates);
-      }
-
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const batch = writeBatch(db);
       updates.forEach((update) => {
@@ -212,24 +173,9 @@ export function useUpdateBatch(collectionName: string) {
 
 // Generic Hook to Fetch a Single Document
 export function useDocument<T>(collectionName: string, docId: string) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleReset = () => {
-      queryClient.invalidateQueries({ queryKey: [collectionName, docId] });
-    };
-    window.addEventListener("demoDataReset", handleReset);
-    return () => window.removeEventListener("demoDataReset", handleReset);
-  }, [queryClient, collectionName, docId]);
-
   return useQuery({
     queryKey: [collectionName, docId],
     queryFn: async () => {
-      if (isDemoMode()) {
-        return getDemoDocument<T>(collectionName, docId);
-      }
-
       const docRef = doc(db, collectionName, docId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
@@ -247,13 +193,10 @@ export function useSetDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const sanitized = cleanUndefined(data);
-      if (isDemoMode()) {
-        return updateDemoDocument(collectionName, id, sanitized);
-      }
-
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, id);
+      const sanitized = cleanUndefined(data);
+      // use merge: true to avoid overwriting fields not specified
       const writePromise = setDoc(docRef, {
         ...sanitized,
         updatedAt: serverTimestamp(),

@@ -1,10 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { UserProfile, ProjectRole, createAdminPermissions, createEditorPermissions, createViewerPermissions } from "@/types/user-role";
-import { useCollection, useAddDocument } from "@/hooks/use-firestore";
+import { useCollection } from "@/hooks/use-firestore";
 import { SessionData, logout as serverLogout, setAuthSession } from "@/app/login/actions";
 import { useRouter } from "next/navigation";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/firebase/config";
 
 interface AuthContextType {
   currentUser: UserProfile | null;
@@ -37,8 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const { data: users = [], isLoading: isUsersLoading } = useCollection<UserProfile>("users");
   const { data: roles = [], isLoading: isRolesLoading } = useCollection<ProjectRole>("roles");
-  const { mutateAsync: addUserDoc } = useAddDocument("users");
-  const { mutateAsync: addRoleDoc } = useAddDocument("roles");
+  const hasSeededAdminRef = useRef(false);
+  const hasSeededRolesRef = useRef(false);
 
   // Keep localStorage cache of users in sync so login is always instantaneous
   useEffect(() => {
@@ -51,57 +53,114 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [users]);
 
-  // Auto-seed default Super Admin if collection loaded and empty
+  // Auto-seed default Super Admin if collection loaded and empty (idempotent with deterministic ID)
   useEffect(() => {
-    if (!isUsersLoading && users && users.length === 0) {
+    if (isUsersLoading || hasSeededAdminRef.current) return;
+    const hasAdmin = users.some(
+      (u) => u.username?.toLowerCase().trim() === "admin" || u.isSuperAdmin
+    );
+    if (hasAdmin) {
+      hasSeededAdminRef.current = true;
+      return;
+    }
+    if (users.length === 0) {
+      hasSeededAdminRef.current = true;
       const initDefaultAdmin = async () => {
         try {
-          await addUserDoc({
-            username: "admin",
-            name: "Super Administrator",
-            password: "AdminPassword2026!",
-            isSuperAdmin: true,
-            projectIds: [],
-            projectRoles: {},
-          });
+          const docRef = doc(db, "users", "default_admin");
+          await setDoc(
+            docRef,
+            {
+              username: "admin",
+              name: "Super Administrator",
+              password: "AdminPassword2026!",
+              isSuperAdmin: true,
+              projectIds: [],
+              projectRoles: {},
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
         } catch (e) {
           console.error("Failed to seed default admin user:", e);
         }
       };
       initDefaultAdmin();
     }
-  }, [isUsersLoading, users, addUserDoc]);
+  }, [isUsersLoading, users]);
 
-  // Auto-seed standard default roles if collection loaded and empty
+  // Auto-seed standard default roles with deterministic IDs if collection is empty
   useEffect(() => {
-    if (!isRolesLoading && roles && roles.length === 0) {
+    if (isRolesLoading || hasSeededRolesRef.current) return;
+
+    const hasAdminRole = roles.some(
+      (r) => r.id === "default_project_admin" || r.name?.toLowerCase().trim() === "project admin"
+    );
+    const hasEditorRole = roles.some(
+      (r) => r.id === "default_contributor_editor" || r.name?.toLowerCase().trim() === "contributor / editor"
+    );
+    const hasViewerRole = roles.some(
+      (r) => r.id === "default_viewer_watch_only" || r.name?.toLowerCase().trim() === "viewer (watch only)"
+    );
+
+    if (roles.length > 0 && hasAdminRole && hasEditorRole && hasViewerRole) {
+      hasSeededRolesRef.current = true;
+      return;
+    }
+
+    if (roles.length === 0) {
+      hasSeededRolesRef.current = true;
       const initDefaultRoles = async () => {
         try {
-          await addRoleDoc({
-            name: "Project Admin",
-            description: "Full management access to all project features and settings",
-            isDefault: true,
-            permissions: createAdminPermissions(),
-          });
-          await addRoleDoc({
-            name: "Contributor / Editor",
-            description: "Can create and update project tasks, epics, timeline, and bugs",
-            isDefault: true,
-            permissions: createEditorPermissions(),
-          });
-          await addRoleDoc({
-            name: "Viewer (Watch Only)",
-            description: "Read-only access across project views and analytics",
-            isDefault: true,
-            permissions: createViewerPermissions(),
-          });
+          await Promise.all([
+            setDoc(
+              doc(db, "roles", "default_project_admin"),
+              {
+                name: "Project Admin",
+                description: "Full management access to all project features and settings",
+                isDefault: true,
+                permissions: createAdminPermissions(),
+                projectId: "_global_",
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            ),
+            setDoc(
+              doc(db, "roles", "default_contributor_editor"),
+              {
+                name: "Contributor / Editor",
+                description: "Can create and update project tasks, epics, timeline, and bugs",
+                isDefault: true,
+                permissions: createEditorPermissions(),
+                projectId: "_global_",
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            ),
+            setDoc(
+              doc(db, "roles", "default_viewer_watch_only"),
+              {
+                name: "Viewer (Watch Only)",
+                description: "Read-only access across project views and analytics",
+                isDefault: true,
+                permissions: createViewerPermissions(),
+                projectId: "_global_",
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            ),
+          ]);
         } catch (e) {
           console.error("Failed to seed default roles:", e);
         }
       };
       initDefaultRoles();
     }
-  }, [isRolesLoading, roles, addRoleDoc]);
+  }, [isRolesLoading, roles]);
 
   // Resolve currentUser from users collection or synthetic session
   const currentUser = useMemo<UserProfile | null>(() => {

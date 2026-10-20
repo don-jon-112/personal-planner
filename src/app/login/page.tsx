@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { loginWithMaster, setAuthSession, authenticateUser } from './actions'
 import { db } from '@/firebase/config'
 import { collection, getDocsFromCache } from 'firebase/firestore'
-import { Lock, User, KeyRound, ArrowRight, ShieldCheck, Eye, EyeOff, Sparkles, Shield, Edit3 } from 'lucide-react'
-import { initDemoStorage } from '@/lib/demo-storage'
+import { Lock, User, KeyRound, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -16,10 +15,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [useMasterOnly, setUseMasterOnly] = useState(false)
   const router = useRouter()
-
-  useEffect(() => {
-    initDemoStorage()
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -145,30 +140,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleQuickDemoLogin = async (demoUser: string, demoPass: string) => {
-    setUsername(demoUser)
-    setPassword(demoPass)
-    setError('')
-    setLoading(true)
-    try {
-      const serverAuth = await authenticateUser(demoUser, demoPass)
-      if (serverAuth.success && serverAuth.session) {
-        localStorage.setItem('planner_auth_session', JSON.stringify(serverAuth.session))
-        localStorage.setItem('syncMode', 'demo')
-        window.dispatchEvent(new Event('syncModeChanged'))
-        router.push('/')
-        router.refresh()
-        return
-      }
-      setError(serverAuth.error || 'Failed to login with demo user')
-    } catch (e: any) {
-      console.error(e)
-      setError('Failed to login with demo user')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="min-h-screen w-full flex-1 bg-background flex flex-col items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
       <div className="w-full max-w-md bg-card rounded-2xl shadow-xl border border-border overflow-hidden">
@@ -183,51 +154,6 @@ export default function LoginPage() {
             <p className="text-sm text-muted-foreground">
               {useMasterOnly ? 'Enter Master Admin password to unlock' : 'Sign in with your user credentials'}
             </p>
-          </div>
-
-          {/* Quick Demo 1-Click Login Card */}
-          <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Demo Sandbox Quick Login</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border">
-                1-Click
-              </span>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Pilih akun demo untuk langsung masuk tanpa perlu mengetik:
-            </p>
-            <div className="grid grid-cols-3 gap-1.5 pt-1">
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin("admin", "admin123")}
-                disabled={loading}
-                className="flex flex-col items-center justify-center p-2 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold transition cursor-pointer"
-              >
-                <Shield className="w-4 h-4 mb-0.5" />
-                <span className="text-[11px]">Admin</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin("inal.mahpud", "inal123")}
-                disabled={loading}
-                className="flex flex-col items-center justify-center p-2 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold transition cursor-pointer"
-              >
-                <Edit3 className="w-4 h-4 mb-0.5" />
-                <span className="text-[11px]">Contributor</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin("viewer", "viewer123")}
-                disabled={loading}
-                className="flex flex-col items-center justify-center p-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold transition cursor-pointer"
-              >
-                <Eye className="w-4 h-4 mb-0.5" />
-                <span className="text-[11px]">Viewer</span>
-              </button>
-            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

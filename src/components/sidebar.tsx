@@ -20,7 +20,6 @@ import { useEffect, useState, useMemo } from "react";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/components/auth-context";
-import { DemoBanner } from "@/components/demo-banner";
 
 export function Sidebar() {
   const { isSidebarHidden } = useSidebar();
@@ -242,11 +241,6 @@ export function Sidebar() {
             {globalMenuItems.map(renderMenuItem)}
           </nav>
         </div>
-      </div>
-
-      {/* Demo Sandbox Control Panel */}
-      <div className="px-3 pb-1">
-        <DemoBanner />
       </div>
 
       {/* Footer Settings */}

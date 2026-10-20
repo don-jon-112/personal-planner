@@ -44,6 +44,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { useCollection, useAddDocument, useUpdateDocument, useDeleteDocument } from "@/hooks/use-firestore";
+import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
 import { useProject } from "@/components/project-context";
 import { useAuth } from "@/components/auth-context";
@@ -90,6 +91,9 @@ export default function UsersRolesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [projectFilter, setProjectFilter] = useState<string>("all");
 
+  const queryClient = useQueryClient();
+  const [isPruning, setIsPruning] = useState(false);
+
   // Firestore collections
   const { data: users = [], isLoading: isUsersLoading } = useCollection<UserProfile>("users");
   const { data: roles = [], isLoading: isRolesLoading } = useCollection<ProjectRole>("roles");
@@ -101,6 +105,182 @@ export default function UsersRolesPage() {
   const { mutateAsync: addRole, isPending: isAddingRole } = useAddDocument("roles");
   const { mutateAsync: updateRole, isPending: isUpdatingRole } = useUpdateDocument("roles");
   const { mutateAsync: deleteRole } = useDeleteDocument("roles");
+
+  // Duplicate roles calculation
+  const duplicateStats = useMemo(() => {
+    const map = new Map<string, ProjectRole[]>();
+    roles.forEach((r) => {
+      const normName = (r.name || "").trim().toLowerCase();
+      const scope = r.projectId || "_global_";
+      const key = `${normName}::${scope}`;
+      const list = map.get(key) || [];
+      list.push(r);
+      map.set(key, list);
+    });
+
+    let duplicateCount = 0;
+    const duplicateGroups: { key: string; name: string; scope: string; roles: ProjectRole[] }[] = [];
+
+    map.forEach((groupedRoles, key) => {
+      if (groupedRoles.length > 1) {
+        duplicateCount += groupedRoles.length - 1;
+        duplicateGroups.push({
+          key,
+          name: groupedRoles[0].name,
+          scope: groupedRoles[0].projectId || "_global_",
+          roles: groupedRoles,
+        });
+      }
+    });
+
+    return { duplicateCount, duplicateGroups, map };
+  }, [roles]);
+
+  // Prune Duplicate Roles
+  const handlePruneDuplicateRoles = async () => {
+    if (duplicateStats.duplicateCount === 0) {
+      await alertModal({
+        title: "Koleksi Role Sudah Bersih",
+        description: "Tidak ditemukan role duplikat. Semua role saat ini unik.",
+        variant: "info",
+      });
+      return;
+    }
+
+    const groupSummary = duplicateStats.duplicateGroups
+      .map((g) => `• ${g.name}: ${g.roles.length} buah role`)
+      .join("\n");
+
+    const confirmed = await confirm({
+      title: "Prune Role Duplikat?",
+      description: `Ditemukan ${duplicateStats.duplicateCount} role duplikat yang berlebih:\n${groupSummary}\n\nProses pembersihan ini akan:\n1. Mempertahankan 1 role utama untuk setiap tipe.\n2. Memigrasi penugasan user ke role utama agar izin akses tidak hilang.\n3. Menghapus role duplikat yang berlebih dari Firestore.\n\nLanjutkan pembersihan?`,
+      confirmText: `Prune ${duplicateStats.duplicateCount} Duplikat`,
+      variant: "destructive",
+      icon: "trash",
+    });
+
+    if (!confirmed) return;
+
+    setIsPruning(true);
+    try {
+      const { doc, deleteDoc, setDoc } = await import("firebase/firestore");
+      const { db } = await import("@/firebase/config");
+
+      const roleIdRedirectMap: Record<string, string> = {};
+      const rolesToDelete: string[] = [];
+
+      duplicateStats.duplicateGroups.forEach((group) => {
+        let canonical = group.roles.find((r) => r.id.startsWith("default_"));
+        if (!canonical) {
+          let maxUsage = -1;
+          group.roles.forEach((r) => {
+            let count = 0;
+            users.forEach((u) => {
+              Object.values(u.projectRoles || {}).forEach((ids) => {
+                if (ids.includes(r.id)) count++;
+              });
+            });
+            if (count > maxUsage) {
+              maxUsage = count;
+              canonical = r;
+            }
+          });
+        }
+        if (!canonical) canonical = group.roles[0];
+
+        group.roles.forEach((r) => {
+          if (r.id !== canonical!.id) {
+            roleIdRedirectMap[r.id] = canonical!.id;
+            rolesToDelete.push(r.id);
+          }
+        });
+      });
+
+      // 1. Migrate user assignments
+      let migratedUsers = 0;
+      const userUpdatePromises: Promise<any>[] = [];
+
+      users.forEach((user) => {
+        let userChanged = false;
+        const nextProjectRoles: Record<string, string[]> = {};
+
+        Object.entries(user.projectRoles || {}).forEach(([projId, roleIds]) => {
+          const mapped = roleIds.map((id) => {
+            if (roleIdRedirectMap[id]) {
+              userChanged = true;
+              return roleIdRedirectMap[id];
+            }
+            return id;
+          });
+          const uniqueMapped = Array.from(new Set(mapped));
+          if (uniqueMapped.length !== roleIds.length) {
+            userChanged = true;
+          }
+          nextProjectRoles[projId] = uniqueMapped;
+        });
+
+        if (userChanged) {
+          migratedUsers++;
+          const userDocRef = doc(db, "users", user.id);
+          userUpdatePromises.push(
+            setDoc(userDocRef, { projectRoles: nextProjectRoles }, { merge: true })
+          );
+        }
+      });
+
+      await Promise.all(userUpdatePromises);
+
+      // 2. Delete redundant role documents
+      const roleDeletePromises = rolesToDelete.map((roleId) =>
+        deleteDoc(doc(db, "roles", roleId))
+      );
+      await Promise.all(roleDeletePromises);
+
+      // 3. Invalidate TanStack query cache
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["roles"] }),
+        queryClient.invalidateQueries({ queryKey: ["users"] }),
+      ]);
+
+      // 4. Update local storage cached users if needed
+      if (migratedUsers > 0) {
+        try {
+          const rawCached = localStorage.getItem("planner_cached_users");
+          if (rawCached) {
+            const cachedList: UserProfile[] = JSON.parse(rawCached);
+            const updated = cachedList.map((u) => {
+              let changed = false;
+              const nextRoles: Record<string, string[]> = {};
+              Object.entries(u.projectRoles || {}).forEach(([pId, rIds]) => {
+                const cleanIds = Array.from(
+                  new Set(rIds.map((id) => roleIdRedirectMap[id] || id))
+                );
+                if (cleanIds.length !== rIds.length) changed = true;
+                nextRoles[pId] = cleanIds;
+              });
+              return changed ? { ...u, projectRoles: nextRoles } : u;
+            });
+            localStorage.setItem("planner_cached_users", JSON.stringify(updated));
+          }
+        } catch (_) {}
+      }
+
+      await alertModal({
+        title: "Pembersihan Selesai!",
+        description: `Berhasil membersihkan ${rolesToDelete.length} role duplikat dan menyelaraskan ${migratedUsers} penugasan user. Koleksi role Anda kini rapi dan optimal.`,
+        variant: "success",
+      });
+    } catch (err: any) {
+      console.error("Failed to prune roles:", err);
+      await alertModal({
+        title: "Gagal Membersihkan Role",
+        description: err.message || "Terjadi kesalahan saat menghapus role duplikat.",
+        variant: "error",
+      });
+    } finally {
+      setIsPruning(false);
+    }
+  };
 
   // User Dialog State
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -535,10 +715,23 @@ export default function UsersRolesPage() {
               <span>Add New User</span>
             </Button>
           ) : (
-            <Button onClick={handleOpenCreateRole} className="gap-2 shadow-xs">
-              <Plus className="w-4 h-4" />
-              <span>Create New Role</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              {duplicateStats.duplicateCount > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={handlePruneDuplicateRoles}
+                  disabled={isPruning}
+                  className="gap-2 shadow-xs"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{isPruning ? "Pruning..." : `Prune ${duplicateStats.duplicateCount} Duplikat`}</span>
+                </Button>
+              )}
+              <Button onClick={handleOpenCreateRole} className="gap-2 shadow-xs">
+                <Plus className="w-4 h-4" />
+                <span>Create New Role</span>
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -800,9 +993,32 @@ export default function UsersRolesPage() {
           </PanelContent>
         </Panel>
       ) : (
-        <Panel className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <PanelContent className="p-0 flex-1 overflow-auto">
-            <Table>
+        <div className="flex-1 flex flex-col min-h-0 space-y-3">
+          {duplicateStats.duplicateCount > 0 && (
+            <div className="p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm shrink-0">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
+                <div>
+                  <p className="font-semibold">Ditemukan {duplicateStats.duplicateCount} role duplikat yang berlebih</p>
+                  <p className="text-xs opacity-90 mt-0.5">Role-role ini terbuat berulang kali oleh proses auto-seed sebelumnya. Anda dapat mem-prune dan menyatukan penugasan user ke role utama dengan aman.</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handlePruneDuplicateRoles}
+                disabled={isPruning}
+                className="shrink-0 gap-1.5 shadow-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{isPruning ? "Membersihkan..." : "Prune Role Sekarang"}</span>
+              </Button>
+            </div>
+          )}
+
+          <Panel className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <PanelContent className="p-0 flex-1 overflow-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[200px]">Role Name</TableHead>
@@ -915,6 +1131,7 @@ export default function UsersRolesPage() {
             </Table>
           </PanelContent>
         </Panel>
+        </div>
       )}
 
       {/* ================= USER CREATE/EDIT DIALOG ================= */}
@@ -1062,10 +1279,24 @@ export default function UsersRolesPage() {
                       const isAssigned = userFormData.projectIds.includes(proj.id);
                       const currentRolesForProj = userFormData.projectRoles[proj.id] || [];
 
-                      // Available roles for this project (project specific + global)
-                      const availableRoles = roles.filter(
-                        (r) => r.projectId === proj.id || r.projectId === "_global_" || !r.projectId
-                      );
+                      // Deduplicate available roles for this project to eliminate repetitive buttons in the modal
+                      const availableRolesMap = new Map<string, ProjectRole & { allIds: string[] }>();
+                      roles.forEach((r) => {
+                        if (r.projectId === proj.id || r.projectId === "_global_" || !r.projectId) {
+                          const normName = (r.name || "").trim().toLowerCase();
+                          const scopeKey = `${normName}::${r.projectId || "_global_"}`;
+                          const existing = availableRolesMap.get(scopeKey);
+                          if (!existing) {
+                            availableRolesMap.set(scopeKey, { ...r, allIds: [r.id] });
+                          } else {
+                            existing.allIds.push(r.id);
+                            if (r.id.startsWith("default_")) {
+                              availableRolesMap.set(scopeKey, { ...r, allIds: existing.allIds });
+                            }
+                          }
+                        }
+                      });
+                      const availableRoles = Array.from(availableRolesMap.values());
 
                       return (
                         <div
@@ -1120,7 +1351,7 @@ export default function UsersRolesPage() {
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {availableRoles.map((role) => {
-                                  const hasRole = currentRolesForProj.includes(role.id);
+                                  const hasRole = role.allIds.some((id) => currentRolesForProj.includes(id));
                                   return (
                                     <label
                                       key={role.id}
@@ -1136,11 +1367,9 @@ export default function UsersRolesPage() {
                                         checked={hasRole}
                                         onChange={(e) => {
                                           const checked = e.target.checked;
-                                          let updated = [...currentRolesForProj];
+                                          let updated = currentRolesForProj.filter((rId) => !role.allIds.includes(rId));
                                           if (checked) {
-                                            if (!updated.includes(role.id)) updated.push(role.id);
-                                          } else {
-                                            updated = updated.filter((rId) => rId !== role.id);
+                                            updated.push(role.id);
                                           }
                                           setUserFormData({
                                             ...userFormData,
