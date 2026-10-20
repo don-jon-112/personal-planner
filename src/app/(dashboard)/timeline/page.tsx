@@ -1,9 +1,29 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Plus, GripVertical, MoreHorizontal, CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Download, Share2, Calendar, Lock } from "lucide-react";
+import {
+  Plus,
+  GripVertical,
+  MoreHorizontal,
+  CalendarClock,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  ChevronLeft,
+  PieChart,
+  Filter,
+  FileSpreadsheet,
+  AlertTriangle,
+  Eye,
+  Download,
+  Share2,
+  Calendar,
+  Lock,
+  Search,
+  X,
+} from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -53,10 +73,50 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { DateRangeFilter, DateRangeConfig, computeTimelineDates, getDatesInRange } from "./date-range-filter";
+import { DateRangeFilter, DateRangeConfig, computeTimelineDates } from "./date-range-filter";
 import { useProject } from "@/components/project-context";
 
-// Helpers for dates
+// -------------------------------------------------------------
+// COLUMN DEFINITIONS & RESIZING CONSTANTS
+// -------------------------------------------------------------
+
+interface ColWidths {
+  task: number;
+  pic: number;
+  status: number;
+  md: number;
+  actions: number;
+}
+
+const DEFAULT_COL_WIDTHS: ColWidths = {
+  task: 250,
+  pic: 120,
+  status: 120,
+  md: 60,
+  actions: 50,
+};
+
+const COL_LIMITS = {
+  task: { min: 150, max: 600 },
+  pic: { min: 80, max: 220 },
+  status: { min: 80, max: 200 },
+};
+
+function computeOffsets(widths: ColWidths) {
+  const task = 0;
+  const pic = widths.task;
+  const status = pic + widths.pic;
+  const md = status + widths.status;
+  const actions = md + widths.md;
+  const totalHeader = actions + widths.actions;
+  const epicTitle = md; // Epic title spans task + pic + status + md
+  return { task, pic, status, md, actions, totalHeader, epicTitle };
+}
+
+// -------------------------------------------------------------
+// HELPERS FOR DATES
+// -------------------------------------------------------------
+
 function getDayStatus(date: Date, holidays: any[] = []) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, '0');
@@ -97,14 +157,12 @@ function getPicColor(name: string, pics: any[] = []) {
   return `hsl(${hue}, 65%, 50%)`;
 }
 
-
 function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], holidays: any[] = [], pics: any[] = [], showAlert?: (msg: string) => void) {
   if (!epics || epics.length === 0) {
     if (showAlert) showAlert("No Epic or Task data available to export.");
     return;
   }
 
-  // Group dates by Month for Month Header
   const months: { name: string; days: number }[] = [];
   let currentMonth: string | null = null;
   let daysInMonth = 0;
@@ -273,7 +331,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
 // UI COMPONENTS
 // -------------------------------------------------------------
 
-function TaskText({ text, className }: { text: string, className?: string }) {
+function TaskText({ text, className }: { text: string; className?: string }) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const textRef = React.useRef<HTMLSpanElement>(null);
 
@@ -307,7 +365,53 @@ function TaskText({ text, className }: { text: string, className?: string }) {
   );
 }
 
-function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, onUpdateStatus, taskStatuses = [], getStatusColor }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult, onEdit: any, onDelete: any, onUpdateStatus: any, taskStatuses?: any[], getStatusColor?: (name: string) => string }) {
+// Resize handle component for table headers
+function ColumnResizeHandle({
+  onMouseDown,
+  onDoubleClick,
+}: {
+  onMouseDown: (e: React.MouseEvent) => void;
+  onDoubleClick: () => void;
+}) {
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
+      title="Drag to resize, double-click to reset"
+      className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize select-none flex items-center justify-center group z-50 hover:bg-primary/20 active:bg-primary/40 transition-colors"
+    >
+      <div className="w-[1.5px] h-4 bg-muted-foreground/40 group-hover:bg-primary transition-colors rounded-full" />
+    </div>
+  );
+}
+
+function TaskRow({
+  task,
+  dates,
+  holidays,
+  pics,
+  overlapInfo,
+  onEdit,
+  onDelete,
+  onUpdateStatus,
+  taskStatuses = [],
+  getStatusColor,
+  colWidths,
+  offsets,
+}: {
+  task: any;
+  dates: Date[];
+  holidays?: any[];
+  pics: any[];
+  overlapInfo?: OverlapResult;
+  onEdit: any;
+  onDelete: any;
+  onUpdateStatus: any;
+  taskStatuses?: any[];
+  getStatusColor?: (name: string) => string;
+  colWidths: ColWidths;
+  offsets: ReturnType<typeof computeOffsets>;
+}) {
   const {
     attributes,
     listeners,
@@ -323,9 +427,6 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const taskStart = new Date(task.startDate);
-  taskStart.setHours(0,0,0,0);
-
   const hasOverlap = Boolean(overlapInfo?.hasOverlap);
 
   return (
@@ -334,7 +435,11 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
       style={style} 
       className={cn("flex border-b hover:bg-muted/10 bg-background", isDragging && "z-50 relative")}
     >
-      <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2 overflow-hidden">
+      {/* 1. Epic / Task Name Column */}
+      <div
+        style={{ width: `${colWidths.task}px` }}
+        className="md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2 overflow-hidden"
+      >
         <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-1 p-1 z-10 bg-background">
           <GripVertical className="w-4 h-4" />
         </div>
@@ -372,14 +477,24 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
         )}
         <TaskText text={task.name} className="text-sm font-medium text-secondary-foreground pl-1" />
       </div>
-      <div className="w-[120px] md:sticky md:left-[250px] md:z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm">
-        {task.pic}
+
+      {/* 2. PIC Column */}
+      <div
+        style={{ width: `${colWidths.pic}px`, left: `${offsets.pic}px` }}
+        className="md:sticky md:z-20 bg-background border-r shrink-0 flex items-center px-4 py-2 text-sm overflow-hidden"
+      >
+        <span className="truncate">{task.pic || "-"}</span>
       </div>
-      <div className="w-[120px] md:sticky md:left-[370px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
+
+      {/* 3. Status Column */}
+      <div
+        style={{ width: `${colWidths.status}px`, left: `${offsets.status}px` }}
+        className="md:sticky md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 overflow-hidden"
+      >
         <DropdownMenu>
           <DropdownMenuTrigger className="focus:outline-none">
             <span
-              className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-full block"
               style={{
                 backgroundColor: `${getStatusColor ? getStatusColor(task.status) : "#94a3b8"}20`,
                 color: getStatusColor ? getStatusColor(task.status) : "#94a3b8",
@@ -399,10 +514,20 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="w-[60px] md:sticky md:left-[490px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
+
+      {/* 4. MD Column */}
+      <div
+        style={{ width: `${colWidths.md}px`, left: `${offsets.md}px` }}
+        className="md:sticky md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono overflow-hidden"
+      >
         {task.md}
       </div>
-      <div className="w-[50px] md:sticky md:left-[550px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2">
+
+      {/* 5. Actions Column */}
+      <div
+        style={{ width: `${colWidths.actions}px`, left: `${offsets.actions}px` }}
+        className="md:sticky md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 overflow-hidden"
+      >
         <DropdownMenu>
           <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
             <MoreHorizontal className="w-4 h-4" />
@@ -416,7 +541,7 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
 
       {/* Grid Cells */}
       <div className="flex relative">
-        {dates.map((date, i) => {
+        {dates.map((date) => {
           const status = getDayStatus(date, holidays);
           return (
             <div 
@@ -444,19 +569,16 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
           const taskEndTime = taskEnd.getTime();
           const taskStartTime = taskStart.getTime();
 
-          // If task is completely outside visible range
           if (taskEndTime < visibleStart || taskStartTime > visibleEnd) {
             return null;
           }
 
-          // Determine start index on visible grid
           let startIndex = dates.findIndex(d => d.getTime() === taskStartTime);
           if (startIndex === -1 && taskStartTime >= visibleStart) {
             startIndex = dates.findIndex(d => d.getTime() > taskStartTime);
           }
           if (startIndex === -1) startIndex = 0;
 
-          // Determine end index on visible grid
           let endIndex = dates.findIndex(d => d.getTime() === taskEndTime);
           if (endIndex === -1 && taskEndTime <= visibleEnd) {
             for (let k = dates.length - 1; k >= 0; k--) {
@@ -499,7 +621,54 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, onEdit, onDelete, o
   );
 }
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic, onDeleteEpic, onEditTask, onDeleteTask, onUpdateTaskStatus, onAddTaskToEpic, collapseAllTrigger, expandAllTrigger, taskStatuses, getStatusColor }: any) {
+// Epic Segment on current page (supports continuation headers)
+interface EpicSegment {
+  key: string;
+  epic: any;
+  isContinuation: boolean;
+  tasks: any[];
+  allEpicTasks: any[];
+}
+
+function EpicSegmentGroup({
+  segment,
+  dates,
+  holidays,
+  pics,
+  overlapMap,
+  isExpanded,
+  onToggleExpand,
+  onEditEpic,
+  onDeleteEpic,
+  onEditTask,
+  onDeleteTask,
+  onUpdateTaskStatus,
+  onAddTaskToEpic,
+  taskStatuses,
+  getStatusColor,
+  colWidths,
+  offsets,
+}: {
+  segment: EpicSegment;
+  dates: Date[];
+  holidays?: any[];
+  pics: any[];
+  overlapMap?: Map<string, OverlapResult>;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onEditEpic: any;
+  onDeleteEpic: any;
+  onEditTask: any;
+  onDeleteTask: any;
+  onUpdateTaskStatus: any;
+  onAddTaskToEpic: any;
+  taskStatuses: any[];
+  getStatusColor?: (name: string) => string;
+  colWidths: ColWidths;
+  offsets: ReturnType<typeof computeOffsets>;
+}) {
+  const { epic, isContinuation, tasks, allEpicTasks } = segment;
+
   const {
     attributes,
     listeners,
@@ -507,7 +676,11 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: epic.id, data: { type: "Epic", epic } });
+  } = useSortable({
+    id: epic.id,
+    data: { type: "Epic", epic },
+    disabled: isContinuation, // Continuation headers don't reorder the epic
+  });
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -515,42 +688,56 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const [isExpanded, setIsExpanded] = useState(true);
-  
-  useEffect(() => {
-    if (collapseAllTrigger > 0) {
-      setIsExpanded(false);
-    }
-  }, [collapseAllTrigger]);
-
-  useEffect(() => {
-    if (expandAllTrigger > 0) {
-      setIsExpanded(true);
-    }
-  }, [expandAllTrigger]);
-
-  const totalTasks = tasks.length;
-  const doneTasks = tasks.filter((t: any) => t.status === "DONE").length;
-  const activeTasks = tasks.filter((t: any) => t.status !== "WON'T DO" && t.status !== "WONT DO").length;
+  const totalTasks = allEpicTasks.length;
+  const doneTasks = allEpicTasks.filter((t: any) => t.status === "DONE").length;
+  const activeTasks = allEpicTasks.filter((t: any) => t.status !== "WON'T DO" && t.status !== "WONT DO").length;
   const percentage = activeTasks === 0 ? (totalTasks > 0 ? 100 : 0) : Math.round((doneTasks / activeTasks) * 100);
 
   return (
     <div ref={setNodeRef} style={style} className={cn("flex flex-col bg-card", isDragging && "z-40 relative")}>
       {/* Epic Header Row */}
       <div 
-        className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer select-none"
+        onClick={onToggleExpand}
       >
-        <div className="w-[550px] md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
-          <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground mr-2 p-1" onClick={(e) => e.stopPropagation()}>
-            <GripVertical className="w-4 h-4" />
-          </div>
-          <button className="mr-1 text-muted-foreground hover:text-foreground focus:outline-none p-1">
+        {/* Title area spanning Task + PIC + Status + MD */}
+        <div 
+          style={{ width: `${offsets.epicTitle}px` }} 
+          className="md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2 overflow-hidden"
+        >
+          {!isContinuation ? (
+            <div 
+              {...attributes} 
+              {...listeners} 
+              className="cursor-grab text-muted-foreground hover:text-foreground mr-1.5 p-1 shrink-0" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
+          ) : (
+            <div className="w-4 mr-1.5 shrink-0" />
+          )}
+
+          <button 
+            className="mr-1 text-muted-foreground hover:text-foreground focus:outline-none p-1 shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand();
+            }}
+          >
             {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
+
           <TaskText text={epic.name} className="font-bold text-sm uppercase tracking-wider text-foreground" />
+
+          {isContinuation && (
+            <span className="text-[11px] font-semibold text-muted-foreground ml-1.5 italic shrink-0">
+              (cont.)
+            </span>
+          )}
+
           <span className={cn(
-            "text-[10px] font-bold px-2 py-0.5 rounded-full ml-2",
+            "text-[10px] font-bold px-2 py-0.5 rounded-full ml-2 shrink-0",
             percentage === 100 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
             percentage > 0 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
             "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
@@ -558,7 +745,12 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
             {percentage}%
           </span>
         </div>
-        <div className="w-[50px] md:sticky md:left-[550px] md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2">
+
+        {/* Action button aligned with Actions column */}
+        <div 
+          style={{ width: `${colWidths.actions}px`, left: `${offsets.epicTitle}px` }} 
+          className="md:sticky md:z-20 bg-muted border-r shrink-0 flex items-center justify-center px-2 py-2 overflow-hidden"
+        >
           <DropdownMenu>
             <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded" onClick={(e) => e.stopPropagation()}>
               <MoreHorizontal className="w-4 h-4" />
@@ -582,7 +774,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
         </div>
       </div>
       
-      {/* Task List inside this Epic */}
+      {/* Task List inside this Epic segment */}
       {isExpanded && (
         <SortableContext items={tasks.map((t: any) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col min-h-[10px]">
@@ -599,6 +791,8 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, onEditEpic,
                 onUpdateStatus={onUpdateTaskStatus}
                 taskStatuses={taskStatuses}
                 getStatusColor={getStatusColor}
+                colWidths={colWidths}
+                offsets={offsets}
               />
             ))}
           </div>
@@ -622,15 +816,15 @@ export default function TimelinePage() {
   const { data: holidays } = useCollection<any>("timelineHolidays");
   const { data: pics } = useCollection<any>("timelinePics");
   const { statuses: taskStatuses, getStatusColor } = useTaskStatuses();
-  const { canView, canEdit, canDelete } = usePermissions();
+  const { canView, canEdit } = usePermissions();
 
   const hasView = canView("timeline");
   const hasEdit = canEdit("timeline");
-  const hasDelete = canDelete("timeline");
 
   const projectPics = useMemo(() => {
     return (pics || []).filter((p: any) => isItemInActiveProject(p.projectId));
   }, [pics, isItemInActiveProject]);
+
   const { mutateAsync: updateEpic } = useUpdateDocument("timelineEpics");
   const { mutateAsync: updateTask } = useUpdateDocument("timelineTasks");
   const { mutateAsync: deleteEpic } = useDeleteDocument("timelineEpics");
@@ -644,11 +838,84 @@ export default function TimelinePage() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
-  const [collapseAllTrigger, setCollapseAllTrigger] = useState(0);
-  const [expandAllTrigger, setExpandAllTrigger] = useState(0);
-  
+
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
+
+  // Column Resizing State
+  const [colWidths, setColWidths] = useState<ColWidths>(DEFAULT_COL_WIDTHS);
+
+  // Load saved column widths from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("timeline_col_widths");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setColWidths({
+          task: typeof parsed.task === "number" ? Math.min(600, Math.max(150, parsed.task)) : DEFAULT_COL_WIDTHS.task,
+          pic: typeof parsed.pic === "number" ? Math.min(220, Math.max(80, parsed.pic)) : DEFAULT_COL_WIDTHS.pic,
+          status: typeof parsed.status === "number" ? Math.min(200, Math.max(80, parsed.status)) : DEFAULT_COL_WIDTHS.status,
+          md: DEFAULT_COL_WIDTHS.md,
+          actions: DEFAULT_COL_WIDTHS.actions,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to load timeline_col_widths:", e);
+    }
+  }, []);
+
+  const offsets = useMemo(() => computeOffsets(colWidths), [colWidths]);
+
+  // Handle column resize drag
+  const handleMouseDownResize = useCallback((e: React.MouseEvent, colKey: "task" | "pic" | "status") => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = colWidths[colKey];
+    const limits = COL_LIMITS[colKey];
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+      const delta = moveEvent.clientX - startX;
+      const newWidth = Math.min(limits.max, Math.max(limits.min, startWidth + delta));
+      setColWidths(prev => ({ ...prev, [colKey]: newWidth }));
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
+      // Persist to localStorage
+      setColWidths(latest => {
+        try {
+          localStorage.setItem("timeline_col_widths", JSON.stringify(latest));
+        } catch (err) {
+          console.error("Failed to save timeline_col_widths:", err);
+        }
+        return latest;
+      });
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [colWidths]);
+
+  // Double click to reset column width to default
+  const handleDoubleClickReset = useCallback((colKey: "task" | "pic" | "status") => {
+    setColWidths(prev => {
+      const updated = { ...prev, [colKey]: DEFAULT_COL_WIDTHS[colKey] };
+      try {
+        localStorage.setItem("timeline_col_widths", JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to reset timeline_col_widths:", err);
+      }
+      return updated;
+    });
+  }, []);
 
   const handleDeleteEpic = async (epic: any) => {
     const ok = await confirm({
@@ -688,12 +955,36 @@ export default function TimelinePage() {
   const [localTasks, setLocalTasks] = useState<any[]>([]);
   const [selectedPicFilter, setSelectedPicFilter] = useState<string>("ALL");
 
-  const filteredOrderedEpics = useMemo(() => {
-    if (selectedPicFilter === "ALL") return orderedEpics;
-    return orderedEpics.filter(epic => 
-      localTasks.some(t => t.epicId === epic.id && t.pic === selectedPicFilter)
-    );
-  }, [orderedEpics, localTasks, selectedPicFilter]);
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(40);
+
+  // Collapse/Expand state per epic
+  const [collapsedEpicIds, setCollapsedEpicIds] = useState<Set<string>>(new Set());
+
+  const toggleEpicExpanded = (epicId: string) => {
+    setCollapsedEpicIds(prev => {
+      const next = new Set(prev);
+      if (next.has(epicId)) {
+        next.delete(epicId);
+      } else {
+        next.add(epicId);
+      }
+      return next;
+    });
+  };
+
+  const handleCollapseAll = () => {
+    const allIds = new Set(orderedEpics.map(e => e.id));
+    setCollapsedEpicIds(allIds);
+  };
+
+  const handleExpandAll = () => {
+    setCollapsedEpicIds(new Set());
+  };
 
   useEffect(() => {
     if (rawEpics) {
@@ -708,7 +999,6 @@ export default function TimelinePage() {
       setLocalTasks(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
     }
   }, [rawTasks, isItemInActiveProject]);
-
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -727,6 +1017,162 @@ export default function TimelinePage() {
   const overlapMap = useMemo(() => {
     return computeAllTaskOverlaps(localTasks, holidays, orderedEpics);
   }, [localTasks, holidays, orderedEpics]);
+
+  // Filtered epics based on PIC filter
+  const filteredOrderedEpics = useMemo(() => {
+    if (selectedPicFilter === "ALL") return orderedEpics;
+    return orderedEpics.filter(epic => 
+      localTasks.some(t => t.epicId === epic.id && t.pic === selectedPicFilter)
+    );
+  }, [orderedEpics, localTasks, selectedPicFilter]);
+
+  // Flatten rows for pagination and search
+  const isSearchActive = Boolean(searchQuery.trim());
+  const searchLower = searchQuery.toLowerCase().trim();
+
+  // Calculate search matching task count for badge
+  const totalSearchResultTasks = useMemo(() => {
+    if (!isSearchActive) return 0;
+    let count = 0;
+    filteredOrderedEpics.forEach(epic => {
+      let epicTasks = localTasks.filter(t => t.epicId === epic.id);
+      if (selectedPicFilter !== "ALL") {
+        epicTasks = epicTasks.filter(t => t.pic === selectedPicFilter);
+      }
+      const epicMatches = (epic.name || "").toLowerCase().includes(searchLower);
+      if (epicMatches) {
+        count += epicTasks.length;
+      } else {
+        count += epicTasks.filter(t =>
+          (t.name || "").toLowerCase().includes(searchLower) ||
+          (t.pic || "").toLowerCase().includes(searchLower)
+        ).length;
+      }
+    });
+    return count;
+  }, [filteredOrderedEpics, localTasks, selectedPicFilter, isSearchActive, searchLower]);
+
+  // Build full flattened rows (Epic Header + Tasks)
+  interface FlatRowItem {
+    type: "epic" | "task";
+    epic: any;
+    task?: any;
+    allEpicTasks: any[];
+  }
+
+  const allFlattenedRows = useMemo(() => {
+    const rows: FlatRowItem[] = [];
+
+    filteredOrderedEpics.forEach(epic => {
+      let epicTasks = localTasks.filter(t => t.epicId === epic.id);
+      if (selectedPicFilter !== "ALL") {
+        epicTasks = epicTasks.filter(t => t.pic === selectedPicFilter);
+      }
+
+      if (isSearchActive) {
+        const epicMatches = (epic.name || "").toLowerCase().includes(searchLower);
+        if (!epicMatches) {
+          epicTasks = epicTasks.filter(t => 
+            (t.name || "").toLowerCase().includes(searchLower) ||
+            (t.pic || "").toLowerCase().includes(searchLower)
+          );
+        }
+        if (!epicMatches && epicTasks.length === 0) {
+          return; // Skip epic entirely if nothing matched
+        }
+      }
+
+      // 1. Epic Header row
+      rows.push({
+        type: "epic",
+        epic,
+        allEpicTasks: epicTasks,
+      });
+
+      // 2. Task rows (if expanded)
+      const isExpanded = !collapsedEpicIds.has(epic.id);
+      if (isExpanded) {
+        epicTasks.forEach(task => {
+          rows.push({
+            type: "task",
+            epic,
+            task,
+            allEpicTasks: epicTasks,
+          });
+        });
+      }
+    });
+
+    return rows;
+  }, [filteredOrderedEpics, localTasks, selectedPicFilter, isSearchActive, searchLower, collapsedEpicIds]);
+
+  const totalRows = allFlattenedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
+  // Clamped page number
+  const safeCurrentPage = isSearchActive ? 0 : Math.min(currentPage, Math.max(0, totalPages - 1));
+
+  // Slice rows for current page (or all if search is active)
+  const pagedRows = useMemo(() => {
+    if (isSearchActive) {
+      return allFlattenedRows;
+    }
+    const start = safeCurrentPage * pageSize;
+    const end = Math.min(start + pageSize, totalRows);
+    return allFlattenedRows.slice(start, end);
+  }, [allFlattenedRows, isSearchActive, safeCurrentPage, pageSize, totalRows]);
+
+  // Group sliced rows into Epic segments (injecting (cont.) headers if an epic is split)
+  const currentEpicSegments = useMemo(() => {
+    const segments: EpicSegment[] = [];
+    if (pagedRows.length === 0) return segments;
+
+    let currentSegment: EpicSegment | null = null;
+
+    // Check if the page starts directly with a task (split epic)
+    if (!isSearchActive && pagedRows[0].type === "task") {
+      const first = pagedRows[0];
+      currentSegment = {
+        key: `${first.epic.id}-cont-${safeCurrentPage}`,
+        epic: first.epic,
+        isContinuation: true,
+        tasks: [],
+        allEpicTasks: first.allEpicTasks,
+      };
+      segments.push(currentSegment);
+    }
+
+    for (const row of pagedRows) {
+      if (row.type === "epic") {
+        currentSegment = {
+          key: `${row.epic.id}-${safeCurrentPage}`,
+          epic: row.epic,
+          isContinuation: false,
+          tasks: [],
+          allEpicTasks: row.allEpicTasks,
+        };
+        segments.push(currentSegment);
+      } else if (row.type === "task") {
+        if (!currentSegment || currentSegment.epic.id !== row.epic.id) {
+          currentSegment = {
+            key: `${row.epic.id}-cont-${safeCurrentPage}`,
+            epic: row.epic,
+            isContinuation: true,
+            tasks: [],
+            allEpicTasks: row.allEpicTasks,
+          };
+          segments.push(currentSegment);
+        }
+        currentSegment.tasks.push(row.task);
+      }
+    }
+
+    return segments;
+  }, [pagedRows, isSearchActive, safeCurrentPage]);
+
+  // Row counters for display
+  const startRow = totalRows === 0 ? 0 : safeCurrentPage * pageSize + 1;
+  const endRow = totalRows === 0 ? 0 : Math.min((safeCurrentPage + 1) * pageSize, totalRows);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -770,7 +1216,6 @@ export default function TimelinePage() {
           const activeIndex = prev.findIndex(t => t.id === active.id);
           const newTasks = [...prev];
           newTasks[activeIndex] = { ...newTasks[activeIndex], epicId: overEpic.id };
-          // We can't really arrayMove here easily, we just update epicId and it jumps to the bottom of that epic
           return newTasks;
         });
       }
@@ -803,20 +1248,17 @@ export default function TimelinePage() {
     
     // Reordering Tasks
     if (activeData?.type === "Task") {
-      // Find where it landed in the local state
       const taskInState = localTasks.find(t => t.id === active.id);
       if (!taskInState) return;
 
       const currentEpicId = taskInState.epicId;
       
-      // If dropped on another task
       if (overData?.type === "Task" && active.id !== over.id) {
         setLocalTasks(prev => {
           const oldIndex = prev.findIndex(t => t.id === active.id);
           const newIndex = prev.findIndex(t => t.id === over.id);
           const newItems = arrayMove(prev, oldIndex, newIndex);
           
-          // Persist all tasks in this epic to firestore
           const epicTasks = newItems.filter(t => t.epicId === currentEpicId);
           epicTasks.forEach((item, index) => {
              updateTask({ id: item.id, data: { order: index, epicId: currentEpicId } });
@@ -825,7 +1267,6 @@ export default function TimelinePage() {
           return newItems;
         });
       } else {
-        // Just persist the new epicId if it changed but order within list didn't change via arrayMove over another task
         const epicTasks = localTasks.filter(t => t.epicId === currentEpicId);
         epicTasks.forEach((item, index) => {
             updateTask({ id: item.id, data: { order: index, epicId: currentEpicId } });
@@ -877,7 +1318,7 @@ export default function TimelinePage() {
         <div className="flex flex-col gap-2.5 w-full xl:w-auto items-start xl:items-end">
           {/* Row 1: Action Buttons (Clean & Grouped) */}
           <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end">
-            {/* 1. View Settings Dropdown */}
+            {/* View Settings Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 h-8 text-xs font-medium gap-1.5")}>
                 <Eye className="w-3.5 h-3.5" />
@@ -901,7 +1342,7 @@ export default function TimelinePage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* 2. Analytics */}
+            {/* Analytics */}
             <Button
               onClick={() => setIsChartsDialogOpen(true)}
               variant="outline"
@@ -911,7 +1352,7 @@ export default function TimelinePage() {
               <span className="hidden sm:inline">Analytics</span>
             </Button>
 
-            {/* 3. Share & Export Dropdown */}
+            {/* Share & Export Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 h-8 text-xs font-medium gap-1.5 border-primary/30 text-primary hover:bg-primary/10")}>
                 <Share2 className="w-3.5 h-3.5" />
@@ -963,7 +1404,7 @@ export default function TimelinePage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* 4. Primary Actions */}
+            {/* Primary Actions */}
             {hasEdit && (
               <Button
                 onClick={() => { setEditingEpic(null); setIsEpicDialogOpen(true); }}
@@ -1014,12 +1455,52 @@ export default function TimelinePage() {
             />
           </div>
 
-          {/* Row 2: Filter Toolbar on desktop */}
+          {/* Row 2: Filter & Search Toolbar */}
           <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end bg-muted/40 p-1.5 rounded-lg border border-border/60">
+            {/* Search Bar */}
+            <div className="relative flex items-center">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(0);
+                }}
+                placeholder="Search task, epic, PIC..."
+                className="h-8 pl-8 pr-7 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary w-40 sm:w-56 transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setCurrentPage(0);
+                  }}
+                  className="absolute right-2 text-muted-foreground hover:text-foreground p-0.5 rounded-sm"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Search Results Badge */}
+            {isSearchActive && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
+                {totalSearchResultTasks} {totalSearchResultTasks === 1 ? "result" : "results"}
+              </span>
+            )}
+
+            <div className="h-4 w-px bg-border/60 mx-0.5 hidden sm:block" />
+
             <span className="text-xs font-semibold text-muted-foreground px-1 flex items-center gap-1">
               <Filter className="w-3.5 h-3.5 text-primary" /> Filter:
             </span>
+
+            {/* Date Range Filter */}
             <DateRangeFilter rangeConfig={rangeConfig} onChange={setRangeConfig} tasks={localTasks} />
+
+            {/* PIC Filter Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 h-8 text-xs font-medium")}>
                 <span>{selectedPicFilter === "ALL" ? "All PICs" : selectedPicFilter}</span>
@@ -1066,7 +1547,10 @@ export default function TimelinePage() {
               <div className="flex flex-col sticky top-0 z-30 shadow-sm bg-background">
                 {/* Month Row */}
                 <div className="flex bg-muted border-b">
-                  <div className="w-[600px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0" />
+                  <div 
+                    style={{ width: `${offsets.totalHeader}px` }} 
+                    className="md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0" 
+                  />
                   <div className="flex">
                     {(() => {
                       const months: { name: string, days: number }[] = [];
@@ -1094,17 +1578,66 @@ export default function TimelinePage() {
                   </div>
                 </div>
 
-                {/* Days Row */}
-                <div className="flex bg-muted border-b">
-                  <div className="w-[250px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
-                  <div className="w-[120px] md:sticky md:left-[250px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
-                  <div className="w-[120px] md:sticky md:left-[370px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">Status</div>
-                  <div className="w-[60px] md:sticky md:left-[490px] md:z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">MD</div>
-                  <div className="w-[50px] md:sticky md:left-[550px] md:z-40 bg-muted border-r shrink-0 px-1 py-1 flex items-center justify-center gap-0.5">
-                    <button onClick={() => setCollapseAllTrigger(prev => prev + 1)} title="Collapse All" className="p-1 hover:bg-muted-foreground/10 rounded"><ChevronUp className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground"/></button>
-                    <button onClick={() => setExpandAllTrigger(prev => prev + 1)} title="Expand All" className="p-1 hover:bg-muted-foreground/10 rounded"><ChevronDown className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground"/></button>
+                {/* Days Row / Column Headers */}
+                <div className="flex bg-muted border-b select-none">
+                  {/* 1. Epic / Task Header */}
+                  <div
+                    style={{ width: `${colWidths.task}px` }}
+                    className="relative md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center select-none"
+                  >
+                    <span className="truncate">Epic / Task</span>
+                    <ColumnResizeHandle
+                      onMouseDown={(e) => handleMouseDownResize(e, "task")}
+                      onDoubleClick={() => handleDoubleClickReset("task")}
+                    />
+                  </div>
+
+                  {/* 2. PIC Header */}
+                  <div
+                    style={{ width: `${colWidths.pic}px`, left: `${offsets.pic}px` }}
+                    className="relative md:sticky md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center select-none"
+                  >
+                    <span className="truncate">PIC</span>
+                    <ColumnResizeHandle
+                      onMouseDown={(e) => handleMouseDownResize(e, "pic")}
+                      onDoubleClick={() => handleDoubleClickReset("pic")}
+                    />
+                  </div>
+
+                  {/* 3. Status Header */}
+                  <div
+                    style={{ width: `${colWidths.status}px`, left: `${offsets.status}px` }}
+                    className="relative md:sticky md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center select-none"
+                  >
+                    <span className="truncate">Status</span>
+                    <ColumnResizeHandle
+                      onMouseDown={(e) => handleMouseDownResize(e, "status")}
+                      onDoubleClick={() => handleDoubleClickReset("status")}
+                    />
+                  </div>
+
+                  {/* 4. MD Header (Fixed) */}
+                  <div
+                    style={{ width: `${colWidths.md}px`, left: `${offsets.md}px` }}
+                    className="md:sticky md:z-40 bg-muted border-r shrink-0 px-2 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center select-none"
+                  >
+                    MD
+                  </div>
+
+                  {/* 5. Actions Header (Fixed) */}
+                  <div
+                    style={{ width: `${colWidths.actions}px`, left: `${offsets.actions}px` }}
+                    className="md:sticky md:z-40 bg-muted border-r shrink-0 px-1 py-1 flex items-center justify-center gap-0.5 select-none"
+                  >
+                    <button onClick={handleCollapseAll} title="Collapse All" className="p-1 hover:bg-muted-foreground/10 rounded">
+                      <ChevronUp className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                    </button>
+                    <button onClick={handleExpandAll} title="Expand All" className="p-1 hover:bg-muted-foreground/10 rounded">
+                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                    </button>
                   </div>
                   
+                  {/* Date columns */}
                   <div className="flex">
                     {dates.map((date) => {
                       const isToday = date.toDateString() === new Date().toDateString();
@@ -1127,7 +1660,7 @@ export default function TimelinePage() {
                 </div>
               </div>
 
-              {/* Body */}
+              {/* Table Body with Drag & Drop */}
               <DndContext 
                 sensors={sensors} 
                 collisionDetection={closestCenter} 
@@ -1135,35 +1668,41 @@ export default function TimelinePage() {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
-                <SortableContext items={filteredOrderedEpics.map(e => e.id)} strategy={verticalListSortingStrategy}>
+                <SortableContext 
+                  items={currentEpicSegments.filter(s => !s.isContinuation).map(s => s.epic.id)} 
+                  strategy={verticalListSortingStrategy}
+                >
                   <div className="flex flex-col">
-                    {filteredOrderedEpics.map((epic) => {
-                      let epicTasks = localTasks.filter(t => t.epicId === epic.id);
-                      if (selectedPicFilter !== "ALL") {
-                        epicTasks = epicTasks.filter(t => t.pic === selectedPicFilter);
-                      }
-                      return (
-                        <EpicGroup
-                          key={epic.id}
-                          epic={epic}
-                          tasks={epicTasks}
-                          dates={dates}
-                          holidays={holidays}
-                          pics={projectPics}
-                          overlapMap={overlapMap}
-                          onEditEpic={(e: any) => { setEditingEpic(e); setIsEpicDialogOpen(true); }}
-                          onDeleteEpic={handleDeleteEpic}
-                          onAddTaskToEpic={(e: any) => { setEditingTask({ epicId: e.id }); setIsTaskDialogOpen(true); }}
-                          onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
-                          onDeleteTask={handleDeleteTask}
-                          onUpdateTaskStatus={handleUpdateTaskStatus}
-                          collapseAllTrigger={collapseAllTrigger}
-                          expandAllTrigger={expandAllTrigger}
-                          taskStatuses={taskStatuses}
-                          getStatusColor={getStatusColor}
-                        />
-                      );
-                    })}
+                    {currentEpicSegments.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground text-sm">
+                        {isSearchActive ? `No tasks or epics match "${searchQuery}".` : "No rows found on this page."}
+                      </div>
+                    ) : (
+                      currentEpicSegments.map((segment) => {
+                        return (
+                          <EpicSegmentGroup
+                            key={segment.key}
+                            segment={segment}
+                            dates={dates}
+                            holidays={holidays || []}
+                            pics={projectPics}
+                            overlapMap={overlapMap}
+                            isExpanded={!collapsedEpicIds.has(segment.epic.id)}
+                            onToggleExpand={() => toggleEpicExpanded(segment.epic.id)}
+                            onEditEpic={(e: any) => { setEditingEpic(e); setIsEpicDialogOpen(true); }}
+                            onDeleteEpic={handleDeleteEpic}
+                            onAddTaskToEpic={(e: any) => { setEditingTask({ epicId: e.id }); setIsTaskDialogOpen(true); }}
+                            onEditTask={(t: any) => { setEditingTask(t); setIsTaskDialogOpen(true); }}
+                            onDeleteTask={handleDeleteTask}
+                            onUpdateTaskStatus={handleUpdateTaskStatus}
+                            taskStatuses={taskStatuses}
+                            getStatusColor={getStatusColor}
+                            colWidths={colWidths}
+                            offsets={offsets}
+                          />
+                        );
+                      })
+                    )}
                   </div>
                 </SortableContext>
                 <DragOverlay>
@@ -1175,6 +1714,82 @@ export default function TimelinePage() {
                 </DragOverlay>
               </DndContext>
             </div>
+          </div>
+        )}
+
+        {/* Pagination Controls Bar */}
+        {!isSearchActive && totalRows > 0 && (
+          <div className="border-t bg-muted/40 px-4 py-2.5 flex flex-wrap items-center justify-between gap-4 text-xs select-none shrink-0">
+            {/* Left: Showing rows X–Y of Z */}
+            <div className="text-muted-foreground font-medium">
+              Showing rows <span className="font-semibold text-foreground">{startRow}</span>–<span className="font-semibold text-foreground">{endRow}</span> of <span className="font-semibold text-foreground">{totalRows}</span>
+            </div>
+
+            {/* Center: [← Prev] Page X of Y [Next →] */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safeCurrentPage === 0}
+                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                className="h-8 px-2.5 text-xs gap-1"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
+              </Button>
+              <span className="font-medium text-foreground px-1">
+                Page <span className="font-bold">{safeCurrentPage + 1}</span> of <span className="font-bold">{totalPages}</span>
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safeCurrentPage >= totalPages - 1}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                className="h-8 px-2.5 text-xs gap-1"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            {/* Right: Per page buttons */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground font-medium mr-1">Per page:</span>
+              {[40, 60, 100].map((size) => (
+                <Button
+                  key={size}
+                  variant={pageSize === size ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setPageSize(size);
+                    setCurrentPage(0);
+                  }}
+                  className={cn("h-7 px-2.5 text-xs font-semibold", pageSize === size && "pointer-events-none font-bold")}
+                >
+                  {size}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Search Active Notification Bar */}
+        {isSearchActive && (
+          <div className="border-t bg-muted/40 px-4 py-2.5 flex items-center justify-between text-xs text-muted-foreground shrink-0">
+            <span>
+              Showing all <strong className="text-foreground">{totalRows}</strong> matching rows (Pagination disabled during search)
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setCurrentPage(0);
+              }}
+              className="h-7 text-xs text-primary hover:text-primary gap-1"
+            >
+              <X className="w-3.5 h-3.5" /> Clear search
+            </Button>
           </div>
         )}
       </PanelContent>
