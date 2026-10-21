@@ -15,6 +15,12 @@ export function getProjectTimelineKey(projectId: string): string {
   return `${CACHE_PREFIX}timeline:${projectId || "_global_"}`;
 }
 
+export const ASSIGNMENT_LOGS_CACHE_KEY = `${CACHE_PREFIX}assignment-logs`;
+
+export function getAssignmentLogsKey(): string {
+  return ASSIGNMENT_LOGS_CACHE_KEY;
+}
+
 // Global cached instances across hot-reloads in development / serverless invocation
 let globalRedisPrimary: Redis | null = null;
 let globalRedisSecondary: Redis | null = null;

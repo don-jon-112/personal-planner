@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCollection } from "@/hooks/use-firestore";
 import { useAuth } from "@/components/auth-context";
 import { TaskAssignmentLog } from "@/types/user-role";
+import { fetchCachedAssignmentLogs, saveAssignmentLogsToRedis } from "@/lib/cache-client";
+import { cn } from "@/lib/utils";
 import {
   ClipboardList,
   Search,
@@ -33,13 +42,23 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
+  Database,
+  Zap,
+  ChevronDown,
 } from "lucide-react";
 
 export default function AssignmentLogsPage() {
   const { isSuperAdmin } = useAuth();
 
-  const { data: rawLogs = [], isLoading } = useCollection<TaskAssignmentLog>("assignmentLogs");
+  const { data: rawLogs = [], isLoading, refetch, isFetching } = useCollection<TaskAssignmentLog>("assignmentLogs");
   const { data: projects = [] } = useCollection<any>("projects");
+
+  const [localLogs, setLocalLogs] = useState<TaskAssignmentLog[]>([]);
+  const [cacheSource, setCacheSource] = useState<"redis" | "firebase" | "loading">("loading");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
@@ -48,19 +67,144 @@ export default function AssignmentLogsPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = 15;
 
+  // Active logs: prefer localLogs (which may come from fast Redis cache or fresh Firebase refetch)
+  const activeLogs = useMemo(() => {
+    return localLogs.length > 0 ? localLogs : rawLogs;
+  }, [localLogs, rawLogs]);
+
+  // Initial load: fetch fast from Redis cache, fallback to Firestore
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initLogs() {
+      try {
+        const cached = await fetchCachedAssignmentLogs();
+        if (!isMounted) return;
+        if (cached.source === "redis" && Array.isArray(cached.logs) && cached.logs.length > 0) {
+          setLocalLogs(cached.logs);
+          setCacheSource("redis");
+          setLastRefreshedAt(new Date());
+          return;
+        }
+      } catch (err) {
+        console.warn("Initial Redis cache check failed:", err);
+      }
+
+      if (rawLogs && rawLogs.length > 0) {
+        setLocalLogs(rawLogs);
+        setCacheSource("firebase");
+        setLastRefreshedAt(new Date());
+        saveAssignmentLogsToRedis(rawLogs).catch(console.warn);
+      }
+    }
+
+    initLogs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // When rawLogs from Firebase update, keep localLogs in sync and refresh Redis cache
+  useEffect(() => {
+    if (rawLogs && rawLogs.length > 0) {
+      if (cacheSource !== "redis" || localLogs.length === 0) {
+        setLocalLogs(rawLogs);
+        setCacheSource("firebase");
+        setLastRefreshedAt(new Date());
+      }
+      saveAssignmentLogsToRedis(rawLogs).catch(console.warn);
+    }
+  }, [rawLogs]);
+
+  // Refresh handler: automatically gets data from Firebase and syncs to Redis, with fallback
+  const handleRefresh = async (source: "auto" | "firebase" | "redis" = "auto") => {
+    setIsRefreshing(true);
+    setStatusMessage(null);
+
+    try {
+      if (source === "redis") {
+        const cached = await fetchCachedAssignmentLogs();
+        if (cached.source === "redis" && Array.isArray(cached.logs) && cached.logs.length > 0) {
+          setLocalLogs(cached.logs);
+          setCacheSource("redis");
+          setLastRefreshedAt(new Date());
+          setStatusMessage(`Berhasil memuat ${cached.logs.length} data log dari Redis Cache.`);
+        } else {
+          const res = await refetch();
+          const fresh = res.data || [];
+          setLocalLogs(fresh);
+          setCacheSource("firebase");
+          setLastRefreshedAt(new Date());
+          setStatusMessage(`Redis cache kosong, data dimuat dari Firebase (${fresh.length} log).`);
+          if (fresh.length > 0) {
+            saveAssignmentLogsToRedis(fresh).catch(console.warn);
+          }
+        }
+      } else if (source === "firebase") {
+        const res = await refetch();
+        const fresh = res.data || [];
+        setLocalLogs(fresh);
+        setCacheSource("firebase");
+        setLastRefreshedAt(new Date());
+        setStatusMessage(`Berhasil memuat ${fresh.length} data log langsung dari Firebase.`);
+        if (fresh.length > 0) {
+          saveAssignmentLogsToRedis(fresh).catch(console.warn);
+        }
+      } else {
+        // "auto" (default & recommended)
+        let freshLogs: TaskAssignmentLog[] = [];
+        try {
+          const res = await refetch();
+          freshLogs = res.data || [];
+        } catch (fbErr) {
+          console.warn("Firebase refetch failed in auto mode:", fbErr);
+        }
+
+        if (freshLogs.length > 0) {
+          setLocalLogs(freshLogs);
+          setCacheSource("firebase");
+          setLastRefreshedAt(new Date());
+          saveAssignmentLogsToRedis(freshLogs).catch(console.warn);
+          setStatusMessage(`Data berhasil diperbarui dari Firebase & disinkronkan ke Redis (${freshLogs.length} log).`);
+        } else {
+          // Fallback to Redis
+          const cached = await fetchCachedAssignmentLogs();
+          if (cached.source === "redis" && Array.isArray(cached.logs) && cached.logs.length > 0) {
+            setLocalLogs(cached.logs);
+            setCacheSource("redis");
+            setLastRefreshedAt(new Date());
+            setStatusMessage(`Data dimuat dari Redis Cache (${cached.logs.length} log).`);
+          } else {
+            setCacheSource("firebase");
+            setStatusMessage("Pembaruan selesai.");
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("Refresh error:", err);
+      setStatusMessage("Gagal memperbarui data. Silakan coba lagi.");
+    } finally {
+      setIsRefreshing(false);
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 4000);
+    }
+  };
+
   // Sort logs: newest first
   const sortedLogs = useMemo(() => {
-    return [...rawLogs].sort((a, b) => {
+    return [...activeLogs].sort((a, b) => {
       const timeA = a.claimedAt?.toMillis ? a.claimedAt.toMillis() : new Date(a.timestamp || 0).getTime();
       const timeB = b.claimedAt?.toMillis ? b.claimedAt.toMillis() : new Date(b.timestamp || 0).getTime();
       return timeB - timeA;
     });
-  }, [rawLogs]);
+  }, [activeLogs]);
 
   // Unique users list for filter
   const uniqueUsers = useMemo(() => {
     const map = new Map<string, { id: string; name: string; username: string }>();
-    rawLogs.forEach((l) => {
+    activeLogs.forEach((l) => {
       const key = l.userId || l.username;
       if (key && !map.has(key)) {
         map.set(key, {
@@ -71,7 +215,7 @@ export default function AssignmentLogsPage() {
       }
     });
     return Array.from(map.values());
-  }, [rawLogs]);
+  }, [activeLogs]);
 
   // Filtered Logs
   const filteredLogs = useMemo(() => {
@@ -105,18 +249,18 @@ export default function AssignmentLogsPage() {
 
   // Metrics
   const metrics = useMemo(() => {
-    const totalClaims = rawLogs.length;
-    const totalMd = rawLogs.reduce((acc, l) => acc + (Number(l.md) || 0), 0);
-    const uniqueClaimers = new Set(rawLogs.map((l) => l.userId || l.username)).size;
+    const totalClaims = activeLogs.length;
+    const totalMd = activeLogs.reduce((acc, l) => acc + (Number(l.md) || 0), 0);
+    const uniqueClaimers = new Set(activeLogs.map((l) => l.userId || l.username)).size;
 
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const recentClaims = rawLogs.filter((l) => {
+    const recentClaims = activeLogs.filter((l) => {
       const t = l.claimedAt?.toMillis ? l.claimedAt.toMillis() : new Date(l.timestamp || 0).getTime();
       return t >= sevenDaysAgo;
     }).length;
 
     return { totalClaims, totalMd, uniqueClaimers, recentClaims };
-  }, [rawLogs]);
+  }, [activeLogs]);
 
   // Format Timestamp
   const formatTimestamp = (log: TaskAssignmentLog) => {
@@ -190,7 +334,121 @@ export default function AssignmentLogsPage() {
             Riwayat lengkap seluruh task yang diambil oleh user melalui tombol <strong>Assign To Me</strong> beserta estimasi MD dan jadwalnya.
           </p>
         </div>
+
+        {/* Right Header: Refresh Button & Source Status */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Cache / Live Status Badge */}
+          <div
+            className={cn(
+              "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors shadow-2xs select-none",
+              isRefreshing || isFetching
+                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                : cacheSource === "redis"
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
+            )}
+            title={
+              isRefreshing || isFetching
+                ? "Sedang menyinkronkan data terbaru..."
+                : cacheSource === "redis"
+                ? "Data saat ini dimuat dari Redis Fast Cache"
+                : "Data saat ini disinkronkan langsung dari Firebase Firestore"
+            }
+          >
+            {isRefreshing || isFetching ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                <span>Memperbarui...</span>
+              </>
+            ) : cacheSource === "redis" ? (
+              <>
+                <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Redis Cache</span>
+              </>
+            ) : (
+              <>
+                <Database className="w-3.5 h-3.5 text-blue-500" />
+                <span>Firebase Live</span>
+              </>
+            )}
+          </div>
+
+          {/* Timestamp */}
+          {lastRefreshedAt && (
+            <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-muted-foreground font-medium select-none">
+              <Clock className="w-3 h-3 opacity-60" />
+              Diperbarui: {lastRefreshedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+
+          {/* Split Refresh Button with Options */}
+          <div className="flex items-center rounded-md border bg-card shadow-xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleRefresh("auto")}
+              disabled={isRefreshing || isFetching}
+              className="h-8 px-3 text-xs font-semibold gap-1.5 hover:bg-accent hover:text-accent-foreground rounded-r-none border-r"
+              title="Otomatis muat data terbaru dari Firebase dan perbarui Redis Cache"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", (isRefreshing || isFetching) && "animate-spin text-primary")} />
+              <span>{isRefreshing || isFetching ? "Menyinkronkan..." : "Refresh Data"}</span>
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={isRefreshing || isFetching}
+                className="h-8 px-2 hover:bg-accent hover:text-accent-foreground text-muted-foreground rounded-r-md transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50"
+                title="Pilihan sumber data refresh"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60 text-xs">
+                <DropdownMenuLabel>Pilih Sumber Data</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleRefresh("auto")} className="cursor-pointer gap-2 py-2">
+                  <RefreshCw className="w-3.5 h-3.5 text-primary" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold">Otomatis (Rekomendasi)</span>
+                    <span className="text-[10px] text-muted-foreground">Firebase live + sinkronkan ke Redis</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleRefresh("firebase")} className="cursor-pointer gap-2 py-2">
+                  <Database className="w-3.5 h-3.5 text-blue-500" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold">Firebase Cloud Firestore</span>
+                    <span className="text-[10px] text-muted-foreground">Ambil langsung dari Firestore cloud</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleRefresh("redis")} className="cursor-pointer gap-2 py-2">
+                  <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold">Redis Fast Cache</span>
+                    <span className="text-[10px] text-muted-foreground">Ambil dari memori server Redis</span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
+
+      {/* Status Notice Banner (dismissible) */}
+      {statusMessage && (
+        <div className="px-3.5 py-2 rounded-lg text-xs font-medium bg-primary/10 border border-primary/20 text-primary flex items-center justify-between shrink-0 shadow-2xs animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-primary" />
+            <span>{statusMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusMessage(null)}
+            className="p-1 text-primary/70 hover:text-primary rounded"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
@@ -312,10 +570,11 @@ export default function AssignmentLogsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {(isLoading && activeLogs.length === 0) || (cacheSource === "loading" && activeLogs.length === 0) ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-xs text-muted-foreground">
-                    Memuat catatan log...
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-primary opacity-70" />
+                    Memuat catatan log dari {cacheSource === "redis" ? "Redis Cache" : "Firebase Firestore"}...
                   </TableCell>
                 </TableRow>
               ) : paginatedLogs.length === 0 ? (
@@ -418,7 +677,16 @@ export default function AssignmentLogsPage() {
                             <span>{log.endDate || "-"}</span>
                           </div>
                           <span className="text-[10px] text-muted-foreground">
-                            Status: <strong className="text-blue-600 dark:text-blue-400">ON PROGRESS</strong>
+                            Aksi:{" "}
+                            <strong
+                              className={
+                                log.action === "BACK_TODO"
+                                  ? "text-amber-600 dark:text-amber-400 font-bold"
+                                  : "text-blue-600 dark:text-blue-400 font-bold"
+                              }
+                            >
+                              {log.action === "BACK_TODO" ? "BACK TODO" : (log.status || "ON PROGRESS")}
+                            </strong>
                           </span>
                         </div>
                       </TableCell>

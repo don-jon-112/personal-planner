@@ -70,6 +70,49 @@ export async function syncAllProjectsCacheToRedis(
   }
 }
 
+export async function fetchCachedAssignmentLogs(): Promise<{
+  source: "redis" | "miss";
+  logs: any[] | null;
+}> {
+  try {
+    const res = await fetch("/api/cache/assignment-logs");
+    if (!res.ok) {
+      return { source: "miss", logs: null };
+    }
+    const data = await res.json();
+    if (data.source === "redis" && Array.isArray(data.logs)) {
+      return {
+        source: "redis",
+        logs: data.logs,
+      };
+    }
+    return { source: "miss", logs: null };
+  } catch (err) {
+    console.warn("[CacheClient] Failed to fetch cached assignment logs from Redis:", err);
+    return { source: "miss", logs: null };
+  }
+}
+
+export async function saveAssignmentLogsToRedis(logs: any[]): Promise<boolean> {
+  if (typeof window !== "undefined") {
+    if (!navigator.onLine || localStorage.getItem("syncMode") === "local") {
+      return false;
+    }
+  }
+
+  try {
+    const res = await fetch("/api/cache/assignment-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ logs }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn("[CacheClient] Failed to save assignment logs to Redis:", err);
+    return false;
+  }
+}
+
 export interface RedisHealthStatus {
   connected: boolean;
   primary?: { configured: boolean; connected: boolean; message: string };

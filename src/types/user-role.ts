@@ -60,6 +60,8 @@ export interface TaskAssignmentLog {
   previousStatus?: string;
   previousMd?: number;
   previousStartDate?: string;
+  action?: string;
+  status?: string;
   claimedAt?: any;
   timestamp?: string;
 }
