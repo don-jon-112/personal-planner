@@ -102,6 +102,19 @@ export default function TodoPage() {
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [assignToMeTask, setAssignToMeTask] = useState<any>(null);
 
+  const handleAssignSuccess = (updatedTask: any) => {
+    setLocalTasks((prev) => {
+      const nextTasks = prev.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t));
+      const projectId = activeProject?.id || "_global_";
+      saveProjectCacheToRedis(projectId, {
+        tasks: nextTasks,
+        epics: localEpics,
+      }).catch(console.warn);
+      return nextTasks;
+    });
+    setAssignToMeTask(null);
+  };
+
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
 
@@ -522,6 +535,7 @@ export default function TodoPage() {
         open={!!assignToMeTask}
         onOpenChange={(open) => !open && setAssignToMeTask(null)}
         task={assignToMeTask}
+        onSuccess={handleAssignSuccess}
       />
 
       <PanelContent className="space-y-5 flex-1 overflow-auto">

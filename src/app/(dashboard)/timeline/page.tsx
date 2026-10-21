@@ -1052,13 +1052,37 @@ export default function TimelinePage() {
     setAssignToMeTask(task);
   };
 
+  const handleAssignSuccess = (updatedTask: any) => {
+    setLocalTasks((prev) => {
+      const nextTasks = prev.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t));
+      const projectId = activeProject?.id || "_global_";
+      saveProjectCacheToRedis(projectId, {
+        tasks: nextTasks,
+        epics: orderedEpics,
+      }).catch(console.warn);
+      return nextTasks;
+    });
+    setAssignToMeTask(null);
+  };
+
   const handleSetInReview = async (task: any) => {
     try {
+      const taskId = task.id || task._id || task.taskId;
+      if (!taskId) return;
       await updateTask({
-        id: task.id,
+        id: taskId,
         data: {
           status: "IN REVIEW",
         },
+      });
+      setLocalTasks((prev) => {
+        const nextTasks = prev.map((t) => (t.id === taskId ? { ...t, status: "IN REVIEW" } : t));
+        const projectId = activeProject?.id || "_global_";
+        saveProjectCacheToRedis(projectId, {
+          tasks: nextTasks,
+          epics: orderedEpics,
+        }).catch(console.warn);
+        return nextTasks;
       });
     } catch (e) {
       console.error("Failed to set task status to IN REVIEW:", e);
@@ -1651,7 +1675,7 @@ export default function TimelinePage() {
               }}
             />
             <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} readOnly={!hasEdit} />
-            <AssignToMeDialog open={!!assignToMeTask} onOpenChange={(open) => !open && setAssignToMeTask(null)} task={assignToMeTask} />
+            <AssignToMeDialog open={!!assignToMeTask} onOpenChange={(open) => !open && setAssignToMeTask(null)} task={assignToMeTask} onSuccess={handleAssignSuccess} />
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
             <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
             <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={projectPics} statuses={taskStatuses} />

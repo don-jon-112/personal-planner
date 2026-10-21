@@ -61,8 +61,9 @@ export function AssignToMeDialog({
   useEffect(() => {
     if (open && task) {
       setErrorMsg(null);
-      // Default MD: existing task MD or 1
-      const initialMd = typeof task.md === "number" && task.md > 0 ? task.md : 1;
+      // Default MD: existing task MD (at least 1) or fallback to 1
+      const rawMd = typeof task.md === "number" ? task.md : parseFloat(task.md);
+      const initialMd = !isNaN(rawMd) && rawMd >= 1 ? rawMd : 1;
       setMd(initialMd);
 
       // Default Start Date: existing task startDate (if valid & not TBD) or today
@@ -78,23 +79,24 @@ export function AssignToMeDialog({
   // Find associated Epic & Project
   const taskEpic = useMemo(() => {
     if (!task?.epicId) return null;
-    return epics.find((e: any) => e.id === task.epicId);
+    return (epics || []).find((e: any) => e.id === task.epicId);
   }, [epics, task?.epicId]);
 
   const taskProject = useMemo(() => {
     const pId = task?.projectId || activeProject?.id;
-    return projects.find((p: any) => p.id === pId) || activeProject;
+    return (projects || []).find((p: any) => p.id === pId) || activeProject;
   }, [projects, activeProject, task?.projectId]);
 
   const viewerName = currentUser?.name || currentUser?.username || "Viewer";
 
   // Calculate live End Date based on Start Date + MD (skipping weekends & holidays)
   const calculatedEndDateInfo = useMemo(() => {
-    if (!startDate || isNaN(new Date(startDate).getTime()) || md <= 0) {
+    const numericMd = Number(md);
+    if (!startDate || isNaN(new Date(startDate).getTime()) || isNaN(numericMd) || numericMd <= 0) {
       return { endDateStr: "", formattedDate: "-" };
     }
     const startObj = new Date(startDate);
-    const endObj = getTaskEndDate(startObj, md, holidays);
+    const endObj = getTaskEndDate(startObj, Math.max(1, numericMd), holidays);
 
     const yyyy = endObj.getFullYear();
     const mm = String(endObj.getMonth() + 1).padStart(2, "0");
@@ -115,27 +117,35 @@ export function AssignToMeDialog({
     e.preventDefault();
     if (!task) return;
 
-    if (!startDate) {
-      setErrorMsg("Start Date wajib diisi.");
+    const taskId = task.id || task._id || task.taskId;
+    if (!taskId) {
+      setErrorMsg("ID Task tidak ditemukan.");
       return;
     }
 
-    if (!md || Number(md) <= 0) {
-      setErrorMsg("MD (Man Days) harus lebih dari 0.");
+    if (!startDate || startDate === "TBD" || isNaN(new Date(startDate).getTime())) {
+      setErrorMsg("Start Date wajib diisi dengan tanggal yang valid.");
+      return;
+    }
+
+    const numericMd = typeof md === "number" ? md : parseFloat(md as any);
+    if (isNaN(numericMd) || numericMd < 1) {
+      setErrorMsg("MD (Man Days) minimal 1.");
       return;
     }
 
     setErrorMsg(null);
 
     try {
-      const targetProjectId = taskProject?.id || activeProject?.id || "_global_";
+      const targetProjectId = taskProject?.id || activeProject?.id || task?.projectId || "_global_";
 
       // 1. Auto-register PIC if not present in project
-      const picExists = pics.some(
-        (p: any) =>
-          p.name?.toLowerCase().trim() === viewerName.toLowerCase().trim() &&
-          (p.projectId === targetProjectId || p.projectId === "_global_" || !p.projectId)
-      );
+      const picExists = (pics || []).some((p: any) => {
+        const pName = (p?.name || "").trim().toLowerCase();
+        const vName = (viewerName || "").trim().toLowerCase();
+        const pProj = p?.projectId;
+        return pName === vName && (pProj === targetProjectId || pProj === "_global_" || !pProj);
+      });
 
       if (!picExists && targetProjectId && targetProjectId !== "_global_") {
         try {
@@ -150,28 +160,28 @@ export function AssignToMeDialog({
         }
       }
 
-      const numericMd = Number(md);
-      const calculatedEndDate = calculatedEndDateInfo.endDateStr;
+      const safeMd = Math.max(1, numericMd);
+      const calculatedEndDate = calculatedEndDateInfo.endDateStr || startDate;
 
       // 2. Update task in Firestore
       const updatedPayload = {
         status: "ON PROGRESS",
         pic: viewerName,
-        md: numericMd,
+        md: safeMd,
         startDate: startDate,
         endDate: calculatedEndDate,
         updatedAt: serverTimestamp(),
       };
 
       await updateTask({
-        id: task.id,
+        id: taskId,
         data: updatedPayload,
       });
 
       // 3. Record Audit Log in "assignmentLogs"
       try {
         await addAssignmentLog({
-          taskId: task.id,
+          taskId: taskId,
           taskName: task.name || "Untitled Task",
           epicId: task.epicId || null,
           epicName: taskEpic?.name || "-",
@@ -180,12 +190,12 @@ export function AssignToMeDialog({
           userId: currentUser?.id || "unknown",
           username: currentUser?.username || "-",
           userName: viewerName,
-          md: numericMd,
+          md: safeMd,
           startDate: startDate,
           endDate: calculatedEndDate,
           previousPic: task.pic || "Unassigned",
           previousStatus: task.status || "TODO",
-          previousMd: task.md || null,
+          previousMd: task.md !== undefined ? task.md : null,
           previousStartDate: task.startDate || null,
           claimedAt: serverTimestamp(),
           timestamp: new Date().toISOString(),
@@ -194,15 +204,16 @@ export function AssignToMeDialog({
         console.error("Failed to create assignment log:", logErr);
       }
 
-      onSuccess?.({ ...task, ...updatedPayload });
+      onSuccess?.({ ...task, id: taskId, ...updatedPayload });
       onOpenChange(false);
     } catch (err: any) {
       console.error("Failed to assign task:", err);
-      setErrorMsg(err.message || "Gagal mengklaim task. Silakan coba lagi.");
+      setErrorMsg(err?.message || "Gagal mengklaim task. Silakan coba lagi.");
     }
   };
 
   const isSaving = isUpdatingTask || isLogging;
+  const isSubmitDisabled = isSaving || !startDate || !md || Number(md) < 1;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -219,7 +230,7 @@ export function AssignToMeDialog({
                   Assign To Me
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  Tentukan estimasi MD dan Tanggal Mulai pengerjaan task ini.
+                  Tentukan estimasi MD (minimal 1 MD) dan Tanggal Mulai pengerjaan task ini.
                 </DialogDescription>
               </div>
             </div>
@@ -285,7 +296,7 @@ export function AssignToMeDialog({
                   <span className="text-destructive">*</span>
                 </span>
                 <span className="text-[11px] font-normal text-muted-foreground">
-                  Hari kerja yang dibutuhkan
+                  Minimal 1 hari kerja
                 </span>
               </Label>
               <div className="flex items-center gap-2">
@@ -293,12 +304,15 @@ export function AssignToMeDialog({
                   id="assign-md"
                   type="number"
                   step="0.5"
-                  min="0.1"
+                  min="1"
                   max="365"
                   required
                   value={md}
-                  onChange={(e) => setMd(parseFloat(e.target.value) || 0)}
-                  placeholder="Contoh: 1 atau 2.5"
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setMd(isNaN(val) ? ("" as any) : val);
+                  }}
+                  placeholder="Minimal 1 MD"
                   className="font-semibold text-sm"
                   autoFocus
                 />
@@ -307,7 +321,7 @@ export function AssignToMeDialog({
                     <Button
                       key={preset}
                       type="button"
-                      variant={md === preset ? "default" : "outline"}
+                      variant={Number(md) === preset ? "default" : "outline"}
                       size="sm"
                       onClick={() => setMd(preset)}
                       className="h-9 px-2 text-xs font-medium"
@@ -387,7 +401,7 @@ export function AssignToMeDialog({
               </p>
             </div>
             <div className="text-right text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">{md || 0}</span> Hari Kerja
+              <span className="font-semibold text-foreground">{Number(md) >= 1 ? md : 1}</span> Hari Kerja
               <p className="text-[10px] text-muted-foreground/80">(Lewati libur & weekend)</p>
             </div>
           </div>
@@ -403,7 +417,7 @@ export function AssignToMeDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSaving || !startDate || md <= 0}
+              disabled={isSubmitDisabled}
               className="gap-1.5 font-semibold"
             >
               <UserCheck className="w-4 h-4" />
