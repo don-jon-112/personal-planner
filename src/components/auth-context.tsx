@@ -118,6 +118,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [session, users]);
 
+  // Synchronize localStorage session when matched user from Firestore has updated roles or permissions
+  useEffect(() => {
+    if (currentUser && session && session.userId !== "master_admin") {
+      const hasChanged =
+        JSON.stringify(currentUser.projectRoles || {}) !== JSON.stringify(session.projectRoles || {}) ||
+        JSON.stringify(currentUser.projectIds || []) !== JSON.stringify(session.projectIds || []) ||
+        Boolean(currentUser.isSuperAdmin) !== Boolean(session.isSuperAdmin);
+
+      if (hasChanged) {
+        const updatedSession: SessionData = {
+          ...session,
+          isSuperAdmin: Boolean(currentUser.isSuperAdmin),
+          projectIds: currentUser.projectIds || [],
+          projectRoles: currentUser.projectRoles || {},
+        };
+        setSession(updatedSession);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(updatedSession));
+        }
+      }
+    }
+  }, [currentUser, session]);
+
   const isSuperAdmin = useMemo(() => {
     return Boolean(session?.isSuperAdmin || currentUser?.isSuperAdmin);
   }, [session, currentUser]);

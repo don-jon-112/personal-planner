@@ -1139,7 +1139,8 @@ export default function UsersRolesPage() {
                             availableRolesMap.set(scopeKey, { ...r, allIds: [r.id] });
                           } else {
                             existing.allIds.push(r.id);
-                            if (r.id.startsWith("default_")) {
+                            // Prefer role with newer updatedAt or non-default custom edits
+                            if (r.updatedAt && (!existing.updatedAt || r.updatedAt > existing.updatedAt)) {
                               availableRolesMap.set(scopeKey, { ...r, allIds: existing.allIds });
                             }
                           }
