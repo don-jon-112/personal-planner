@@ -13,10 +13,13 @@ export async function GET() {
     const logs = await getCache<any[]>(key);
 
     if (Array.isArray(logs)) {
+      const cleaned = logs.filter(
+        (l) => !(l.taskName || "").includes("Migrate API Auto2000BodyPaintController getBodyPaintDetails")
+      );
       return NextResponse.json({
         success: true,
         source: "redis",
-        logs,
+        logs: cleaned,
       });
     }
 
@@ -50,16 +53,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const cleaned = logs.filter(
+      (l) => !(l.taskName || "").includes("Migrate API Auto2000BodyPaintController getBodyPaintDetails")
+    );
+
     const key = getAssignmentLogsKey();
-    await setCache(key, logs, 7 * 24 * 60 * 60);
+    await setCache(key, cleaned, 7 * 24 * 60 * 60);
 
     return NextResponse.json({
       success: true,
-      count: logs.length,
+      count: cleaned.length,
       message: "Assignment logs cached to Redis successfully",
     });
   } catch (err: any) {
     console.error("[API Cache Assignment-Logs POST] Error:", err.message);
+    return NextResponse.json(
+      { success: false, error: err.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/cache/assignment-logs
+ * Removes a specific log by id or taskName from Redis cache.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    const taskName = searchParams.get("taskName");
+
+    const key = getAssignmentLogsKey();
+    const logs = await getCache<any[]>(key);
+
+    if (Array.isArray(logs)) {
+      const filtered = logs.filter((l) => {
+        if (id && l.id === id) return false;
+        if (taskName && (l.taskName || "").includes(taskName)) return false;
+        if ((l.taskName || "").includes("Migrate API Auto2000BodyPaintController getBodyPaintDetails")) return false;
+        return true;
+      });
+      await setCache(key, filtered, 7 * 24 * 60 * 60);
+      return NextResponse.json({
+        success: true,
+        count: filtered.length,
+        message: "Log removed from Redis cache",
+      });
+    }
+
+    return NextResponse.json({ success: true, message: "Cache was empty" });
+  } catch (err: any) {
+    console.error("[API Cache Assignment-Logs DELETE] Error:", err.message);
     return NextResponse.json(
       { success: false, error: err.message },
       { status: 500 }

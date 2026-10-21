@@ -19,8 +19,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCollection } from "@/hooks/use-firestore";
+import { useCollection, useDeleteDocument } from "@/hooks/use-firestore";
 import { useAuth } from "@/components/auth-context";
+import { useConfirm } from "@/components/confirm-dialog-provider";
 import { TaskAssignmentLog } from "@/types/user-role";
 import { fetchCachedAssignmentLogs, saveAssignmentLogsToRedis } from "@/lib/cache-client";
 import { cn } from "@/lib/utils";
@@ -46,10 +47,16 @@ import {
   Database,
   Zap,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
+
+const TARGET_DELETED_TASK = "Migrate API Auto2000BodyPaintController getBodyPaintDetails";
 
 export default function AssignmentLogsPage() {
   const { isSuperAdmin } = useAuth();
+
+  const confirm = useConfirm();
+  const { mutateAsync: deleteLogDoc } = useDeleteDocument("assignmentLogs");
 
   const { data: rawLogs = [], isLoading, refetch, isFetching } = useCollection<TaskAssignmentLog>("assignmentLogs");
   const { data: projects = [] } = useCollection<any>("projects");
@@ -67,10 +74,27 @@ export default function AssignmentLogsPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = 15;
 
-  // Active logs: prefer localLogs (which may come from fast Redis cache or fresh Firebase refetch)
+  // Active logs: filter out target deleted task and prefer localLogs
   const activeLogs = useMemo(() => {
-    return localLogs.length > 0 ? localLogs : rawLogs;
+    const base = localLogs.length > 0 ? localLogs : rawLogs;
+    return base.filter((l) => !(l.taskName || "").includes(TARGET_DELETED_TASK));
   }, [localLogs, rawLogs]);
+
+  // Auto-cleanup requested log from Firestore and sync Redis
+  useEffect(() => {
+    const target = rawLogs.find((l) => (l.taskName || "").includes(TARGET_DELETED_TASK));
+    if (target && target.id) {
+      deleteLogDoc(target.id)
+        .then(() => {
+          setLocalLogs((prev) => {
+            const next = prev.filter((item) => item.id !== target.id && !(item.taskName || "").includes(TARGET_DELETED_TASK));
+            saveAssignmentLogsToRedis(next).catch(console.warn);
+            return next;
+          });
+        })
+        .catch(console.error);
+    }
+  }, [rawLogs, deleteLogDoc]);
 
   // Initial load: fetch fast from Redis cache, fallback to Firestore
   useEffect(() => {
@@ -126,13 +150,14 @@ export default function AssignmentLogsPage() {
       if (source === "redis") {
         const cached = await fetchCachedAssignmentLogs();
         if (cached.source === "redis" && Array.isArray(cached.logs) && cached.logs.length > 0) {
-          setLocalLogs(cached.logs);
+          const cleaned = cached.logs.filter((l) => !(l.taskName || "").includes(TARGET_DELETED_TASK));
+          setLocalLogs(cleaned);
           setCacheSource("redis");
           setLastRefreshedAt(new Date());
-          setStatusMessage(`Berhasil memuat ${cached.logs.length} data log dari Redis Cache.`);
+          setStatusMessage(`Berhasil memuat ${cleaned.length} data log dari Redis Cache.`);
         } else {
           const res = await refetch();
-          const fresh = res.data || [];
+          const fresh = (res.data || []).filter((l) => !(l.taskName || "").includes(TARGET_DELETED_TASK));
           setLocalLogs(fresh);
           setCacheSource("firebase");
           setLastRefreshedAt(new Date());
@@ -143,7 +168,7 @@ export default function AssignmentLogsPage() {
         }
       } else if (source === "firebase") {
         const res = await refetch();
-        const fresh = res.data || [];
+        const fresh = (res.data || []).filter((l) => !(l.taskName || "").includes(TARGET_DELETED_TASK));
         setLocalLogs(fresh);
         setCacheSource("firebase");
         setLastRefreshedAt(new Date());
@@ -156,7 +181,7 @@ export default function AssignmentLogsPage() {
         let freshLogs: TaskAssignmentLog[] = [];
         try {
           const res = await refetch();
-          freshLogs = res.data || [];
+          freshLogs = (res.data || []).filter((l) => !(l.taskName || "").includes(TARGET_DELETED_TASK));
         } catch (fbErr) {
           console.warn("Firebase refetch failed in auto mode:", fbErr);
         }
@@ -171,10 +196,11 @@ export default function AssignmentLogsPage() {
           // Fallback to Redis
           const cached = await fetchCachedAssignmentLogs();
           if (cached.source === "redis" && Array.isArray(cached.logs) && cached.logs.length > 0) {
-            setLocalLogs(cached.logs);
+            const cleaned = cached.logs.filter((l) => !(l.taskName || "").includes(TARGET_DELETED_TASK));
+            setLocalLogs(cleaned);
             setCacheSource("redis");
             setLastRefreshedAt(new Date());
-            setStatusMessage(`Data dimuat dari Redis Cache (${cached.logs.length} log).`);
+            setStatusMessage(`Data dimuat dari Redis Cache (${cleaned.length} log).`);
           } else {
             setCacheSource("firebase");
             setStatusMessage("Pembaruan selesai.");
@@ -189,6 +215,30 @@ export default function AssignmentLogsPage() {
       setTimeout(() => {
         setStatusMessage(null);
       }, 4000);
+    }
+  };
+
+  const handleDeleteLog = async (log: TaskAssignmentLog) => {
+    const ok = await confirm({
+      title: "Hapus Log Penugasan?",
+      description: `Apakah Anda yakin ingin menghapus catatan log penugasan untuk task "${log.taskName}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Hapus Log",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    try {
+      await deleteLogDoc(log.id);
+      setLocalLogs((prev) => {
+        const next = prev.filter((item) => item.id !== log.id);
+        saveAssignmentLogsToRedis(next).catch(console.warn);
+        return next;
+      });
+      setStatusMessage(`Log penugasan untuk "${log.taskName}" berhasil dihapus.`);
+    } catch (err) {
+      console.error("Gagal menghapus log:", err);
+      setStatusMessage("Gagal menghapus catatan log. Silakan coba lagi.");
     }
   };
 
@@ -567,19 +617,20 @@ export default function AssignmentLogsPage() {
                 <TableHead className="w-[90px] text-center">MD</TableHead>
                 <TableHead className="w-[200px]">Jadwal Pengerjaan</TableHead>
                 <TableHead className="w-[200px]">Status Sebelum Klaim</TableHead>
+                <TableHead className="w-[70px] text-right pr-4">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(isLoading && activeLogs.length === 0) || (cacheSource === "loading" && activeLogs.length === 0) ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-xs text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-12 text-xs text-muted-foreground">
                     <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-primary opacity-70" />
                     Memuat catatan log dari {cacheSource === "redis" ? "Redis Cache" : "Firebase Firestore"}...
                   </TableCell>
                 </TableRow>
               ) : paginatedLogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
                     <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     <p className="font-semibold text-sm text-foreground">Belum ada log penugasan task.</p>
                     <p className="text-xs mt-1 max-w-sm mx-auto">
@@ -705,6 +756,20 @@ export default function AssignmentLogsPage() {
                             </span>
                           </div>
                         </div>
+                      </TableCell>
+
+                      {/* Aksi Hapus */}
+                      <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteLog(log)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                          title="Hapus catatan log ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
