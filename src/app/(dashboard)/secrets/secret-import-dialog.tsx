@@ -20,7 +20,7 @@ import {
   Key,
   FileCode
 } from "lucide-react";
-import { useAddDocument } from "@/hooks/use-firestore";
+import { useAddDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useAlertModal } from "@/components/confirm-dialog-provider";
@@ -28,26 +28,32 @@ import { useProject } from "@/components/project-context";
 
 interface ParsedSecret {
   keyName: string;
+  keyOriginal: string;
   valueSit: string;
   valueUat: string;
   valueProdAscom: string;
   valueProd: string;
   existsInProd: boolean;
+  hasExplicitExistInProd: boolean;
   isValid: boolean;
+  isExistingMatch: boolean;
 }
 
 export function SecretImportDialog({
   open,
   onOpenChange,
+  existingSecrets = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  existingSecrets?: any[];
 }) {
   const alertModal = useAlertModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { activeProjectId } = useProject();
 
   const { mutateAsync: addSecret } = useAddDocument("secretKeys");
+  const { mutateAsync: updateSecret } = useUpdateDocument("secretKeys");
 
   const [parsedData, setParsedData] = useState<ParsedSecret[]>([]);
   const [fileName, setFileName] = useState<string>("");
@@ -56,21 +62,30 @@ export function SecretImportDialog({
 
   // Template Download Handler (.xlsx Excel)
   const handleDownloadExcelTemplate = () => {
-    const headers = ["Key", "Exist in PROD", "Value (SIT - ASCOM)", "Value (UAT - ASCOM)", "Value (PROD - ASCOM)", "Value (PROD)"];
+    const headers = [
+      "Key Transform",
+      "Key Original",
+      "Exist in PROD",
+      "Value (SIT)",
+      "Value (UAT)",
+      "Value (PROD - ASCOM)",
+      "Value (PROD)",
+    ];
     const sampleRows = [
-      ["API_GATEWAY_URL", "TRUE", "https://sit-ascom.api.example.com", "https://uat-ascom.api.example.com", "https://prod-ascom.api.example.com", "https://prod.api.example.com"],
-      ["DATABASE_PASSWORD", "TRUE", "sit_pass_123", "uat_pass_456", "prod_ascom_pass_789", "prod_pass_999"],
-      ["JWT_SECRET_KEY", "FALSE", "secret_sit_key_abc", "secret_uat_key_def", "secret_prod_ascom_key_ghi", "secret_prod_key_jkl"],
+      ["API_GATEWAY_URL", "api.gateway.url", "TRUE", "https://sit.api.example.com", "https://uat.api.example.com", "https://prod-ascom.api.example.com", "https://prod.api.example.com"],
+      ["DATABASE_PASSWORD", "db.password", "TRUE", "sit_pass_123", "uat_pass_456", "prod_ascom_pass_789", "prod_pass_999"],
+      ["JWT_SECRET_KEY", "jwt.secret", "FALSE", "secret_sit_key_abc", "secret_uat_key_def", "secret_prod_ascom_key_ghi", "secret_prod_key_jkl"],
     ];
 
     const data = [headers, ...sampleRows];
     const ws = XLSX.utils.aoa_to_sheet(data);
 
     ws["!cols"] = [
-      { wch: 28 }, // Key
+      { wch: 28 }, // Key Transform
+      { wch: 28 }, // Key Original
       { wch: 16 }, // Exist in PROD
-      { wch: 36 }, // Value (SIT - ASCOM)
-      { wch: 36 }, // Value (UAT - ASCOM)
+      { wch: 36 }, // Value (SIT)
+      { wch: 36 }, // Value (UAT)
       { wch: 36 }, // Value (PROD - ASCOM)
       { wch: 36 }, // Value (PROD)
     ];
@@ -82,11 +97,19 @@ export function SecretImportDialog({
 
   // Template Download Handler (.csv CSV)
   const handleDownloadCsvTemplate = () => {
-    const headers = ["Key", "Exist in PROD", "Value (SIT - ASCOM)", "Value (UAT - ASCOM)", "Value (PROD - ASCOM)", "Value (PROD)"];
+    const headers = [
+      "Key Transform",
+      "Key Original",
+      "Exist in PROD",
+      "Value (SIT)",
+      "Value (UAT)",
+      "Value (PROD - ASCOM)",
+      "Value (PROD)",
+    ];
     const sampleRows = [
-      ["API_GATEWAY_URL", "TRUE", "https://sit-ascom.api.example.com", "https://uat-ascom.api.example.com", "https://prod-ascom.api.example.com", "https://prod.api.example.com"],
-      ["DATABASE_PASSWORD", "TRUE", "sit_pass_123", "uat_pass_456", "prod_ascom_pass_789", "prod_pass_999"],
-      ["JWT_SECRET_KEY", "FALSE", "secret_sit_key_abc", "secret_uat_key_def", "secret_prod_ascom_key_ghi", "secret_prod_key_jkl"],
+      ["API_GATEWAY_URL", "api.gateway.url", "TRUE", "https://sit.api.example.com", "https://uat.api.example.com", "https://prod-ascom.api.example.com", "https://prod.api.example.com"],
+      ["DATABASE_PASSWORD", "db.password", "TRUE", "sit_pass_123", "uat_pass_456", "prod_ascom_pass_789", "prod_pass_999"],
+      ["JWT_SECRET_KEY", "jwt.secret", "FALSE", "secret_sit_key_abc", "secret_uat_key_def", "secret_prod_ascom_key_ghi", "secret_prod_key_jkl"],
     ];
 
     const csvLines = [
@@ -113,7 +136,7 @@ export function SecretImportDialog({
     let headerRowIdx = 0;
     for (let i = 0; i < Math.min(rows.length, 3); i++) {
       const rowStr = rows[i].map((c) => String(c || "")).join(" ").toLowerCase();
-      if (rowStr.includes("key") || rowStr.includes("sit") || rowStr.includes("prod")) {
+      if (rowStr.includes("key") || rowStr.includes("transform") || rowStr.includes("sit") || rowStr.includes("prod")) {
         headerRowIdx = i;
         break;
       }
@@ -126,10 +149,21 @@ export function SecretImportDialog({
       return headers.findIndex((h) => terms.some((t) => h.includes(t.toLowerCase())));
     };
 
-    const keyIdx = findColIdx(["key", "name"]);
-    const existInProdIdx = findColIdx(["exist in prod", "exists in prod", "in prod", "is exist in prod"]);
-    const sitIdx = findColIdx(["sit", "value (sit", "value sit"]);
-    const uatIdx = findColIdx(["uat", "value (uat", "value uat"]);
+    // Key Transform: first check explicit transform keywords
+    let keyIdx = findColIdx(["key transform", "key_transform", "transform key", "keytransform", "transform"]);
+    if (keyIdx === -1) {
+      keyIdx = headers.findIndex((h) => (h === "key" || h.includes("key") || h.includes("name")) && !h.includes("original"));
+    }
+    if (keyIdx === -1) {
+      keyIdx = 0;
+    }
+
+    // Key Original
+    const keyOrigIdx = findColIdx(["key original", "key_original", "original key", "original", "keyoriginal"]);
+
+    const existInProdIdx = findColIdx(["exist in prod", "exists in prod", "in prod", "is exist in prod", "exist prod"]);
+    const sitIdx = findColIdx(["value (sit", "value sit", "sit"]);
+    const uatIdx = findColIdx(["value (uat", "value uat", "uat"]);
     const prodAscomIdx = findColIdx(["prod - ascom", "prod_ascom", "prod-ascom", "prod ascom"]);
     
     // Prod index: exclude prod-ascom if exact match is needed
@@ -146,25 +180,36 @@ export function SecretImportDialog({
         continue;
       }
 
-      const keyName = keyIdx !== -1 ? String(row[keyIdx] || "").trim() : String(row[0] || "").trim();
-      const valueSit = sitIdx !== -1 ? String(row[sitIdx] || "").trim() : "";
-      const valueUat = uatIdx !== -1 ? String(row[uatIdx] || "").trim() : "";
-      const valueProdAscom = prodAscomIdx !== -1 ? String(row[prodAscomIdx] || "").trim() : "";
-      const valueProd = prodIdx !== -1 ? String(row[prodIdx] || "").trim() : "";
+      const keyName = keyIdx !== -1 ? String(row[keyIdx] ?? "").trim() : String(row[0] ?? "").trim();
+      const keyOriginal = keyOrigIdx !== -1 ? String(row[keyOrigIdx] ?? "").trim() : "";
+      const valueSit = sitIdx !== -1 ? String(row[sitIdx] ?? "").trim() : "";
+      const valueUat = uatIdx !== -1 ? String(row[uatIdx] ?? "").trim() : "";
+      const valueProdAscom = prodAscomIdx !== -1 ? String(row[prodAscomIdx] ?? "").trim() : "";
+      const valueProd = prodIdx !== -1 ? String(row[prodIdx] ?? "").trim() : "";
 
-      const prodBoolStr = existInProdIdx !== -1 ? String(row[existInProdIdx] || "").trim().toLowerCase() : "";
+      const prodBoolStr = existInProdIdx !== -1 ? String(row[existInProdIdx] ?? "").trim().toLowerCase() : "";
+      const hasExplicitExistInProd = existInProdIdx !== -1 && prodBoolStr !== "";
       const existsInProd = ["true", "1", "yes", "ya", "y"].includes(prodBoolStr);
 
       const isValid = keyName.length > 0;
+      const isExistingMatch = Boolean(
+        existingSecrets.some((s) => {
+          const sKey = (s.keyName || s.key || "").trim().toLowerCase();
+          return sKey === keyName.toLowerCase();
+        })
+      );
 
       parsed.push({
         keyName,
+        keyOriginal,
         valueSit,
         valueUat,
         valueProdAscom,
         valueProd,
         existsInProd,
+        hasExplicitExistInProd,
         isValid,
+        isExistingMatch,
       });
     }
 
@@ -211,21 +256,53 @@ export function SecretImportDialog({
 
     setIsImporting(true);
     try {
-      let successCount = 0;
+      let createdCount = 0;
+      let updatedCount = 0;
 
       for (let i = 0; i < validData.length; i++) {
         const item = validData[i];
-        await addSecret({
-          keyName: item.keyName,
-          valueSit: item.valueSit,
-          valueUat: item.valueUat,
-          valueProdAscom: item.valueProdAscom,
-          valueProd: item.valueProd,
-          existsInProd: item.existsInProd,
-          projectId: activeProjectId || null,
-          order: i * 1000,
+        const targetKey = item.keyName.trim();
+
+        // Match on Key Transform (case-insensitive)
+        const existing = existingSecrets.find((s) => {
+          const sKey = (s.keyName || s.key || "").trim().toLowerCase();
+          return sKey === targetKey.toLowerCase();
         });
-        successCount++;
+
+        if (existing) {
+          // Rule: Replace matching key, but if imported cell is empty, preserve existing value
+          const updatedPayload: any = {
+            keyName: targetKey,
+            keyOriginal: item.keyOriginal !== "" ? item.keyOriginal : (existing.keyOriginal || ""),
+            valueSit: item.valueSit !== "" ? item.valueSit : (existing.valueSit || ""),
+            valueUat: item.valueUat !== "" ? item.valueUat : (existing.valueUat || ""),
+            valueProdAscom: item.valueProdAscom !== "" ? item.valueProdAscom : (existing.valueProdAscom || ""),
+            valueProd: item.valueProd !== "" ? item.valueProd : (existing.valueProd || ""),
+            existsInProd: item.hasExplicitExistInProd
+              ? item.existsInProd
+              : Boolean(existing.existsInProd ?? existing.isExistInProd ?? false),
+          };
+
+          await updateSecret({
+            id: existing.id,
+            data: updatedPayload,
+          });
+          updatedCount++;
+        } else {
+          // New secret key
+          await addSecret({
+            keyName: targetKey,
+            keyOriginal: item.keyOriginal || "",
+            valueSit: item.valueSit || "",
+            valueUat: item.valueUat || "",
+            valueProdAscom: item.valueProdAscom || "",
+            valueProd: item.valueProd || "",
+            existsInProd: Boolean(item.existsInProd),
+            projectId: activeProjectId || null,
+            order: existingSecrets.length * 1000 + i * 10,
+          });
+          createdCount++;
+        }
       }
 
       onOpenChange(false);
@@ -234,7 +311,7 @@ export function SecretImportDialog({
 
       await alertModal({
         title: "Import Success",
-        description: `Successfully imported ${successCount} Secret Keys!`,
+        description: `Successfully processed ${validData.length} Secret Keys (${createdCount} added, ${updatedCount} updated)!`,
         variant: "success",
       });
     } catch (err: any) {
@@ -307,7 +384,7 @@ export function SecretImportDialog({
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Required Header Columns: <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Key</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (SIT - ASCOM)</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (UAT - ASCOM)</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (PROD - ASCOM)</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (PROD)</code>
+              Required Header Columns: <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Key Transform</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Key Original</code> (optional), <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (SIT)</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (UAT)</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (PROD - ASCOM)</code>, <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">Value (PROD)</code>
             </p>
           </div>
 
@@ -372,10 +449,12 @@ export function SecretImportDialog({
                   <TableHeader className="bg-muted/40 sticky top-0">
                     <TableRow>
                       <TableHead className="w-[30px]"></TableHead>
-                      <TableHead className="text-xs font-semibold">Key</TableHead>
+                      <TableHead className="text-xs font-semibold">Action</TableHead>
+                      <TableHead className="text-xs font-semibold">Key Transform</TableHead>
+                      <TableHead className="text-xs font-semibold">Key Original</TableHead>
                       <TableHead className="text-xs font-semibold">Exist in PROD</TableHead>
-                      <TableHead className="text-xs font-semibold">SIT - ASCOM</TableHead>
-                      <TableHead className="text-xs font-semibold">UAT - ASCOM</TableHead>
+                      <TableHead className="text-xs font-semibold">SIT</TableHead>
+                      <TableHead className="text-xs font-semibold">UAT</TableHead>
                       <TableHead className="text-xs font-semibold">PROD - ASCOM</TableHead>
                       <TableHead className="text-xs font-semibold">PROD</TableHead>
                     </TableRow>
@@ -387,13 +466,28 @@ export function SecretImportDialog({
                           {item.isValid ? (
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                           ) : (
-                            <span title="Missing Key">
+                            <span title="Missing Key Transform">
                               <AlertCircle className="w-3.5 h-3.5 text-destructive" />
                             </span>
                           )}
                         </TableCell>
+                        <TableCell className="text-xs py-1.5">
+                          {item.isValid && (
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded text-[10px] font-semibold border",
+                              item.isExistingMatch 
+                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30" 
+                                : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                            )}>
+                              {item.isExistingMatch ? "Replace" : "New"}
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell className="font-mono text-xs py-1.5 font-medium">
-                          {item.keyName || <span className="text-destructive text-[10px] italic">Missing Key</span>}
+                          {item.keyName || <span className="text-destructive text-[10px] italic">Missing Key Transform</span>}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs py-1.5 text-muted-foreground">
+                          {item.keyOriginal || "-"}
                         </TableCell>
                         <TableCell className="text-xs py-1.5">
                           <span className={cn(

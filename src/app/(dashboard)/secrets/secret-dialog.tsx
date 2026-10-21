@@ -19,7 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Key } from "lucide-react";
 
 const formSchema = z.object({
-  keyName: z.string().min(1, "Key name is required"),
+  keyName: z.string().min(1, "Key Transform is required"),
+  keyOriginal: z.string().optional(),
   valueSit: z.string().optional(),
   valueUat: z.string().optional(),
   valueProdAscom: z.string().optional(),
@@ -50,6 +51,7 @@ export function SecretDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       keyName: "",
+      keyOriginal: "",
       valueSit: "",
       valueUat: "",
       valueProdAscom: "",
@@ -63,6 +65,7 @@ export function SecretDialog({
       if (secretToEdit) {
         form.reset({
           keyName: secretToEdit.keyName || secretToEdit.key || "",
+          keyOriginal: secretToEdit.keyOriginal || "",
           valueSit: secretToEdit.valueSit || "",
           valueUat: secretToEdit.valueUat || "",
           valueProdAscom: secretToEdit.valueProdAscom || "",
@@ -72,6 +75,7 @@ export function SecretDialog({
       } else {
         form.reset({
           keyName: "",
+          keyOriginal: "",
           valueSit: "",
           valueUat: "",
           valueProdAscom: "",
@@ -86,6 +90,7 @@ export function SecretDialog({
     try {
       const payload = {
         keyName: data.keyName.trim(),
+        keyOriginal: (data.keyOriginal || "").trim(),
         valueSit: data.valueSit || "",
         valueUat: data.valueUat || "",
         valueProdAscom: data.valueProdAscom || "",
@@ -122,9 +127,9 @@ export function SecretDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-          {/* Key Name */}
+          {/* Key Transform */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Key Name <span className="text-destructive">*</span></Label>
+            <Label className="text-xs font-semibold">Key Transform <span className="text-destructive">*</span></Label>
             <Input 
               {...form.register("keyName")} 
               placeholder="e.g. DATABASE_URL, API_KEY_GATEWAY, JWT_SECRET" 
@@ -135,23 +140,33 @@ export function SecretDialog({
             )}
           </div>
 
+          {/* Key Original */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Key Original</Label>
+            <Input 
+              {...form.register("keyOriginal")} 
+              placeholder="e.g. database.url, apiKeyGateway, or original key" 
+              className="font-mono text-sm"
+            />
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t">
-            {/* Value (SIT - ASCOM) */}
+            {/* Value (SIT) */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Value (SIT - ASCOM)</Label>
+              <Label className="text-xs font-semibold">Value (SIT)</Label>
               <Input 
                 {...form.register("valueSit")} 
-                placeholder="SIT - ASCOM value" 
+                placeholder="SIT value" 
                 className="font-mono text-xs"
               />
             </div>
 
-            {/* Value (UAT - ASCOM) */}
+            {/* Value (UAT) */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Value (UAT - ASCOM)</Label>
+              <Label className="text-xs font-semibold">Value (UAT)</Label>
               <Input 
                 {...form.register("valueUat")} 
-                placeholder="UAT - ASCOM value" 
+                placeholder="UAT value" 
                 className="font-mono text-xs"
               />
             </div>

@@ -168,6 +168,9 @@ function SecretRow({
           )}
         </div>
       </TableCell>
+      <TableCell className="font-mono text-xs py-2.5 text-muted-foreground">
+        <span>{secret.keyOriginal || "-"}</span>
+      </TableCell>
       <TableCell className="py-2.5">
         <button
           type="button"
@@ -317,11 +320,12 @@ export default function SecretsPage() {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((s) => {
         const key = (s.keyName || s.key || "").toLowerCase();
+        const keyOrig = (s.keyOriginal || "").toLowerCase();
         const sit = (s.valueSit || "").toLowerCase();
         const uat = (s.valueUat || "").toLowerCase();
         const prodAscom = (s.valueProdAscom || "").toLowerCase();
         const prod = (s.valueProd || "").toLowerCase();
-        return key.includes(q) || sit.includes(q) || uat.includes(q) || prodAscom.includes(q) || prod.includes(q);
+        return key.includes(q) || keyOrig.includes(q) || sit.includes(q) || uat.includes(q) || prodAscom.includes(q) || prod.includes(q);
       });
     }
 
@@ -495,6 +499,7 @@ export default function SecretsPage() {
       <SecretImportDialog
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
+        existingSecrets={activeSecrets}
       />
       <SecretExportDialog
         open={isExportDialogOpen}
@@ -634,10 +639,11 @@ export default function SecretsPage() {
             <TableHeader className="bg-muted/40">
               <TableRow>
                 <TableHead className="w-[50px] font-semibold text-xs pl-3">No</TableHead>
-                <TableHead className="font-semibold text-xs">Key</TableHead>
+                <TableHead className="font-semibold text-xs">Key Transform</TableHead>
+                <TableHead className="font-semibold text-xs">Key Original</TableHead>
                 <TableHead className="font-semibold text-xs">Exist in PROD</TableHead>
-                <TableHead className="font-semibold text-xs">Value (SIT - ASCOM)</TableHead>
-                <TableHead className="font-semibold text-xs">Value (UAT - ASCOM)</TableHead>
+                <TableHead className="font-semibold text-xs">Value (SIT)</TableHead>
+                <TableHead className="font-semibold text-xs">Value (UAT)</TableHead>
                 {showProdAscom && (
                   <TableHead className="font-semibold text-xs">Value (PROD - ASCOM)</TableHead>
                 )}
@@ -648,13 +654,13 @@ export default function SecretsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={showProdAscom ? 8 : 7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={showProdAscom ? 9 : 8} className="text-center py-10 text-muted-foreground">
                     Loading secret keys...
                   </TableCell>
                 </TableRow>
               ) : processedSecrets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={showProdAscom ? 8 : 7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={showProdAscom ? 9 : 8} className="text-center py-12 text-muted-foreground">
                     <p className="text-base font-medium">No secret keys found.</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
                       Click "New Secret Key" above to add your first secret.

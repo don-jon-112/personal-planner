@@ -101,7 +101,8 @@ export function SecretExportDialog({
             exportedAt: new Date().toISOString(),
             totalSecrets: secrets.length,
             secrets: secrets.map((s) => ({
-              key: s.keyName || s.key,
+              keyTransform: s.keyName || s.key,
+              keyOriginal: s.keyOriginal || "",
               existsInProd: Boolean(s.existsInProd ?? s.isExistInProd),
               valueSit: s.valueSit || "",
               valueUat: s.valueUat || "",
@@ -138,16 +139,18 @@ export function SecretExportDialog({
       } else if (exportFormat === "xlsx") {
         // Generate Excel file (.xlsx)
         const headers = [
-          "Key",
+          "Key Transform",
+          "Key Original",
           "Exist in PROD",
-          "Value (SIT - ASCOM)",
-          "Value (UAT - ASCOM)",
+          "Value (SIT)",
+          "Value (UAT)",
           "Value (PROD - ASCOM)",
           "Value (PROD)",
         ];
 
         const rows = secrets.map((s) => [
           s.keyName || s.key || "",
+          s.keyOriginal || "",
           Boolean(s.existsInProd ?? s.isExistInProd) ? "TRUE" : "FALSE",
           s.valueSit || "",
           s.valueUat || "",
@@ -157,12 +160,13 @@ export function SecretExportDialog({
 
         const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
         ws["!cols"] = [
-          { wch: 32 },
-          { wch: 16 },
-          { wch: 36 },
-          { wch: 36 },
-          { wch: 36 },
-          { wch: 36 },
+          { wch: 32 }, // Key Transform
+          { wch: 32 }, // Key Original
+          { wch: 16 }, // Exist in PROD
+          { wch: 36 }, // Value (SIT)
+          { wch: 36 }, // Value (UAT)
+          { wch: 36 }, // Value (PROD - ASCOM)
+          { wch: 36 }, // Value (PROD)
         ];
 
         const wb = XLSX.utils.book_new();
@@ -171,16 +175,18 @@ export function SecretExportDialog({
       } else if (exportFormat === "csv") {
         // Generate CSV
         const headers = [
-          "Key",
+          "Key Transform",
+          "Key Original",
           "Exist in PROD",
-          "Value (SIT - ASCOM)",
-          "Value (UAT - ASCOM)",
+          "Value (SIT)",
+          "Value (UAT)",
           "Value (PROD - ASCOM)",
           "Value (PROD)",
         ];
 
         const rows = secrets.map((s) => [
           s.keyName || s.key || "",
+          s.keyOriginal || "",
           Boolean(s.existsInProd ?? s.isExistInProd) ? "TRUE" : "FALSE",
           s.valueSit || "",
           s.valueUat || "",
