@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Search, Plus, ArrowUpDown, Filter, CheckSquare, Layers, Upload } from "lucide-react";
+import { Search, Plus, ArrowUpDown, Filter, CheckSquare, Layers, Upload, Lock, Eye, Database, Zap } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,7 +53,7 @@ import { useProject } from "@/components/project-context";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Lock, Eye } from "lucide-react";
+import { fetchCachedTimelineData, saveProjectCacheToRedis } from "@/lib/cache-client";
 
 export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
@@ -125,14 +125,81 @@ export default function TodoPage() {
   const [epicPage, setEpicPage] = useState(1);
   const [epicPageSize, setEpicPageSize] = useState(10);
 
+  // Viewer-first Redis caching logic & Editor auto-sync
+  const [cacheSource, setCacheSource] = useState<"redis" | "firebase" | "loading">("loading");
+  const hasInitialLoadedRef = useRef(false);
+
+  // Fetch cache for viewers on mount / activeProject change
+  useEffect(() => {
+    if (hasEdit) {
+      setCacheSource("firebase");
+      return;
+    }
+
+    let isMounted = true;
+    setCacheSource("loading");
+
+    async function loadViewerData() {
+      const projectId = activeProject?.id || "_global_";
+      const cached = await fetchCachedTimelineData(projectId);
+      if (!isMounted) return;
+
+      const hasTasks = Array.isArray(cached.tasks) && cached.tasks.length > 0;
+      const hasEpics = Array.isArray(cached.epics) && cached.epics.length > 0;
+
+      if (cached.source === "redis" && (hasTasks || hasEpics)) {
+        setLocalEpics(cached.epics || []);
+        setLocalTasks(cached.tasks || []);
+        setCacheSource("redis");
+      } else {
+        // Fallback to Firebase
+        setCacheSource("firebase");
+        setLocalTasks(activeTasks);
+        setLocalEpics(activeEpics);
+      }
+    }
+
+    loadViewerData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hasEdit, activeProject?.id]);
+
   // Sync firestore collections to local state (scoped to active project)
   useEffect(() => {
+    if (!hasEdit && cacheSource === "redis") return;
     setLocalTasks(activeTasks);
-  }, [activeTasks]);
+  }, [activeTasks, hasEdit, cacheSource]);
 
   useEffect(() => {
+    if (!hasEdit && cacheSource === "redis") return;
     setLocalEpics(activeEpics);
-  }, [activeEpics]);
+  }, [activeEpics, hasEdit, cacheSource]);
+
+  // Track initial load completion for editors
+  useEffect(() => {
+    if (hasEdit && !isTasksLoading && !isEpicsLoading && (tasks.length > 0 || epics.length > 0)) {
+      hasInitialLoadedRef.current = true;
+    }
+  }, [hasEdit, isTasksLoading, isEpicsLoading, tasks.length, epics.length]);
+
+  // Auto-sync edits to Redis in online mode whenever tasks or epics change after initial load
+  useEffect(() => {
+    if (!hasEdit) return;
+    if (!hasInitialLoadedRef.current) return;
+    if (isTasksLoading || isEpicsLoading) return;
+
+    const timer = setTimeout(() => {
+      const projectId = activeProject?.id || "_global_";
+      saveProjectCacheToRedis(projectId, {
+        tasks: localTasks,
+        epics: localEpics,
+      });
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [localTasks, localEpics, hasEdit, isTasksLoading, isEpicsLoading, activeProject?.id]);
 
   // Reset pages to 1 when search, filters, sorting, or page size change
   useEffect(() => {
@@ -394,10 +461,33 @@ export default function TodoPage() {
               </span>
             )}
             {!hasEdit && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
-                <Eye className="w-3 h-3" />
-                Watch Only
-              </span>
+              <>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
+                  <Eye className="w-3 h-3" />
+                  Watch Only
+                </span>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ml-1.5 transition-colors",
+                    cacheSource === "redis"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                  )}
+                  title={cacheSource === "redis" ? "Data dimuat dari Redis Fast Cache" : "Data dimuat dari Firebase Cloud"}
+                >
+                  {cacheSource === "redis" ? (
+                    <>
+                      <Zap className="w-3 h-3 text-emerald-500" />
+                      Redis Cache
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-3 h-3 text-blue-500" />
+                      Firebase
+                    </>
+                  )}
+                </span>
+              </>
             )}
           </PanelTitle>
           <PanelDescription className="mt-1">

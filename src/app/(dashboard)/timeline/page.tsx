@@ -25,7 +25,10 @@ import {
   X,
   UserCheck,
   ClipboardCheck,
+  Database,
+  Zap,
 } from "lucide-react";
+import { fetchCachedTimelineData, saveProjectCacheToRedis } from "@/lib/cache-client";
 import { useCollection, useDeleteDocument, useUpdateDocument, useAddDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -1097,19 +1100,95 @@ export default function TimelinePage() {
     setCollapsedEpicIds(new Set());
   };
 
+  // Viewer-first Redis caching logic & Editor auto-sync
+  const [cacheSource, setCacheSource] = useState<"redis" | "firebase" | "loading">("loading");
+  const hasInitialLoadedRef = useRef(false);
+
+  // Fetch cache for viewers on mount / activeProject change
   useEffect(() => {
+    if (hasEdit) {
+      setCacheSource("firebase");
+      return;
+    }
+
+    let isMounted = true;
+    setCacheSource("loading");
+
+    async function loadViewerData() {
+      const projectId = activeProject?.id || "_global_";
+      const cached = await fetchCachedTimelineData(projectId);
+      if (!isMounted) return;
+
+      const hasTasks = Array.isArray(cached.tasks) && cached.tasks.length > 0;
+      const hasEpics = Array.isArray(cached.epics) && cached.epics.length > 0;
+
+      if (cached.source === "redis" && (hasTasks || hasEpics)) {
+        const epics = (cached.epics || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        const tasks = (cached.tasks || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        setOrderedEpics(epics);
+        setLocalTasks(tasks);
+        setCacheSource("redis");
+      } else {
+        // Fallback to Firebase
+        setCacheSource("firebase");
+        if (rawEpics) {
+          const filtered = rawEpics.filter((e: any) => isItemInActiveProject(e.projectId));
+          setOrderedEpics(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
+        }
+        if (rawTasks) {
+          const filtered = rawTasks.filter((t: any) => isItemInActiveProject(t.projectId));
+          setLocalTasks(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
+        }
+      }
+    }
+
+    loadViewerData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hasEdit, activeProject?.id]);
+
+  // Sync from Firestore: for editors OR when cacheSource is not redis
+  useEffect(() => {
+    if (!hasEdit && cacheSource === "redis") return;
     if (rawEpics) {
       const filtered = rawEpics.filter((e: any) => isItemInActiveProject(e.projectId));
       setOrderedEpics(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
     }
-  }, [rawEpics, isItemInActiveProject]);
+  }, [rawEpics, isItemInActiveProject, hasEdit, cacheSource]);
 
   useEffect(() => {
+    if (!hasEdit && cacheSource === "redis") return;
     if (rawTasks) {
       const filtered = rawTasks.filter((t: any) => isItemInActiveProject(t.projectId));
       setLocalTasks(filtered.sort((a, b) => (a.order || 0) - (b.order || 0)));
     }
-  }, [rawTasks, isItemInActiveProject]);
+  }, [rawTasks, isItemInActiveProject, hasEdit, cacheSource]);
+
+  // Track initial load completion for editors
+  useEffect(() => {
+    if (hasEdit && !isLoadingEpics && !isLoadingTasks && (rawEpics || rawTasks)) {
+      hasInitialLoadedRef.current = true;
+    }
+  }, [hasEdit, isLoadingEpics, isLoadingTasks, rawEpics, rawTasks]);
+
+  // Auto-sync edits to Redis in online mode whenever tasks or epics change after initial load
+  useEffect(() => {
+    if (!hasEdit) return;
+    if (!hasInitialLoadedRef.current) return;
+    if (isLoadingEpics || isLoadingTasks) return;
+
+    const timer = setTimeout(() => {
+      const projectId = activeProject?.id || "_global_";
+      saveProjectCacheToRedis(projectId, {
+        tasks: localTasks,
+        epics: orderedEpics,
+      });
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [localTasks, orderedEpics, hasEdit, isLoadingEpics, isLoadingTasks, activeProject?.id]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -1415,10 +1494,33 @@ export default function TimelinePage() {
               </span>
             )}
             {!hasEdit && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
-                <Eye className="w-3 h-3" />
-                Watch Only
-              </span>
+              <>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
+                  <Eye className="w-3 h-3" />
+                  Watch Only
+                </span>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ml-1.5 transition-colors",
+                    cacheSource === "redis"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                  )}
+                  title={cacheSource === "redis" ? "Data dimuat dari Redis Fast Cache" : "Data dimuat dari Firebase Cloud"}
+                >
+                  {cacheSource === "redis" ? (
+                    <>
+                      <Zap className="w-3 h-3 text-emerald-500" />
+                      Redis Cache
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-3 h-3 text-blue-500" />
+                      Firebase
+                    </>
+                  )}
+                </span>
+              </>
             )}
           </PanelTitle>
           <PanelDescription className="mt-1">

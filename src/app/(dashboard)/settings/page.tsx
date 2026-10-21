@@ -7,11 +7,13 @@ import { useDocument, useSetDocument } from "@/hooks/use-firestore";
 import { menuItems } from "@/config/menu";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { CloudUpload, CloudDownload, Server, ServerOff, Database, FileDown, FileUp, Loader2, Clock, RefreshCw } from "lucide-react";
+import { CloudUpload, CloudDownload, Server, ServerOff, Database, FileDown, FileUp, Loader2, Clock, RefreshCw, Zap } from "lucide-react";
 import { enableNetwork, disableNetwork, waitForPendingWrites, getDocs, collection, doc, writeBatch, terminate, clearIndexedDbPersistence, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
+import { syncAllProjectsCacheToRedis, checkRedisStatus, RedisHealthStatus } from "@/lib/cache-client";
+import { cn } from "@/lib/utils";
 
 const ALL_COLLECTIONS = [
   "appSettings",
@@ -66,7 +68,13 @@ export default function SettingsPage() {
     return null;
   });
   const [isFetchingSyncStatus, setIsFetchingSyncStatus] = useState(false);
+  const [redisStatus, setRedisStatus] = useState<RedisHealthStatus | null>(null);
+  const [isSyncingRedis, setIsSyncingRedis] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    checkRedisStatus().then(setRedisStatus).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (menuSettings?.hiddenMenus) {
@@ -132,6 +140,34 @@ export default function SettingsPage() {
     }
   };
 
+  const syncAllDataToRedis = async () => {
+    try {
+      const [epicsSnap, tasksSnap] = await Promise.all([
+        getDocs(collection(db, "timelineEpics")),
+        getDocs(collection(db, "timelineTasks")),
+      ]);
+      const epics = epicsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const tasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const projectsData: Record<string, { tasks: any[]; epics: any[] }> = {};
+      epics.forEach((e: any) => {
+        const pid = e.projectId || "_global_";
+        if (!projectsData[pid]) projectsData[pid] = { tasks: [], epics: [] };
+        projectsData[pid].epics.push(e);
+      });
+      tasks.forEach((t: any) => {
+        const pid = t.projectId || "_global_";
+        if (!projectsData[pid]) projectsData[pid] = { tasks: [], epics: [] };
+        projectsData[pid].tasks.push(t);
+      });
+
+      return await syncAllProjectsCacheToRedis(projectsData);
+    } catch (err) {
+      console.warn("Failed to sync cache to Redis:", err);
+      return false;
+    }
+  };
+
   const handleSyncToFirebase = async () => {
     const ok = await confirm({
       title: "Push Data to Cloud Firebase?",
@@ -160,12 +196,15 @@ export default function SettingsPage() {
         updatedBy: "Admin",
       }, { merge: true }).catch(err => console.warn("Failed to record sync metadata:", err));
 
+      // Also sync all tasks and epics to Redis Cache for viewer fast loading
+      const redisSynced = await syncAllDataToRedis();
+
       // Brief delay to ensure connections settle
       await new Promise(r => setTimeout(r, 1000));
       if (!isOnline) await disableNetwork(db);
       await alertModal({
         title: "Sync Successful",
-        description: `Local changes have been successfully synced to Firebase Cloud on ${new Date(syncTime).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "medium" })}!`,
+        description: `Local changes have been successfully synced to Firebase Cloud${redisSynced ? " and Redis Cache" : ""} on ${new Date(syncTime).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "medium" })}!`,
         variant: "success",
       });
     } catch (e) {
@@ -177,6 +216,47 @@ export default function SettingsPage() {
       });
     } finally {
       setIsSyncingUp(false);
+    }
+  };
+
+  const handleManualSyncToRedis = async () => {
+    const ok = await confirm({
+      title: "Sync Cache to Redis?",
+      description: "This will push all current tasks and epics to Redis cache so viewers can load data immediately.",
+      confirmText: "Sync to Redis",
+      cancelText: "Cancel",
+      variant: "primary",
+    });
+
+    if (!ok) return;
+
+    try {
+      setIsSyncingRedis(true);
+      const success = await syncAllDataToRedis();
+      const status = await checkRedisStatus();
+      setRedisStatus(status);
+
+      if (success) {
+        await alertModal({
+          title: "Redis Sync Berhasil",
+          description: "Seluruh task dan epic berhasil disinkronkan ke Redis cache!",
+          variant: "success",
+        });
+      } else {
+        await alertModal({
+          title: "Redis Sync Gagal",
+          description: "Tidak dapat menyinkronkan data ke Redis. Pastikan koneksi REDIS_URL aktif.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      await alertModal({
+        title: "Redis Sync Error",
+        description: err.message || "Terjadi kesalahan saat sync ke Redis.",
+        variant: "error",
+      });
+    } finally {
+      setIsSyncingRedis(false);
     }
   };
 
@@ -667,6 +747,53 @@ export default function SettingsPage() {
                 >
                   {isOnline ? <Server className="w-4 h-4 mr-2" /> : <ServerOff className="w-4 h-4 mr-2" />}
                   {isOnline ? "Online Mode" : "Offline Mode"}
+                </Button>
+              </div>
+
+              {/* Redis Cache Sync for Viewers */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border bg-emerald-500/5 border-emerald-500/20 gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-sm text-foreground flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-emerald-500" />
+                      Redis Dual Cache (for Viewers)
+                    </p>
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                        redisStatus?.primary?.connected
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                          : "bg-destructive/10 text-destructive border-destructive/20"
+                      )}
+                      title={redisStatus?.primary?.message || "Primary Redis (Layerbase)"}
+                    >
+                      Primary: {redisStatus?.primary?.connected ? "Online" : "Offline"}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                        redisStatus?.secondary?.connected
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                          : "bg-muted text-muted-foreground border-border"
+                      )}
+                      title={redisStatus?.secondary?.message || "Backup Redis (Upstash)"}
+                    >
+                      Backup: {redisStatus?.secondary?.connected ? "Online" : (redisStatus?.secondary?.configured ? "Offline" : "Not Set")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Data di-update simultan ke Primary & Backup. Jika Primary kena limit/down, viewer otomatis failover ke Backup Upstash sebelum ke Firebase.
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleManualSyncToRedis} 
+                  disabled={isSyncingRedis}
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto shrink-0 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                >
+                  <Zap className={`w-4 h-4 mr-2 ${isSyncingRedis ? "animate-spin" : ""}`} />
+                  {isSyncingRedis ? "Syncing..." : "Sync Both Redis"}
                 </Button>
               </div>
             </div>

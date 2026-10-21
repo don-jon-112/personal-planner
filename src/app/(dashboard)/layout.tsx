@@ -7,8 +7,9 @@ import { SidebarProvider, useSidebar } from "@/components/sidebar-context";
 import { ProjectProvider } from "@/components/project-context";
 import { AuthProvider, useAuth } from "@/components/auth-context";
 import { ProjectSwitcher } from "@/components/project-switcher";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeftOpen, LogOut, ShieldCheck } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, LogOut, ShieldCheck, KeyRound } from "lucide-react";
 
 function HeaderNav() {
   const { isSidebarHidden, toggleSidebar } = useSidebar();
@@ -60,6 +61,17 @@ function HeaderNav() {
         >
           {initials}
         </div>
+        <Link href="/change-password">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-8 px-2.5 gap-1.5"
+            title="Ganti Password Akun"
+          >
+            <KeyRound className="w-4 h-4 text-primary" />
+            <span className="hidden lg:inline text-xs">Ganti Password</span>
+          </Button>
+        </Link>
         <Button
           variant="ghost"
           size="sm"

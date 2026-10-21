@@ -191,3 +191,84 @@ export async function authenticateUser(username: string, password: string) {
 export async function login(password: string) {
   return loginWithMaster(password);
 }
+
+export async function updateUserPassword(
+  userId: string,
+  username: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const trimmedUser = (username || '').trim();
+    const curPass = (currentPassword || '').trim();
+    const newPass = (newPassword || '').trim();
+
+    if (!newPass || newPass.length < 6) {
+      return { success: false, error: 'Password baru minimal harus 6 karakter.' };
+    }
+
+    if (curPass === newPass) {
+      return { success: false, error: 'Password baru tidak boleh sama dengan password lama.' };
+    }
+
+    const { initializeApp, getApps, getApp } = await import('firebase/app');
+    const { getFirestore, doc, getDoc, updateDoc, collection, getDocs, serverTimestamp } = await import('firebase/firestore');
+
+    const firebaseConfig = {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    };
+
+    const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    const db = getFirestore(app);
+
+    // 1. Try finding doc by userId
+    let userDocRef = userId && userId !== 'master_admin' ? doc(db, 'users', userId) : null;
+    let userSnap = userDocRef ? await getDoc(userDocRef) : null;
+
+    // 2. If not found by ID, search by username
+    if (!userSnap || !userSnap.exists()) {
+      const snap = await getDocs(collection(db, 'users'));
+      snap.forEach((d) => {
+        const data = d.data();
+        if ((data.username || '').toLowerCase() === trimmedUser.toLowerCase()) {
+          userDocRef = doc(db, 'users', d.id);
+          userSnap = d as any;
+        }
+      });
+    }
+
+    if (!userSnap || !userSnap.exists()) {
+      return { success: false, error: `User "${trimmedUser}" tidak ditemukan di database.` };
+    }
+
+    const userData = userSnap.data();
+    const storedPass = (userData.password || '').toString();
+
+    // Verify current password (support master password as override for master admin)
+    const masterPassword = process.env.SITE_PASSWORD;
+    const isMasterOverride = masterPassword && (curPass === masterPassword);
+    const isPasswordCorrect = storedPass === curPass || storedPass.trim() === curPass || isMasterOverride;
+
+    if (!isPasswordCorrect) {
+      return { success: false, error: 'Password lama (current password) tidak sesuai.' };
+    }
+
+    if (userDocRef) {
+      await updateDoc(userDocRef, {
+        password: newPass,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Update password server error:', err);
+    return { success: false, error: err.message || 'Gagal mengubah password.' };
+  }
+}
+

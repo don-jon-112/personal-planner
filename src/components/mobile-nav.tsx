@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Bug, Settings, Cloud, CloudOff, ChevronDown, ChevronRight } from "lucide-react";
+import { Menu, X, Bug, Settings, Cloud, CloudOff, ChevronDown, ChevronRight, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { projectMenuItems, globalMenuItems, MenuItem } from "@/config/menu";
@@ -219,8 +219,19 @@ export function MobileNav() {
               </div>
             </div>
 
-            {canView("settings") && (
-              <div className="p-3 border-t border-sidebar-accent/50">
+            <div className="p-3 border-t border-sidebar-accent/50 space-y-1">
+              <Link
+                href="/change-password"
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all duration-200 group text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent/50",
+                  pathname === "/change-password" && "bg-sidebar-accent text-white font-semibold"
+                )}
+              >
+                <KeyRound className="w-5 h-5 opacity-80 group-hover:opacity-100 transition-opacity" />
+                <span>Ganti Password</span>
+              </Link>
+              {canView("settings") && (
                 <Link
                   href="/settings"
                   onClick={() => setOpen(false)}
@@ -232,8 +243,8 @@ export function MobileNav() {
                   <Settings className="w-5 h-5 opacity-80 group-hover:opacity-100 transition-opacity" />
                   <span>Settings</span>
                 </Link>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}

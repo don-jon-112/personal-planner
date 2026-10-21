@@ -10,7 +10,8 @@ import {
   CloudOff,
   ChevronDown,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  KeyRound
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -243,9 +244,19 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Footer Settings */}
-      {canView("settings") && (
-        <div className="p-3 border-t border-sidebar-accent/50">
+      {/* Footer Navigation */}
+      <div className="p-3 border-t border-sidebar-accent/50 space-y-1">
+        <Link
+          href="/change-password"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded text-sm transition-all duration-200 group text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent/50",
+            pathname === "/change-password" && "bg-sidebar-accent text-white font-semibold"
+          )}
+        >
+          <KeyRound className="w-4 h-4 opacity-80 group-hover:opacity-100 transition-opacity" />
+          <span>Ganti Password</span>
+        </Link>
+        {canView("settings") && (
           <Link
             href="/settings"
             className={cn(
@@ -256,8 +267,8 @@ export function Sidebar() {
             <Settings className="w-4 h-4 opacity-80 group-hover:opacity-100 transition-opacity" />
             <span>Settings</span>
           </Link>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }
