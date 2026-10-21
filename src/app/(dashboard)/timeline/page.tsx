@@ -25,9 +25,11 @@ import {
   X,
   UserCheck,
   ClipboardCheck,
+  RotateCcw,
   Database,
   Zap,
 } from "lucide-react";
+import { serverTimestamp } from "firebase/firestore";
 import { fetchCachedTimelineData, saveProjectCacheToRedis } from "@/lib/cache-client";
 import { useCollection, useDeleteDocument, useUpdateDocument, useAddDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
@@ -402,6 +404,7 @@ function TaskRow({
   onUpdateStatus,
   onAssignToMe,
   onSetInReview,
+  onBackToTodo,
   hasEdit = true,
   hasDelete = true,
   taskStatuses = [],
@@ -419,6 +422,7 @@ function TaskRow({
   onUpdateStatus: any;
   onAssignToMe?: (task: any) => void;
   onSetInReview?: (task: any) => void;
+  onBackToTodo?: (task: any) => void;
   hasEdit?: boolean;
   hasDelete?: boolean;
   taskStatuses?: any[];
@@ -579,6 +583,15 @@ function TaskRow({
                     <span>Assign To Me</span>
                   </DropdownMenuItem>
                 )}
+                {isOnProgress && onBackToTodo && (
+                  <DropdownMenuItem
+                    className="text-amber-600 dark:text-amber-400 font-medium focus:text-amber-600 cursor-pointer"
+                    onClick={() => onBackToTodo(task)}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    <span>BACK TODO</span>
+                  </DropdownMenuItem>
+                )}
                 {hasDelete && (
                   <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(task)}>
                     Delete
@@ -606,6 +619,15 @@ function TaskRow({
                   >
                     <ClipboardCheck className="w-4 h-4 mr-2" />
                     <span>IN REVIEW</span>
+                  </DropdownMenuItem>
+                )}
+                {isOnProgress && onBackToTodo && (
+                  <DropdownMenuItem
+                    className="text-amber-600 dark:text-amber-400 font-medium focus:text-amber-600 cursor-pointer"
+                    onClick={() => onBackToTodo(task)}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    <span>BACK TODO</span>
                   </DropdownMenuItem>
                 )}
               </>
@@ -721,6 +743,7 @@ function EpicSegmentGroup({
   onAddTaskToEpic,
   onAssignToMe,
   onSetInReview,
+  onBackToTodo,
   hasEdit = true,
   hasDelete = true,
   taskStatuses,
@@ -743,6 +766,7 @@ function EpicSegmentGroup({
   onAddTaskToEpic: any;
   onAssignToMe?: (task: any) => void;
   onSetInReview?: (task: any) => void;
+  onBackToTodo?: (task: any) => void;
   hasEdit?: boolean;
   hasDelete?: boolean;
   taskStatuses: any[];
@@ -880,6 +904,7 @@ function EpicSegmentGroup({
                 onUpdateStatus={onUpdateTaskStatus}
                 onAssignToMe={onAssignToMe}
                 onSetInReview={onSetInReview}
+                onBackToTodo={onBackToTodo}
                 hasEdit={hasEdit}
                 hasDelete={hasDelete}
                 taskStatuses={taskStatuses}
@@ -924,6 +949,7 @@ export default function TimelinePage() {
   const { mutateAsync: updateTask } = useUpdateDocument("timelineTasks");
   const { mutateAsync: deleteEpic } = useDeleteDocument("timelineEpics");
   const { mutateAsync: deleteTask } = useDeleteDocument("timelineTasks");
+  const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");
 
   const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
@@ -1092,6 +1118,74 @@ export default function TimelinePage() {
   const [orderedEpics, setOrderedEpics] = useState<any[]>([]);
   const [localTasks, setLocalTasks] = useState<any[]>([]);
   const [selectedPicFilter, setSelectedPicFilter] = useState<string>("ALL");
+
+  const handleBackToTodo = async (task: any) => {
+    const taskId = task.id || task._id || task.taskId;
+    if (!taskId) return;
+
+    const ok = await confirm({
+      title: "Kembalikan ke TODO?",
+      description: `Apakah Anda yakin ingin mengembalikan task "${task.name}" ke status TODO? PIC dan Start Date akan direset menjadi TBD.`,
+      confirmText: "Ya, Kembalikan ke TODO",
+      cancelText: "Batal",
+      variant: "default",
+    });
+    if (!ok) return;
+
+    try {
+      const updatedData = {
+        status: "TODO",
+        pic: "TBD",
+        startDate: "TBD",
+        endDate: "",
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateTask({
+        id: taskId,
+        data: updatedData,
+      });
+
+      // Audit log in assignmentLogs
+      try {
+        const epic = orderedEpics.find((e) => e.id === task.epicId);
+        await addAssignmentLog({
+          taskId: taskId,
+          taskName: task.name || "Untitled Task",
+          epicId: task.epicId || null,
+          epicName: epic?.name || "-",
+          projectId: task.projectId || activeProject?.id || "_global_",
+          userId: currentUser?.id || "unknown",
+          username: currentUser?.username || "-",
+          userName: currentUser?.name || currentUser?.username || "User",
+          action: "BACK_TODO",
+          previousStatus: task.status || "ON PROGRESS",
+          previousPic: task.pic || "-",
+          previousStartDate: task.startDate || "-",
+          status: "TODO",
+          pic: "TBD",
+          startDate: "TBD",
+          claimedAt: serverTimestamp(),
+          timestamp: new Date().toISOString(),
+        });
+      } catch (logErr) {
+        console.warn("Failed to create assignment log:", logErr);
+      }
+
+      // Optimistic update local tasks & Redis cache
+      setLocalTasks((prev) => {
+        const nextTasks = prev.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t));
+        const projectId = activeProject?.id || "_global_";
+        saveProjectCacheToRedis(projectId, {
+          tasks: nextTasks,
+          epics: orderedEpics,
+        }).catch(console.warn);
+        return nextTasks;
+      });
+    } catch (e) {
+      console.error("Failed to reset task to TODO:", e);
+    }
+  };
 
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
@@ -1936,6 +2030,7 @@ export default function TimelinePage() {
                             onUpdateTaskStatus={handleUpdateTaskStatus}
                             onAssignToMe={handleAssignToMe}
                             onSetInReview={handleSetInReview}
+                            onBackToTodo={handleBackToTodo}
                             hasEdit={hasEdit}
                             hasDelete={hasDelete}
                             taskStatuses={taskStatuses}

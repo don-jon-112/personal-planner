@@ -4,7 +4,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TableRow, TableCell } from "@/components/ui/table";
-import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle, FileText, UserCheck } from "lucide-react";
+import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle, FileText, UserCheck, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -30,6 +30,7 @@ interface SortableTodoRowProps {
   handleEdit: (task: any) => void;
   deleteTask: (id: string) => void;
   onAssignToMe?: (task: any) => void;
+  onBackToTodo?: (task: any) => void;
   isDragDisabled?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -56,6 +57,7 @@ export function SortableTodoRow({
   handleEdit,
   deleteTask,
   onAssignToMe,
+  onBackToTodo,
   isDragDisabled,
   canEdit = true,
   canDelete = true,
@@ -245,6 +247,22 @@ export function SortableTodoRow({
                 <span>Assign To Me</span>
               </DropdownMenuItem>
             )}
+            {(() => {
+              const st = (item.status || "").trim().toUpperCase();
+              const isOnProgress = st === "ON PROGRESS" || st === "IN PROGRESS";
+              if (isOnProgress && onBackToTodo) {
+                return (
+                  <DropdownMenuItem
+                    className="text-amber-600 dark:text-amber-400 font-medium focus:text-amber-600 cursor-pointer"
+                    onClick={() => onBackToTodo(item)}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    <span>BACK TODO</span>
+                  </DropdownMenuItem>
+                );
+              }
+              return null;
+            })()}
             {canDelete !== false && (
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"

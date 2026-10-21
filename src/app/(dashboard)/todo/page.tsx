@@ -41,7 +41,10 @@ import {
 } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
-import { useCollection, useDeleteDocument, useUpdateBatch } from "@/hooks/use-firestore";
+import { useCollection, useDeleteDocument, useUpdateBatch, useUpdateDocument, useAddDocument } from "@/hooks/use-firestore";
+import { useConfirm } from "@/components/confirm-dialog-provider";
+import { useAuth } from "@/components/auth-context";
+import { serverTimestamp } from "firebase/firestore";
 import { TaskDialog } from "../timeline/task-dialog";
 import { EpicDialog } from "../timeline/epic-dialog";
 import { AssignToMeDialog } from "@/components/assign-to-me-dialog";
@@ -59,6 +62,8 @@ export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
   const { activeProject, isItemInActiveProject } = useProject();
   const { canView, canEdit, canDelete } = usePermissions();
+  const { currentUser } = useAuth();
+  const confirm = useConfirm();
 
   const hasView = canView("todo");
   const hasEdit = canEdit("todo");
@@ -89,6 +94,8 @@ export default function TodoPage() {
 
   const { mutate: deleteTask } = useDeleteDocument("timelineTasks");
   const { mutate: batchUpdateTasks } = useUpdateBatch("timelineTasks");
+  const { mutateAsync: updateTaskDoc } = useUpdateDocument("timelineTasks");
+  const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");
 
   const { mutate: deleteEpic } = useDeleteDocument("timelineEpics");
   const { mutate: batchUpdateEpics } = useUpdateBatch("timelineEpics");
@@ -113,6 +120,74 @@ export default function TodoPage() {
       return nextTasks;
     });
     setAssignToMeTask(null);
+  };
+
+  const handleBackToTodo = async (task: any) => {
+    const taskId = task.id || task._id || task.taskId;
+    if (!taskId) return;
+
+    const ok = await confirm({
+      title: "Kembalikan ke TODO?",
+      description: `Apakah Anda yakin ingin mengembalikan task "${task.name}" ke status TODO? PIC dan Start Date akan direset menjadi TBD.`,
+      confirmText: "Ya, Kembalikan ke TODO",
+      cancelText: "Batal",
+      variant: "default",
+    });
+    if (!ok) return;
+
+    try {
+      const updatedData = {
+        status: "TODO",
+        pic: "TBD",
+        startDate: "TBD",
+        endDate: "",
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateTaskDoc({
+        id: taskId,
+        data: updatedData,
+      });
+
+      // Audit log in assignmentLogs
+      try {
+        const epic = activeEpics.find((e: any) => e.id === task.epicId);
+        await addAssignmentLog({
+          taskId: taskId,
+          taskName: task.name || "Untitled Task",
+          epicId: task.epicId || null,
+          epicName: epic?.name || "-",
+          projectId: task.projectId || activeProject?.id || "_global_",
+          userId: currentUser?.id || "unknown",
+          username: currentUser?.username || "-",
+          userName: currentUser?.name || currentUser?.username || "User",
+          action: "BACK_TODO",
+          previousStatus: task.status || "ON PROGRESS",
+          previousPic: task.pic || "-",
+          previousStartDate: task.startDate || "-",
+          status: "TODO",
+          pic: "TBD",
+          startDate: "TBD",
+          claimedAt: serverTimestamp(),
+          timestamp: new Date().toISOString(),
+        });
+      } catch (logErr) {
+        console.warn("Failed to create assignment log:", logErr);
+      }
+
+      // Optimistic update local tasks & Redis cache
+      setLocalTasks((prev) => {
+        const nextTasks = prev.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t));
+        const projectId = activeProject?.id || "_global_";
+        saveProjectCacheToRedis(projectId, {
+          tasks: nextTasks,
+          epics: localEpics,
+        }).catch(console.warn);
+        return nextTasks;
+      });
+    } catch (e) {
+      console.error("Failed to reset task to TODO:", e);
+    }
   };
 
   const [editingEpic, setEditingEpic] = useState<any>(null);
@@ -802,6 +877,7 @@ export default function TodoPage() {
                             handleEdit={handleEditTask}
                             deleteTask={deleteTask}
                             onAssignToMe={setAssignToMeTask}
+                            onBackToTodo={handleBackToTodo}
                             isDragDisabled={isTaskDragDisabled}
                             canEdit={hasEdit}
                             canDelete={hasDelete}
