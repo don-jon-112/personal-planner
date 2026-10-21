@@ -38,9 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const { data: users = [], isLoading: isUsersLoading } = useCollection<UserProfile>("users");
-  const { data: roles = [], isLoading: isRolesLoading } = useCollection<ProjectRole>("roles");
+  const { data: roles = [] } = useCollection<ProjectRole>("roles");
   const hasSeededAdminRef = useRef(false);
-  const hasSeededRolesRef = useRef(false);
 
   // Keep localStorage cache of users in sync so login is always instantaneous
   useEffect(() => {
@@ -89,76 +88,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       initDefaultAdmin();
     }
   }, [isUsersLoading, users]);
-
-  // Auto-seed standard default roles with deterministic IDs if collection is completely empty
-  useEffect(() => {
-    if (isRolesLoading || hasSeededRolesRef.current) return;
-
-    if (typeof window !== "undefined" && sessionStorage.getItem("roles_seeded_guard")) {
-      hasSeededRolesRef.current = true;
-      return;
-    }
-
-    if (roles.length > 0) {
-      hasSeededRolesRef.current = true;
-      return;
-    }
-
-    if (roles.length === 0) {
-      hasSeededRolesRef.current = true;
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("roles_seeded_guard", "true");
-      }
-      const initDefaultRoles = async () => {
-        try {
-          await Promise.all([
-            setDoc(
-              doc(db, "roles", "default_project_admin"),
-              {
-                name: "Project Admin",
-                description: "Full management access to all project features and settings",
-                isDefault: true,
-                permissions: createAdminPermissions(),
-                projectId: "_global_",
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              },
-              { merge: true }
-            ),
-            setDoc(
-              doc(db, "roles", "default_contributor_editor"),
-              {
-                name: "Contributor / Editor",
-                description: "Can create and update project tasks, epics, timeline, and bugs",
-                isDefault: true,
-                permissions: createEditorPermissions(),
-                projectId: "_global_",
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              },
-              { merge: true }
-            ),
-            setDoc(
-              doc(db, "roles", "default_viewer_watch_only"),
-              {
-                name: "Viewer (Watch Only)",
-                description: "Read-only access across project views and analytics",
-                isDefault: true,
-                permissions: createViewerPermissions(),
-                projectId: "_global_",
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              },
-              { merge: true }
-            ),
-          ]);
-        } catch (e) {
-          console.error("Failed to seed default roles:", e);
-        }
-      };
-      initDefaultRoles();
-    }
-  }, [isRolesLoading, roles]);
 
   // Resolve currentUser from users collection or synthetic session
   const currentUser = useMemo<UserProfile | null>(() => {
@@ -224,7 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentUser,
         session,
-        isLoading: isUsersLoading || isRolesLoading,
+        isLoading: isUsersLoading,
         isSuperAdmin,
         loginUser,
         logoutUser,
