@@ -101,7 +101,8 @@ export default function BugsPage() {
   const hasDelete = canDelete("bugs");
 
   const filteredBugs = projectBugs.filter((bug: any) => {
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
+    if (query.length < 3) return true;
     return (
       bug.summary?.toLowerCase().includes(query) ||
       bug.pic?.toLowerCase().includes(query) ||
@@ -170,7 +171,7 @@ export default function BugsPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               type="search" 
-              placeholder="Search bugs by summary, PIC, or JIRA ticket..." 
+              placeholder="Search bugs by summary, PIC, or JIRA ticket (min. 3 chars)..." 
               className="pl-8 bg-muted/50 border-border" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

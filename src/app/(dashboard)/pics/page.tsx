@@ -115,8 +115,8 @@ export default function PicsPage() {
 
   const filteredPics = useMemo(() => {
     let list = [...projectPics].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
+    if (searchQuery.trim().length >= 3) {
+      const q = searchQuery.toLowerCase().trim();
       list = list.filter((p) => (p.name || "").toLowerCase().includes(q));
     }
     return list;
@@ -228,7 +228,7 @@ export default function PicsPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search PIC..."
+                placeholder="Search PIC (min. 3 chars)..."
                 className="pl-8 bg-muted/30 border-border"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

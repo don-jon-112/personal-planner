@@ -224,8 +224,8 @@ function GuestSecretsContent() {
       return (prodAscom !== "" || prod !== "") && prodAscom !== prod;
     };
 
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
+    if (searchQuery.trim().length >= 3) {
+      const q = searchQuery.toLowerCase().trim();
       list = list.filter((s) => {
         const key = (s.keyName || s.key || "").toLowerCase();
         const sit = (s.valueSit || "").toLowerCase();
@@ -350,7 +350,7 @@ function GuestSecretsContent() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search by key or value..."
+                placeholder="Search by key or value (min. 3 chars)..."
                 className="pl-8 bg-muted/40 border-border h-9 text-xs"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

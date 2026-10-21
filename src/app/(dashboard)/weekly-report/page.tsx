@@ -89,8 +89,8 @@ export default function WeeklyReportPage() {
 
   const filteredReports = useMemo(() => {
     let result = orderedReports;
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
+    if (searchQuery.trim().length >= 3) {
+      const q = searchQuery.toLowerCase().trim();
       result = result.filter(r => 
         (r.task || "").toLowerCase().includes(q)
       );
@@ -185,7 +185,7 @@ export default function WeeklyReportPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               type="search" 
-              placeholder="Search reports..." 
+              placeholder="Search reports (min. 3 chars)..." 
               className="pl-8 bg-muted/50 border-border"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

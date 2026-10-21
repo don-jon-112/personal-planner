@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,17 @@ export default function NotesPage() {
   
   const [viewingNote, setViewingNote] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const displayNotes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length < 3) return orderedNotes;
+    return orderedNotes.filter((note) =>
+      (note.title || "").toLowerCase().includes(q) ||
+      (note.category || "").toLowerCase().includes(q) ||
+      (note.content || "").toLowerCase().includes(q)
+    );
+  }, [orderedNotes, searchQuery]);
 
   const handleEdit = (note: any) => {
     setEditingNote(note);
@@ -139,21 +150,27 @@ export default function NotesPage() {
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input type="search" placeholder="Search notes..." className="pl-8 bg-muted/50 border-border" />
+            <Input 
+              type="search" 
+              placeholder="Search notes (min. 3 chars)..." 
+              className="pl-8 bg-muted/50 border-border" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
 
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">Loading notes...</div>
-        ) : orderedNotes.length === 0 ? (
+        ) : displayNotes.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
-            No notes found. Start writing!
+            {searchQuery.trim().length >= 3 ? "No notes matching your search." : "No notes found. Start writing!"}
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={orderedNotes.map(n => n.id)} strategy={rectSortingStrategy}>
+            <SortableContext items={displayNotes.map(n => n.id)} strategy={rectSortingStrategy}>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {orderedNotes.map((note) => (
+                {displayNotes.map((note) => (
                   <SortableNoteItem
                     key={note.id}
                     note={note}

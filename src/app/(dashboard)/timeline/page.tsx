@@ -1217,7 +1217,7 @@ export default function TimelinePage() {
   }, [orderedEpics, localTasks, selectedPicFilter]);
 
   // Flatten rows for pagination and search
-  const isSearchActive = Boolean(searchQuery.trim());
+  const isSearchActive = searchQuery.trim().length >= 3;
   const searchLower = searchQuery.toLowerCase().trim();
 
   // Calculate search matching task count for badge
@@ -1682,7 +1682,7 @@ export default function TimelinePage() {
                   setSearchQuery(e.target.value);
                   setCurrentPage(0);
                 }}
-                placeholder="Search task, epic, PIC..."
+                placeholder="Search task, epic, PIC (min. 3 chars)..."
                 className="h-8 pl-8 pr-7 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary w-40 sm:w-56 transition-all"
               />
               {searchQuery && (

@@ -249,8 +249,8 @@ export default function TodoPage() {
     let list = [...localTasks];
 
     // Search filter
-    if (taskSearchQuery.trim() !== "") {
-      const q = taskSearchQuery.toLowerCase();
+    if (taskSearchQuery.trim().length >= 3) {
+      const q = taskSearchQuery.toLowerCase().trim();
       list = list.filter((t) => {
         const name = (t.name || "").toLowerCase();
         const pic = (t.pic || "").toLowerCase();
@@ -326,8 +326,8 @@ export default function TodoPage() {
   const processedEpics = useMemo(() => {
     let list = [...localEpics];
 
-    if (epicSearchQuery.trim() !== "") {
-      const q = epicSearchQuery.toLowerCase();
+    if (epicSearchQuery.trim().length >= 3) {
+      const q = epicSearchQuery.toLowerCase().trim();
       list = list.filter((e) => (e.name || "").toLowerCase().includes(q));
     }
 
@@ -585,7 +585,7 @@ export default function TodoPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search task, epic, or PIC..."
+                  placeholder="Search task, epic, or PIC (min. 3 chars)..."
                   className="pl-8 bg-muted/40 border-border"
                   value={taskSearchQuery}
                   onChange={(e) => setTaskSearchQuery(e.target.value)}
@@ -819,7 +819,7 @@ export default function TodoPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search epics..."
+                  placeholder="Search epics (min. 3 chars)..."
                   className="pl-8 bg-muted/40 border-border"
                   value={epicSearchQuery}
                   onChange={(e) => setEpicSearchQuery(e.target.value)}

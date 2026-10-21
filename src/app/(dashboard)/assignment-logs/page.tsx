@@ -77,8 +77,9 @@ export default function AssignmentLogsPage() {
   const filteredLogs = useMemo(() => {
     return sortedLogs.filter((log) => {
       const q = searchQuery.toLowerCase().trim();
+      const isSearchActive = q.length >= 3;
       const matchesSearch =
-        !q ||
+        !isSearchActive ||
         (log.taskName || "").toLowerCase().includes(q) ||
         (log.userName || "").toLowerCase().includes(q) ||
         (log.username || "").toLowerCase().includes(q) ||
@@ -240,7 +241,7 @@ export default function AssignmentLogsPage() {
         <div className="relative flex-1 w-full">
           <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
           <Input
-            placeholder="Cari task, nama user, username, atau epic..."
+            placeholder="Cari task, nama user, username, atau epic (min. 3 huruf)..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);

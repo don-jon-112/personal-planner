@@ -207,8 +207,8 @@ export default function StatusesPage() {
   };
 
   const filteredStatuses = useMemo(() => {
-    if (searchQuery.trim() === "") return statuses;
-    const q = searchQuery.toLowerCase();
+    if (searchQuery.trim().length < 3) return statuses;
+    const q = searchQuery.toLowerCase().trim();
     return statuses.filter((s) => s.name.toLowerCase().includes(q));
   }, [statuses, searchQuery]);
 
@@ -282,7 +282,7 @@ export default function StatusesPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search Status..."
+                placeholder="Search Status (min. 3 chars)..."
                 className="pl-8 bg-muted/30 border-border"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

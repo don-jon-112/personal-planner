@@ -143,11 +143,14 @@ export default function UsersRolesPage() {
 
   // Filtered Users
   const filteredUsers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const isSearchActive = q.length >= 3;
+
     return users.filter((u) => {
-      const q = searchQuery.toLowerCase();
-      const matchSearch =
-        (u.name || "").toLowerCase().includes(q) ||
-        (u.username || "").toLowerCase().includes(q);
+      const matchSearch = isSearchActive
+        ? (u.name || "").toLowerCase().includes(q) ||
+          (u.username || "").toLowerCase().includes(q)
+        : true;
 
       if (projectFilter === "all") return matchSearch;
       if (projectFilter === "_super_") return matchSearch && u.isSuperAdmin;
@@ -157,11 +160,14 @@ export default function UsersRolesPage() {
 
   // Filtered Roles (Shows all roles cleanly without artificial hiding or merging)
   const filteredRoles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const isSearchActive = q.length >= 3;
+
     return roles.filter((r) => {
-      const q = searchQuery.toLowerCase();
-      const matchSearch =
-        (r.name || "").toLowerCase().includes(q) ||
-        (r.description || "").toLowerCase().includes(q);
+      const matchSearch = isSearchActive
+        ? (r.name || "").toLowerCase().includes(q) ||
+          (r.description || "").toLowerCase().includes(q)
+        : true;
 
       if (projectFilter === "all") return matchSearch;
       return matchSearch && (r.projectId === projectFilter || r.projectId === "_global_" || !r.projectId);
@@ -650,7 +656,7 @@ export default function UsersRolesPage() {
             <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <Input
               type="text"
-              placeholder={`Search ${activeTab}...`}
+              placeholder={`Search ${activeTab} (min. 3 chars)...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9 text-sm"
