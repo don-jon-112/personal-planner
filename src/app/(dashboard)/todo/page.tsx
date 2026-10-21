@@ -44,6 +44,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { useCollection, useDeleteDocument, useUpdateBatch } from "@/hooks/use-firestore";
 import { TaskDialog } from "../timeline/task-dialog";
 import { EpicDialog } from "../timeline/epic-dialog";
+import { AssignToMeDialog } from "@/components/assign-to-me-dialog";
 import { ImportDialog } from "./import-dialog";
 import { SortableTodoRow } from "./sortable-todo-row";
 import { SortableEpicRow } from "./sortable-epic-row";
@@ -99,6 +100,7 @@ export default function TodoPage() {
   // Dialog states
   const [editingTask, setEditingTask] = useState<any>(null);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [assignToMeTask, setAssignToMeTask] = useState<any>(null);
 
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
@@ -426,6 +428,11 @@ export default function TodoPage() {
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
       />
+      <AssignToMeDialog
+        open={!!assignToMeTask}
+        onOpenChange={(open) => !open && setAssignToMeTask(null)}
+        task={assignToMeTask}
+      />
 
       <PanelContent className="space-y-5 flex-1 overflow-auto">
         {/* Navigation Tabs */}
@@ -690,6 +697,7 @@ export default function TodoPage() {
                             overlapInfo={overlapMap.get(item.id)}
                             handleEdit={handleEditTask}
                             deleteTask={deleteTask}
+                            onAssignToMe={setAssignToMeTask}
                             isDragDisabled={isTaskDragDisabled}
                             canEdit={hasEdit}
                             canDelete={hasDelete}

@@ -16,6 +16,7 @@ export type PermissionKey =
   | "notes"
   | "projects"
   | "users-roles"
+  | "assignment-logs"
   | "settings";
 
 export interface PermissionFeature {
@@ -37,8 +38,31 @@ export const PERMISSION_FEATURES: PermissionFeature[] = [
   { key: "notes", label: "Notes & Docs", description: "Workspace rich-text notes and documentation", category: "global" },
   { key: "projects", label: "All Projects", description: "Create, view, and configure workspaces", category: "global" },
   { key: "users-roles", label: "Users & Roles", description: "User accounts, role assignment, and permissions", category: "global" },
+  { key: "assignment-logs", label: "Task Claim Logs", description: "Audit trail of tasks claimed via Assign To Me", category: "global" },
   { key: "settings", label: "System Settings", description: "Sync data, backup/restore, and site configs", category: "global" },
 ];
+
+export interface TaskAssignmentLog {
+  id: string;
+  taskId: string;
+  taskName: string;
+  epicId?: string;
+  epicName?: string;
+  projectId: string;
+  projectName?: string;
+  userId: string;
+  username: string;
+  userName: string;
+  md: number;
+  startDate: string;
+  endDate: string;
+  previousPic?: string;
+  previousStatus?: string;
+  previousMd?: number;
+  previousStartDate?: string;
+  claimedAt?: any;
+  timestamp?: string;
+}
 
 export interface ProjectRole {
   id: string;
@@ -87,7 +111,7 @@ export function createAdminPermissions(): Record<string, MenuPermission> {
 export function createEditorPermissions(): Record<string, MenuPermission> {
   const perms: Record<string, MenuPermission> = {};
   for (const feat of PERMISSION_FEATURES) {
-    if (feat.key === "settings" || feat.key === "users-roles") {
+    if (feat.key === "settings" || feat.key === "users-roles" || feat.key === "assignment-logs") {
       perms[feat.key] = { canView: false, canEdit: false, canDelete: false };
     } else if (feat.key === "secrets") {
       perms[feat.key] = { canView: true, canEdit: false, canDelete: false };
@@ -104,7 +128,7 @@ export function createEditorPermissions(): Record<string, MenuPermission> {
 export function createViewerPermissions(): Record<string, MenuPermission> {
   const perms: Record<string, MenuPermission> = {};
   for (const feat of PERMISSION_FEATURES) {
-    if (feat.key === "settings" || feat.key === "users-roles" || feat.key === "secrets") {
+    if (feat.key === "settings" || feat.key === "users-roles" || feat.key === "secrets" || feat.key === "assignment-logs") {
       perms[feat.key] = { canView: false, canEdit: false, canDelete: false };
     } else {
       perms[feat.key] = { canView: true, canEdit: false, canDelete: false };

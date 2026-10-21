@@ -29,6 +29,7 @@ import {
 import { useCollection, useDeleteDocument, useUpdateDocument, useAddDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
+import { AssignToMeDialog } from "@/components/assign-to-me-dialog";
 import { HolidaysDialog } from "./holidays-dialog";
 import { PicsDialog } from "./pics-dialog";
 import { ChartsDialog } from "./charts-dialog";
@@ -566,6 +567,15 @@ function TaskRow({
             {hasEdit ? (
               <>
                 <DropdownMenuItem onClick={() => onEdit(task)}>Edit Task</DropdownMenuItem>
+                {isTodo && onAssignToMe && (
+                  <DropdownMenuItem
+                    className="text-primary font-medium focus:text-primary cursor-pointer"
+                    onClick={() => onAssignToMe(task)}
+                  >
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    <span>Assign To Me</span>
+                  </DropdownMenuItem>
+                )}
                 {hasDelete && (
                   <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(task)}>
                     Delete
@@ -1033,37 +1043,10 @@ export default function TimelinePage() {
     }
   };
 
-  const handleAssignToMe = async (task: any) => {
-    const viewerName = currentUser?.name || currentUser?.username || "Viewer";
+  const [assignToMeTask, setAssignToMeTask] = useState<any | null>(null);
 
-    // Auto-create PIC in project if not exists
-    const picExists = projectPics.some(
-      (p: any) => p.name?.toLowerCase().trim() === viewerName.toLowerCase().trim()
-    );
-    if (!picExists && activeProject?.id) {
-      try {
-        await addPic({
-          name: viewerName,
-          color: "#3b82f6",
-          projectId: activeProject.id,
-          showInAnalytics: true,
-        });
-      } catch (e) {
-        console.error("Failed to auto-register PIC for viewer:", e);
-      }
-    }
-
-    try {
-      await updateTask({
-        id: task.id,
-        data: {
-          status: "ON PROGRESS",
-          pic: viewerName,
-        },
-      });
-    } catch (e) {
-      console.error("Failed to assign task to me:", e);
-    }
+  const handleAssignToMe = (task: any) => {
+    setAssignToMeTask(task);
   };
 
   const handleSetInReview = async (task: any) => {
@@ -1566,6 +1549,7 @@ export default function TimelinePage() {
               }}
             />
             <TaskDialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen} taskToEdit={editingTask} fromTimeline={true} readOnly={!hasEdit} />
+            <AssignToMeDialog open={!!assignToMeTask} onOpenChange={(open) => !open && setAssignToMeTask(null)} task={assignToMeTask} />
             <HolidaysDialog open={isHolidaysDialogOpen} onOpenChange={setIsHolidaysDialogOpen} />
             <PicsDialog open={isPicsDialogOpen} onOpenChange={setIsPicsDialogOpen} />
             <ChartsDialog open={isChartsDialogOpen} onOpenChange={setIsChartsDialogOpen} tasks={localTasks} pics={projectPics} statuses={taskStatuses} />

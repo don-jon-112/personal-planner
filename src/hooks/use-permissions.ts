@@ -38,7 +38,7 @@ export function usePermissions() {
       if (!currentUser) return false;
 
       // Special pages restricted to Super Admin
-      if (featureKey === "settings" || featureKey === "users-roles") {
+      if (featureKey === "settings" || featureKey === "users-roles" || featureKey === "assignment-logs") {
         return Boolean(currentUser.isSuperAdmin);
       }
 
@@ -79,7 +79,7 @@ export function usePermissions() {
       if (isSuperAdmin) return true;
       if (!currentUser) return false;
 
-      if (featureKey === "settings" || featureKey === "users-roles") {
+      if (featureKey === "settings" || featureKey === "users-roles" || featureKey === "assignment-logs") {
         return Boolean(currentUser.isSuperAdmin);
       }
 
@@ -101,7 +101,7 @@ export function usePermissions() {
       if (isSuperAdmin) return true;
       if (!currentUser) return false;
 
-      if (featureKey === "settings" || featureKey === "users-roles") {
+      if (featureKey === "settings" || featureKey === "users-roles" || featureKey === "assignment-logs") {
         return Boolean(currentUser.isSuperAdmin);
       }
 

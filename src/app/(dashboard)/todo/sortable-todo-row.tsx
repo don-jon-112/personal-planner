@@ -4,7 +4,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TableRow, TableCell } from "@/components/ui/table";
-import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle, FileText } from "lucide-react";
+import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle, FileText, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -29,6 +29,7 @@ interface SortableTodoRowProps {
   overlapInfo?: OverlapResult;
   handleEdit: (task: any) => void;
   deleteTask: (id: string) => void;
+  onAssignToMe?: (task: any) => void;
   isDragDisabled?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -54,6 +55,7 @@ export function SortableTodoRow({
   overlapInfo,
   handleEdit,
   deleteTask,
+  onAssignToMe,
   isDragDisabled,
   canEdit = true,
   canDelete = true,
@@ -234,6 +236,15 @@ export function SortableTodoRow({
             <DropdownMenuItem onClick={() => handleEdit(item)}>
               {canEdit !== false ? "Edit Task" : "View Task Details"}
             </DropdownMenuItem>
+            {onAssignToMe && (item.status === "TODO" || !item.pic || item.pic === "TBD") && (
+              <DropdownMenuItem
+                className="text-primary font-medium focus:text-primary cursor-pointer"
+                onClick={() => onAssignToMe(item)}
+              >
+                <UserCheck className="w-4 h-4 mr-2" />
+                <span>Assign To Me</span>
+              </DropdownMenuItem>
+            )}
             {canDelete !== false && (
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
