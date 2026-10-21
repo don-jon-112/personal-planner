@@ -24,6 +24,15 @@ function createRedisInstance(rawUrl: string, label: string): Redis | null {
 
   try {
     let url = rawUrl.trim();
+    // Strip surrounding quotes if present
+    url = url.replace(/^["']+|["']+$/g, "").trim();
+
+    // If user pasted a command line like "redis-cli --tls -u redis://..."
+    const uriMatch = url.match(/(rediss?:\/\/[^\s"']+)/);
+    if (uriMatch) {
+      url = uriMatch[1];
+    }
+
     // Normalize url if user passed 'redis://' for an Upstash or TLS endpoint
     const isUpstash = url.includes("upstash.io");
     if (isUpstash && url.startsWith("redis://")) {
@@ -199,13 +208,22 @@ export async function pingAllRedis(): Promise<{
   connected: boolean;
 }> {
   const { primary, secondary } = getAllRedisClients();
+  const hasPrimaryEnv = Boolean(process.env.REDIS_URL && process.env.REDIS_URL.trim());
+  const hasSecondaryEnv = Boolean(process.env.REDIS_URL_2 && process.env.REDIS_URL_2.trim());
 
-  const pingClient = async (client: Redis | null, name: string) => {
-    if (!client) {
+  const pingClient = async (client: Redis | null, name: string, hasEnv: boolean) => {
+    if (!hasEnv) {
       return {
         configured: false,
         connected: false,
-        message: `${name} not configured in environment.`,
+        message: `${name} belum disetel di environment variable.`,
+      };
+    }
+    if (!client) {
+      return {
+        configured: true,
+        connected: false,
+        message: `${name} terkonfigurasi tetapi gagal diinisialisasi (periksa URL).`,
       };
     }
     try {
@@ -228,8 +246,8 @@ export async function pingAllRedis(): Promise<{
   };
 
   const [pResult, sResult] = await Promise.all([
-    pingClient(primary, "Primary Redis (Layerbase)"),
-    pingClient(secondary, "Backup Redis (Upstash)"),
+    pingClient(primary, "Primary Redis (Layerbase)", hasPrimaryEnv),
+    pingClient(secondary, "Backup Redis (Upstash)", hasSecondaryEnv),
   ]);
 
   return {
