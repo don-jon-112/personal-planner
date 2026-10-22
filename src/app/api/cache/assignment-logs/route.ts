@@ -44,11 +44,32 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { logs } = body;
+    const { logs, log } = body;
+    const key = getAssignmentLogsKey();
+
+    // Support appending a single log item immediately to Redis
+    if (log && typeof log === "object") {
+      const existing = (await getCache<any[]>(key)) || [];
+      const cleanedExisting = Array.isArray(existing)
+        ? existing.filter(
+            (l) =>
+              (log.id ? l.id !== log.id : true) &&
+              !(l.taskName || "").includes("Migrate API Auto2000BodyPaintController getBodyPaintDetails")
+          )
+        : [];
+      const updated = [log, ...cleanedExisting];
+      await setCache(key, updated, 7 * 24 * 60 * 60);
+
+      return NextResponse.json({
+        success: true,
+        count: updated.length,
+        message: "Log entry appended to Redis cache successfully",
+      });
+    }
 
     if (!Array.isArray(logs)) {
       return NextResponse.json(
-        { success: false, error: "logs must be an array" },
+        { success: false, error: "logs must be an array or log must be an object" },
         { status: 400 }
       );
     }
@@ -57,7 +78,6 @@ export async function POST(request: NextRequest) {
       (l) => !(l.taskName || "").includes("Migrate API Auto2000BodyPaintController getBodyPaintDetails")
     );
 
-    const key = getAssignmentLogsKey();
     await setCache(key, cleaned, 7 * 24 * 60 * 60);
 
     return NextResponse.json({

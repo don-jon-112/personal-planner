@@ -6,6 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAddDocument, useUpdateDocument } from "@/hooks/use-firestore";
 import { useProject } from "@/components/project-context";
+import { useAuth } from "@/components/auth-context";
+import { serverTimestamp } from "firebase/firestore";
+import { FieldChange } from "@/types/user-role";
+import { appendAssignmentLogToRedis } from "@/lib/cache-client";
 import { 
   Dialog, 
   DialogContent, 
@@ -43,9 +47,11 @@ export function SecretDialog({
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
 
-  const { activeProjectId } = useProject();
+  const { activeProjectId, activeProject } = useProject();
+  const { currentUser, session } = useAuth();
   const { mutateAsync: addSecret, isPending: isAdding } = useAddDocument("secretKeys");
   const { mutateAsync: updateSecret, isPending: isUpdating } = useUpdateDocument("secretKeys");
+  const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -88,9 +94,17 @@ export function SecretDialog({
 
   async function onSubmit(data: FormValues) {
     try {
+      const targetKeyName = data.keyName.trim();
+      const targetKeyOriginal = (data.keyOriginal || "").trim();
+      const currentUserName = currentUser?.name || session?.name || currentUser?.username || session?.username || "User";
+      const currentUserId = currentUser?.id || session?.userId || "unknown";
+      const currentUsername = currentUser?.username || session?.username || "-";
+      const projId = activeProjectId || secretToEdit?.projectId || "_global_";
+      const projName = activeProject?.name || "Global / Shared";
+
       const payload = {
-        keyName: data.keyName.trim(),
-        keyOriginal: (data.keyOriginal || "").trim(),
+        keyName: targetKeyName,
+        keyOriginal: targetKeyOriginal,
         valueSit: data.valueSit || "",
         valueUat: data.valueUat || "",
         valueProdAscom: data.valueProdAscom || "",
@@ -100,9 +114,108 @@ export function SecretDialog({
       };
 
       if (secretToEdit?.id) {
+        // Compute diff for update
+        const changes: FieldChange[] = [];
+        const oldKeyName = secretToEdit.keyName || secretToEdit.key || "";
+        if (oldKeyName !== targetKeyName) {
+          changes.push({ field: "keyName", label: "Key Transform", oldValue: oldKeyName, newValue: targetKeyName });
+        }
+        const oldKeyOrig = secretToEdit.keyOriginal || "";
+        if (oldKeyOrig !== targetKeyOriginal) {
+          changes.push({ field: "keyOriginal", label: "Key Original", oldValue: oldKeyOrig, newValue: targetKeyOriginal });
+        }
+        if ((secretToEdit.valueSit || "") !== (data.valueSit || "")) {
+          changes.push({ field: "valueSit", label: "Value (SIT)", oldValue: secretToEdit.valueSit || "", newValue: data.valueSit || "" });
+        }
+        if ((secretToEdit.valueUat || "") !== (data.valueUat || "")) {
+          changes.push({ field: "valueUat", label: "Value (UAT)", oldValue: secretToEdit.valueUat || "", newValue: data.valueUat || "" });
+        }
+        if ((secretToEdit.valueProdAscom || "") !== (data.valueProdAscom || "")) {
+          changes.push({ field: "valueProdAscom", label: "Value (PROD - ASCOM)", oldValue: secretToEdit.valueProdAscom || "", newValue: data.valueProdAscom || "" });
+        }
+        if ((secretToEdit.valueProd || "") !== (data.valueProd || "")) {
+          changes.push({ field: "valueProd", label: "Value (PROD)", oldValue: secretToEdit.valueProd || "", newValue: data.valueProd || "" });
+        }
+        const oldExist = Boolean(secretToEdit.existsInProd ?? secretToEdit.isExistInProd ?? false);
+        const newExist = Boolean(data.existsInProd);
+        if (oldExist !== newExist) {
+          changes.push({ field: "existsInProd", label: "Exist in PROD", oldValue: oldExist ? "TRUE" : "FALSE", newValue: newExist ? "TRUE" : "FALSE" });
+        }
+
         await updateSecret({ id: secretToEdit.id, data: payload });
+
+        // Record Audit Log
+        try {
+          const changedLabels = changes.map((c) => c.label).join(", ");
+          const logPayload = {
+            category: "secret" as const,
+            action: "UPDATE",
+            secretAction: "UPDATE",
+            secretId: secretToEdit.id,
+            secretKey: targetKeyName,
+            secretOriginal: targetKeyOriginal,
+            projectId: projId,
+            projectName: projName,
+            userId: currentUserId,
+            username: currentUsername,
+            userName: currentUserName,
+            existsInProd: newExist,
+            details: changes.length > 0 ? `Mengubah field: ${changedLabels}` : `Memperbarui konfigurasi secret ${targetKeyName}`,
+            changes: changes,
+            claimedAt: serverTimestamp(),
+            timestamp: new Date().toISOString(),
+          };
+
+          const newLogDoc = await addAssignmentLog(logPayload);
+          appendAssignmentLogToRedis({
+            ...logPayload,
+            id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+          }).catch(console.warn);
+        } catch (logErr) {
+          console.error("Failed to record secret update audit log:", logErr);
+        }
       } else {
-        await addSecret(payload);
+        const newDoc = await addSecret(payload);
+
+        // Record Audit Log
+        try {
+          const initialFields: FieldChange[] = [
+            { field: "keyName", label: "Key Transform", oldValue: null, newValue: targetKeyName },
+            ...(targetKeyOriginal ? [{ field: "keyOriginal", label: "Key Original", oldValue: null, newValue: targetKeyOriginal }] : []),
+            ...(data.valueSit ? [{ field: "valueSit", label: "Value (SIT)", oldValue: null, newValue: data.valueSit }] : []),
+            ...(data.valueUat ? [{ field: "valueUat", label: "Value (UAT)", oldValue: null, newValue: data.valueUat }] : []),
+            ...(data.valueProdAscom ? [{ field: "valueProdAscom", label: "Value (PROD - ASCOM)", oldValue: null, newValue: data.valueProdAscom }] : []),
+            ...(data.valueProd ? [{ field: "valueProd", label: "Value (PROD)", oldValue: null, newValue: data.valueProd }] : []),
+            { field: "existsInProd", label: "Exist in PROD", oldValue: null, newValue: data.existsInProd ? "TRUE" : "FALSE" },
+          ];
+
+          const logPayload = {
+            category: "secret" as const,
+            action: "CREATE",
+            secretAction: "CREATE",
+            secretId: (newDoc as any)?.id || null,
+            secretKey: targetKeyName,
+            secretOriginal: targetKeyOriginal,
+            projectId: projId,
+            projectName: projName,
+            userId: currentUserId,
+            username: currentUsername,
+            userName: currentUserName,
+            existsInProd: Boolean(data.existsInProd),
+            details: `Menambahkan secret key baru: ${targetKeyName}`,
+            changes: initialFields,
+            claimedAt: serverTimestamp(),
+            timestamp: new Date().toISOString(),
+          };
+
+          const newLogDoc = await addAssignmentLog(logPayload);
+          appendAssignmentLogToRedis({
+            ...logPayload,
+            id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+          }).catch(console.warn);
+        } catch (logErr) {
+          console.error("Failed to record secret creation audit log:", logErr);
+        }
       }
       setOpen(false);
       if (!secretToEdit) form.reset();

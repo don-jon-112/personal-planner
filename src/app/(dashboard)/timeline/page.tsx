@@ -30,7 +30,7 @@ import {
   Zap,
 } from "lucide-react";
 import { serverTimestamp } from "firebase/firestore";
-import { fetchCachedTimelineData, saveProjectCacheToRedis } from "@/lib/cache-client";
+import { fetchCachedTimelineData, saveProjectCacheToRedis, appendAssignmentLogToRedis } from "@/lib/cache-client";
 import { useCollection, useDeleteDocument, useUpdateDocument, useAddDocument } from "@/hooks/use-firestore";
 import { EpicDialog } from "./epic-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -1066,7 +1066,65 @@ export default function TimelinePage() {
 
   const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
     try {
+      const targetTask = localTasks.find((t) => t.id === taskId) || (rawTasks || []).find((t: any) => t.id === taskId);
+      const oldStatus = targetTask?.status || "TODO";
+      const statusChanged = oldStatus !== newStatus;
+
       await updateTask({ id: taskId, data: { status: newStatus } });
+
+      const nextTasks = localTasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t));
+      setLocalTasks(nextTasks);
+      const projectId = activeProject?.id || "_global_";
+      saveProjectCacheToRedis(projectId, {
+        tasks: nextTasks,
+        epics: orderedEpics,
+      }).catch(console.warn);
+
+      if (statusChanged && targetTask) {
+        const currentUserName = currentUser?.name || currentUser?.username || "User";
+        const targetEpic = orderedEpics.find((e) => e.id === targetTask.epicId);
+
+        const logPayload = {
+          category: "task" as const,
+          action: "STATUS_CHANGE",
+          taskId: taskId,
+          taskName: targetTask.name || "Untitled Task",
+          epicId: targetTask.epicId || null,
+          epicName: targetEpic?.name || "-",
+          projectId: projectId,
+          projectName: activeProject?.name || "Global / Shared",
+          userId: currentUser?.id || "unknown",
+          username: currentUser?.username || "-",
+          userName: currentUserName,
+          previousStatus: oldStatus,
+          status: newStatus,
+          previousPic: targetTask.pic || "-",
+          md: targetTask.md,
+          startDate: targetTask.startDate,
+          endDate: targetTask.endDate,
+          details: `Mengubah status task dari "${oldStatus}" menjadi "${newStatus}"`,
+          changes: [
+            {
+              field: "status",
+              label: "Status Task",
+              oldValue: oldStatus,
+              newValue: newStatus,
+            },
+          ],
+          claimedAt: serverTimestamp(),
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          const newLogDoc = await addAssignmentLog(logPayload);
+          appendAssignmentLogToRedis({
+            ...logPayload,
+            id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+          }).catch(console.warn);
+        } catch (logErr) {
+          console.warn("Failed to record status change log:", logErr);
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -1095,21 +1153,67 @@ export default function TimelinePage() {
     try {
       const taskId = task.id || task._id || task.taskId;
       if (!taskId) return;
+      const oldStatus = task.status || "ON PROGRESS";
+
       await updateTask({
         id: taskId,
         data: {
           status: "IN REVIEW",
         },
       });
-      setLocalTasks((prev) => {
-        const nextTasks = prev.map((t) => (t.id === taskId ? { ...t, status: "IN REVIEW" } : t));
-        const projectId = activeProject?.id || "_global_";
-        saveProjectCacheToRedis(projectId, {
-          tasks: nextTasks,
-          epics: orderedEpics,
-        }).catch(console.warn);
-        return nextTasks;
-      });
+      const nextTasks = localTasks.map((t) => (t.id === taskId ? { ...t, status: "IN REVIEW" } : t));
+      setLocalTasks(nextTasks);
+      const projectId = activeProject?.id || "_global_";
+      saveProjectCacheToRedis(projectId, {
+        tasks: nextTasks,
+        epics: orderedEpics,
+      }).catch(console.warn);
+
+      if (oldStatus !== "IN REVIEW") {
+        const currentUserName = currentUser?.name || currentUser?.username || "User";
+        const targetEpic = orderedEpics.find((e) => e.id === task.epicId);
+
+        const logPayload = {
+          category: "task" as const,
+          action: "STATUS_CHANGE",
+          taskId: taskId,
+          taskName: task.name || "Untitled Task",
+          epicId: task.epicId || null,
+          epicName: targetEpic?.name || "-",
+          projectId: projectId,
+          projectName: activeProject?.name || "Global / Shared",
+          userId: currentUser?.id || "unknown",
+          username: currentUser?.username || "-",
+          userName: currentUserName,
+          previousStatus: oldStatus,
+          status: "IN REVIEW",
+          previousPic: task.pic || "-",
+          md: task.md,
+          startDate: task.startDate,
+          endDate: task.endDate,
+          details: `Mengubah status task dari "${oldStatus}" menjadi "IN REVIEW"`,
+          changes: [
+            {
+              field: "status",
+              label: "Status Task",
+              oldValue: oldStatus,
+              newValue: "IN REVIEW",
+            },
+          ],
+          claimedAt: serverTimestamp(),
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          const newLogDoc = await addAssignmentLog(logPayload);
+          appendAssignmentLogToRedis({
+            ...logPayload,
+            id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+          }).catch(console.warn);
+        } catch (logErr) {
+          console.warn("Failed to record set in review log:", logErr);
+        }
+      }
     } catch (e) {
       console.error("Failed to set task status to IN REVIEW:", e);
     }
@@ -1146,15 +1250,17 @@ export default function TimelinePage() {
         data: updatedData,
       });
 
-      // Audit log in assignmentLogs
+      // Audit log in assignmentLogs & Redis
       try {
         const epic = orderedEpics.find((e) => e.id === task.epicId);
-        await addAssignmentLog({
+        const logPayload = {
+          category: "task" as const,
           taskId: taskId,
           taskName: task.name || "Untitled Task",
           epicId: task.epicId || null,
           epicName: epic?.name || "-",
           projectId: task.projectId || activeProject?.id || "_global_",
+          projectName: activeProject?.name || "Global / Shared",
           userId: currentUser?.id || "unknown",
           username: currentUser?.username || "-",
           userName: currentUser?.name || currentUser?.username || "User",
@@ -1165,9 +1271,20 @@ export default function TimelinePage() {
           status: "TODO",
           pic: "TBD",
           startDate: "TBD",
+          details: `Mengembalikan task "${task.name || 'Untitled'}" ke TODO`,
+          changes: [
+            { field: "status", label: "Status Task", oldValue: task.status || "ON PROGRESS", newValue: "TODO" },
+            { field: "pic", label: "PIC", oldValue: task.pic || "-", newValue: "TBD" },
+          ],
           claimedAt: serverTimestamp(),
           timestamp: new Date().toISOString(),
-        });
+        };
+
+        const newLogDoc = await addAssignmentLog(logPayload);
+        appendAssignmentLogToRedis({
+          ...logPayload,
+          id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+        }).catch(console.warn);
       } catch (logErr) {
         console.warn("Failed to create assignment log:", logErr);
       }

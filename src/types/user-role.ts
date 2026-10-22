@@ -38,33 +38,59 @@ export const PERMISSION_FEATURES: PermissionFeature[] = [
   { key: "notes", label: "Notes & Docs", description: "Workspace rich-text notes and documentation", category: "global" },
   { key: "projects", label: "All Projects", description: "Create, view, and configure workspaces", category: "global" },
   { key: "users-roles", label: "Users & Roles", description: "User accounts, role assignment, and permissions", category: "global" },
-  { key: "assignment-logs", label: "Task Claim Logs", description: "Audit trail of tasks claimed via Assign To Me", category: "global" },
+  { key: "assignment-logs", label: "Audit & Activity Logs", description: "Audit trail of task claims and secret key modifications", category: "global" },
   { key: "settings", label: "System Settings", description: "Sync data, backup/restore, and site configs", category: "global" },
 ];
 
+export type LogCategory = "task" | "secret" | "general";
+
+export interface FieldChange {
+  field: string;
+  label: string;
+  oldValue?: string | boolean | null;
+  newValue?: string | boolean | null;
+}
+
 export interface TaskAssignmentLog {
   id: string;
-  taskId: string;
-  taskName: string;
-  epicId?: string;
-  epicName?: string;
+  category?: LogCategory;
+  action?: string;
+
+  // Common actor & project info
   projectId: string;
   projectName?: string;
   userId: string;
   username: string;
   userName: string;
-  md: number;
-  startDate: string;
-  endDate: string;
+  claimedAt?: any;
+  timestamp?: string;
+
+  // Task claim specific (optional)
+  taskId?: string;
+  taskName?: string;
+  epicId?: string;
+  epicName?: string;
+  md?: number;
+  startDate?: string;
+  endDate?: string;
   previousPic?: string;
   previousStatus?: string;
   previousMd?: number;
   previousStartDate?: string;
-  action?: string;
   status?: string;
-  claimedAt?: any;
-  timestamp?: string;
+
+  // Secret vault specific (optional)
+  secretId?: string;
+  secretKey?: string;
+  secretOriginal?: string;
+  secretAction?: "CREATE" | "UPDATE" | "DELETE" | "TOGGLE_PROD" | "IMPORT";
+  details?: string;
+  changes?: FieldChange[];
+  existsInProd?: boolean;
+  importedCount?: number;
 }
+
+export type AuditLog = TaskAssignmentLog;
 
 export interface ProjectRole {
   id: string;

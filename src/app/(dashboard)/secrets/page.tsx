@@ -30,10 +30,14 @@ import {
   Lock
 } from "lucide-react";
 
-import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
+import { useCollection, useDeleteDocument, useUpdateDocument, useAddDocument } from "@/hooks/use-firestore";
 import { useProject } from "@/components/project-context";
 import { useConfirm } from "@/components/confirm-dialog-provider";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/components/auth-context";
+import { serverTimestamp } from "firebase/firestore";
+import { FieldChange } from "@/types/user-role";
+import { appendAssignmentLogToRedis } from "@/lib/cache-client";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { SecretDialog } from "./secret-dialog";
 import { SecretShareDialog } from "./secret-share-dialog";
@@ -243,12 +247,14 @@ function SecretRow({
 }
 
 export default function SecretsPage() {
-  const { activeProject, isItemInActiveProject } = useProject();
+  const { activeProject, isItemInActiveProject, activeProjectId } = useProject();
+  const { currentUser, session } = useAuth();
   const confirm = useConfirm();
 
   const { data: rawSecrets = [], isLoading } = useCollection<any>("secretKeys");
   const { mutate: deleteSecret } = useDeleteDocument("secretKeys");
   const { mutate: updateSecret } = useUpdateDocument("secretKeys");
+  const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");
 
   const activeSecrets = useMemo(() => {
     return rawSecrets.filter((s: any) => isItemInActiveProject(s.projectId));
@@ -376,10 +382,54 @@ export default function SecretsPage() {
 
   const handleToggleExistInProd = (secret: any) => {
     const currentVal = Boolean(secret.existsInProd ?? secret.isExistInProd ?? false);
+    const nextVal = !currentVal;
+    const targetKeyName = secret.keyName || secret.key || "Unknown Key";
+    const targetKeyOrig = secret.keyOriginal || "";
+    const currentUserName = currentUser?.name || session?.name || currentUser?.username || session?.username || "User";
+    const currentUserId = currentUser?.id || session?.userId || "unknown";
+    const currentUsername = currentUser?.username || session?.username || "-";
+    const projId = activeProjectId || secret.projectId || "_global_";
+    const projName = activeProject?.name || "Global / Shared";
+
     updateSecret({
       id: secret.id,
-      data: { existsInProd: !currentVal },
+      data: { existsInProd: nextVal },
     });
+
+    const logPayload = {
+      category: "secret" as const,
+      action: "TOGGLE_PROD",
+      secretAction: "TOGGLE_PROD",
+      secretId: secret.id,
+      secretKey: targetKeyName,
+      secretOriginal: targetKeyOrig,
+      projectId: projId,
+      projectName: projName,
+      userId: currentUserId,
+      username: currentUsername,
+      userName: currentUserName,
+      existsInProd: nextVal,
+      details: `Mengubah status Exist in PROD menjadi ${nextVal ? "TRUE" : "FALSE"}`,
+      changes: [
+        {
+          field: "existsInProd",
+          label: "Exist in PROD",
+          oldValue: currentVal ? "TRUE" : "FALSE",
+          newValue: nextVal ? "TRUE" : "FALSE",
+        },
+      ],
+      claimedAt: serverTimestamp(),
+      timestamp: new Date().toISOString(),
+    };
+
+    addAssignmentLog(logPayload)
+      .then((newDoc: any) => {
+        appendAssignmentLogToRedis({
+          ...logPayload,
+          id: newDoc?.id || `log-${Date.now()}`,
+        }).catch(console.warn);
+      })
+      .catch(console.error);
   };
 
   const { canView, canEdit, canDelete } = usePermissions();
@@ -388,16 +438,60 @@ export default function SecretsPage() {
   const hasDelete = canDelete("secrets");
 
   const handleDelete = async (secret: any) => {
+    const targetKeyName = secret.keyName || secret.key || "Unknown Key";
     const ok = await confirm({
       title: "Delete Secret Key?",
-      description: `Are you sure you want to delete "${secret.keyName || secret.key}"? This action cannot be undone.`,
+      description: `Are you sure you want to delete "${targetKeyName}"? This action cannot be undone.`,
       confirmText: "Delete",
       cancelText: "Cancel",
       variant: "destructive",
     });
 
     if (ok) {
+      const targetKeyOrig = secret.keyOriginal || "";
+      const currentUserName = currentUser?.name || session?.name || currentUser?.username || session?.username || "User";
+      const currentUserId = currentUser?.id || session?.userId || "unknown";
+      const currentUsername = currentUser?.username || session?.username || "-";
+      const projId = activeProjectId || secret.projectId || "_global_";
+      const projName = activeProject?.name || "Global / Shared";
+
       deleteSecret(secret.id);
+
+      const logPayload = {
+        category: "secret" as const,
+        action: "DELETE",
+        secretAction: "DELETE",
+        secretId: secret.id,
+        secretKey: targetKeyName,
+        secretOriginal: targetKeyOrig,
+        projectId: projId,
+        projectName: projName,
+        userId: currentUserId,
+        username: currentUsername,
+        userName: currentUserName,
+        existsInProd: Boolean(secret.existsInProd ?? secret.isExistInProd ?? false),
+        details: `Menghapus secret key "${targetKeyName}"`,
+        changes: [
+          { field: "keyName", label: "Key Transform", oldValue: targetKeyName, newValue: null },
+          ...(targetKeyOrig ? [{ field: "keyOriginal", label: "Key Original", oldValue: targetKeyOrig, newValue: null }] : []),
+          ...(secret.valueSit ? [{ field: "valueSit", label: "Value (SIT)", oldValue: secret.valueSit, newValue: null }] : []),
+          ...(secret.valueUat ? [{ field: "valueUat", label: "Value (UAT)", oldValue: secret.valueUat, newValue: null }] : []),
+          ...(secret.valueProdAscom ? [{ field: "valueProdAscom", label: "Value (PROD - ASCOM)", oldValue: secret.valueProdAscom, newValue: null }] : []),
+          ...(secret.valueProd ? [{ field: "valueProd", label: "Value (PROD)", oldValue: secret.valueProd, newValue: null }] : []),
+          { field: "existsInProd", label: "Exist in PROD", oldValue: Boolean(secret.existsInProd ?? secret.isExistInProd ?? false) ? "TRUE" : "FALSE", newValue: null },
+        ],
+        claimedAt: serverTimestamp(),
+        timestamp: new Date().toISOString(),
+      };
+
+      addAssignmentLog(logPayload)
+        .then((newDoc: any) => {
+          appendAssignmentLogToRedis({
+            ...logPayload,
+            id: newDoc?.id || `log-${Date.now()}`,
+          }).catch(console.warn);
+        })
+        .catch(console.error);
     }
   };
 

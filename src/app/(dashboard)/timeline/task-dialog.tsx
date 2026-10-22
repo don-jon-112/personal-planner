@@ -22,6 +22,9 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { checkTaskOverlap, OverlapResult } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
+import { useAuth } from "@/components/auth-context";
+import { serverTimestamp } from "firebase/firestore";
+import { appendAssignmentLogToRedis, saveProjectCacheToRedis } from "@/lib/cache-client";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
 import {
   Table,
@@ -66,7 +69,9 @@ export function TaskDialog({
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
 
-  const { activeProjectId, isItemInActiveProject } = useProject();
+  const { activeProjectId, activeProject, isItemInActiveProject } = useProject();
+  const { currentUser, session } = useAuth();
+  const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");
 
   const { data: epics = [] } = useCollection<any>("timelineEpics");
   const { data: pics = [] } = useCollection<any>("timelinePics");
@@ -274,13 +279,77 @@ export function TaskDialog({
   const executeSave = async (data: FormValues) => {
     try {
       const targetId = taskToEdit?.id || (mode === "backlog" ? selectedBacklogId : null);
+      const projId = activeProjectId || taskToEdit?.projectId || "_global_";
+      const projName = activeProject?.name || "Global / Shared";
 
       if (targetId) {
+        const existingTask = taskToEdit || allTasks.find((t: any) => t.id === targetId);
+        const oldStatus = existingTask?.status || "TODO";
+        const newStatus = data.status;
+        const statusChanged = oldStatus !== newStatus;
+
         // Update existing task (or assign backlog task to epic)
         await updateTask({ id: targetId, data: { ...data, notes } });
+
+        // If status changed, record audit log & sync Redis immediately
+        if (statusChanged) {
+          try {
+            const currentUserName = currentUser?.name || session?.name || currentUser?.username || session?.username || "User";
+            const currentUserId = currentUser?.id || session?.userId || "unknown";
+            const currentUsername = currentUser?.username || session?.username || "-";
+            const targetEpic = epics.find((e: any) => e.id === (data.epicId || existingTask?.epicId));
+
+            const logPayload = {
+              category: "task" as const,
+              action: "STATUS_CHANGE",
+              taskId: targetId,
+              taskName: data.name || existingTask?.name || "Untitled Task",
+              epicId: data.epicId || existingTask?.epicId || null,
+              epicName: targetEpic?.name || "-",
+              projectId: projId,
+              projectName: projName,
+              userId: currentUserId,
+              username: currentUsername,
+              userName: currentUserName,
+              previousStatus: oldStatus,
+              status: newStatus,
+              previousPic: existingTask?.pic || "-",
+              md: data.md,
+              startDate: isTbdDate ? "TBD" : data.startDate,
+              details: `Mengubah status task dari "${oldStatus}" menjadi "${newStatus}"`,
+              changes: [
+                {
+                  field: "status",
+                  label: "Status Task",
+                  oldValue: oldStatus,
+                  newValue: newStatus,
+                },
+              ],
+              claimedAt: serverTimestamp(),
+              timestamp: new Date().toISOString(),
+            };
+
+            const newLogDoc = await addAssignmentLog(logPayload);
+            appendAssignmentLogToRedis({
+              ...logPayload,
+              id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+            }).catch(console.warn);
+          } catch (logErr) {
+            console.warn("Failed to create status change audit log:", logErr);
+          }
+        }
+
+        // Auto-update Redis timeline project cache
+        const updatedTasks = allTasks.map((t: any) =>
+          t.id === targetId ? { ...t, ...data, notes, id: targetId } : t
+        );
+        saveProjectCacheToRedis(projId, { tasks: updatedTasks, epics: filteredEpics }).catch(console.warn);
       } else {
         // Create brand new task
-        await addTask({ ...data, notes, order: Date.now(), projectId: activeProjectId || undefined });
+        const newDoc = await addTask({ ...data, notes, order: Date.now(), projectId: activeProjectId || undefined });
+        const newId = (newDoc as any)?.id;
+        const updatedTasks = [...allTasks, { ...data, notes, order: Date.now(), projectId: activeProjectId || undefined, id: newId }];
+        saveProjectCacheToRedis(projId, { tasks: updatedTasks, epics: filteredEpics }).catch(console.warn);
       }
       setShowOverlapConfirm(false);
       setPendingSubmitData(null);

@@ -27,6 +27,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { serverTimestamp } from "firebase/firestore";
+import { appendAssignmentLogToRedis } from "@/lib/cache-client";
 
 interface AssignToMeDialogProps {
   task: any | null;
@@ -178,9 +179,11 @@ export function AssignToMeDialog({
         data: updatedPayload,
       });
 
-      // 3. Record Audit Log in "assignmentLogs"
+      // 3. Record Audit Log in "assignmentLogs" and sync Redis
       try {
-        await addAssignmentLog({
+        const logPayload = {
+          category: "task" as const,
+          action: "CLAIM_TASK",
           taskId: taskId,
           taskName: task.name || "Untitled Task",
           epicId: task.epicId || null,
@@ -197,9 +200,23 @@ export function AssignToMeDialog({
           previousStatus: task.status || "TODO",
           previousMd: task.md !== undefined ? task.md : null,
           previousStartDate: task.startDate || null,
+          status: "ON PROGRESS",
+          details: `Mengambil task "${task.name || "Untitled"}" via Assign To Me (${safeMd} MD)`,
+          changes: [
+            { field: "status", label: "Status Task", oldValue: task.status || "TODO", newValue: "ON PROGRESS" },
+            { field: "pic", label: "PIC", oldValue: task.pic || "Unassigned", newValue: viewerName },
+            { field: "md", label: "MD", oldValue: String(task.md || "-"), newValue: String(safeMd) },
+            { field: "startDate", label: "Tanggal Mulai", oldValue: task.startDate || "-", newValue: startDate },
+          ],
           claimedAt: serverTimestamp(),
           timestamp: new Date().toISOString(),
-        });
+        };
+
+        const newLogDoc = await addAssignmentLog(logPayload);
+        appendAssignmentLogToRedis({
+          ...logPayload,
+          id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+        }).catch(console.warn);
       } catch (logErr) {
         console.error("Failed to create assignment log:", logErr);
       }

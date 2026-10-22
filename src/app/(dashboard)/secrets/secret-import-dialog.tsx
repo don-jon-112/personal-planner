@@ -25,6 +25,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { useAlertModal } from "@/components/confirm-dialog-provider";
 import { useProject } from "@/components/project-context";
+import { useAuth } from "@/components/auth-context";
+import { serverTimestamp } from "firebase/firestore";
+import { appendAssignmentLogToRedis } from "@/lib/cache-client";
 
 interface ParsedSecret {
   keyName: string;
@@ -50,10 +53,12 @@ export function SecretImportDialog({
 }) {
   const alertModal = useAlertModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { activeProjectId } = useProject();
+  const { activeProjectId, activeProject } = useProject();
+  const { currentUser, session } = useAuth();
 
   const { mutateAsync: addSecret } = useAddDocument("secretKeys");
   const { mutateAsync: updateSecret } = useUpdateDocument("secretKeys");
+  const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");
 
   const [parsedData, setParsedData] = useState<ParsedSecret[]>([]);
   const [fileName, setFileName] = useState<string>("");
@@ -303,6 +308,45 @@ export function SecretImportDialog({
           });
           createdCount++;
         }
+      }
+
+      // Record Audit Log for bulk import
+      try {
+        const currentUserName = currentUser?.name || session?.name || currentUser?.username || session?.username || "User";
+        const currentUserId = currentUser?.id || session?.userId || "unknown";
+        const currentUsername = currentUser?.username || session?.username || "-";
+        const projId = activeProjectId || "_global_";
+        const projName = activeProject?.name || "Global / Shared";
+
+        const logPayload = {
+          category: "secret" as const,
+          action: "IMPORT",
+          secretAction: "IMPORT",
+          secretKey: `${createdCount + updatedCount} Secret Keys`,
+          projectId: projId,
+          projectName: projName,
+          userId: currentUserId,
+          username: currentUsername,
+          userName: currentUserName,
+          importedCount: createdCount + updatedCount,
+          details: `Import massal spreadsheet "${fileName || "file"}": ${createdCount + updatedCount} key (${createdCount} baru, ${updatedCount} diperbarui)`,
+          changes: [
+            { field: "fileName", label: "File Sumber", newValue: fileName || "Spreadsheet" },
+            { field: "totalProcessed", label: "Total Diproses", newValue: String(validData.length) },
+            { field: "createdCount", label: "Ditambahkan", newValue: String(createdCount) },
+            { field: "updatedCount", label: "Diperbarui", newValue: String(updatedCount) },
+          ],
+          claimedAt: serverTimestamp(),
+          timestamp: new Date().toISOString(),
+        };
+
+        const newLogDoc = await addAssignmentLog(logPayload);
+        appendAssignmentLogToRedis({
+          ...logPayload,
+          id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+        }).catch(console.warn);
+      } catch (logErr) {
+        console.error("Failed to record import audit log:", logErr);
       }
 
       onOpenChange(false);

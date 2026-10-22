@@ -113,6 +113,26 @@ export async function saveAssignmentLogsToRedis(logs: any[]): Promise<boolean> {
   }
 }
 
+export async function appendAssignmentLogToRedis(log: any): Promise<boolean> {
+  if (typeof window !== "undefined") {
+    if (!navigator.onLine || localStorage.getItem("syncMode") === "local") {
+      return false;
+    }
+  }
+
+  try {
+    const res = await fetch("/api/cache/assignment-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ log }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn("[CacheClient] Failed to append assignment log to Redis:", err);
+    return false;
+  }
+}
+
 export interface RedisHealthStatus {
   connected: boolean;
   primary?: { configured: boolean; connected: boolean; message: string };

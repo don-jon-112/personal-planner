@@ -56,7 +56,7 @@ import { useProject } from "@/components/project-context";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { usePermissions } from "@/hooks/use-permissions";
-import { fetchCachedTimelineData, saveProjectCacheToRedis } from "@/lib/cache-client";
+import { fetchCachedTimelineData, saveProjectCacheToRedis, appendAssignmentLogToRedis } from "@/lib/cache-client";
 
 export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
@@ -149,15 +149,17 @@ export default function TodoPage() {
         data: updatedData,
       });
 
-      // Audit log in assignmentLogs
+      // Audit log in assignmentLogs & Redis
       try {
         const epic = activeEpics.find((e: any) => e.id === task.epicId);
-        await addAssignmentLog({
+        const logPayload = {
+          category: "task" as const,
           taskId: taskId,
           taskName: task.name || "Untitled Task",
           epicId: task.epicId || null,
           epicName: epic?.name || "-",
           projectId: task.projectId || activeProject?.id || "_global_",
+          projectName: activeProject?.name || "Global / Shared",
           userId: currentUser?.id || "unknown",
           username: currentUser?.username || "-",
           userName: currentUser?.name || currentUser?.username || "User",
@@ -168,9 +170,20 @@ export default function TodoPage() {
           status: "TODO",
           pic: "TBD",
           startDate: "TBD",
+          details: `Mengembalikan task "${task.name || "Untitled"}" ke TODO`,
+          changes: [
+            { field: "status", label: "Status Task", oldValue: task.status || "ON PROGRESS", newValue: "TODO" },
+            { field: "pic", label: "PIC", oldValue: task.pic || "-", newValue: "TBD" },
+          ],
           claimedAt: serverTimestamp(),
           timestamp: new Date().toISOString(),
-        });
+        };
+
+        const newLogDoc = await addAssignmentLog(logPayload);
+        appendAssignmentLogToRedis({
+          ...logPayload,
+          id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+        }).catch(console.warn);
       } catch (logErr) {
         console.warn("Failed to create assignment log:", logErr);
       }

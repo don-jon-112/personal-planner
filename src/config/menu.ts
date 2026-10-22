@@ -51,7 +51,7 @@ export const globalMenuItems: MenuItem[] = [
   { name: "Notes", href: "/notes", icon: FileText, permissionKey: "notes" },
   { name: "All Projects", href: "/projects", icon: Layers, permissionKey: "projects" },
   { name: "Users & Roles", href: "/users", icon: UserCog, permissionKey: "users-roles" },
-  { name: "Task Claims (Logs)", href: "/assignment-logs", icon: ClipboardList, permissionKey: "assignment-logs" },
+  { name: "Audit Logs", href: "/assignment-logs", icon: ClipboardList, permissionKey: "assignment-logs" },
 ];
 
 export const menuItems: MenuItem[] = [
