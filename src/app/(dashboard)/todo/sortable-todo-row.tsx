@@ -160,6 +160,14 @@ export function SortableTodoRow({
             </TooltipProvider>
           )}
           <span className="text-sm text-foreground font-semibold truncate">{item.name}</span>
+          {Boolean(item.isOvertime || item.overtime) && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0 select-none"
+              title="Overtime Task (Lembur - weekend & libur tidak di-skip)"
+            >
+              OT
+            </span>
+          )}
           {item.notes && item.notes.length > 0 && (
             <span
               className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/80 text-muted-foreground border border-border/70 shrink-0 select-none"

@@ -53,9 +53,10 @@ export function AssignToMeDialog({
   const { mutateAsync: addPic } = useAddDocument("timelinePics");
   const { mutateAsync: addAssignmentLog, isPending: isLogging } = useAddDocument("assignmentLogs");
 
-  // ONLY 2 Editable Fields: MD and Start Date
+  // Editable Fields: MD, Start Date, and Overtime
   const [md, setMd] = useState<number>(1);
   const [startDate, setStartDate] = useState<string>("");
+  const [isOvertime, setIsOvertime] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Initialize values when dialog opens
@@ -74,6 +75,8 @@ export function AssignToMeDialog({
         const todayStr = new Date().toISOString().split("T")[0];
         setStartDate(todayStr);
       }
+
+      setIsOvertime(Boolean(task.isOvertime || task.overtime));
     }
   }, [open, task]);
 
@@ -90,14 +93,14 @@ export function AssignToMeDialog({
 
   const viewerName = currentUser?.name || currentUser?.username || "Viewer";
 
-  // Calculate live End Date based on Start Date + MD (skipping weekends & holidays)
+  // Calculate live End Date based on Start Date + MD (skipping weekends & holidays unless overtime)
   const calculatedEndDateInfo = useMemo(() => {
     const numericMd = Number(md);
     if (!startDate || isNaN(new Date(startDate).getTime()) || isNaN(numericMd) || numericMd <= 0) {
       return { endDateStr: "", formattedDate: "-" };
     }
     const startObj = new Date(startDate);
-    const endObj = getTaskEndDate(startObj, Math.max(1, numericMd), holidays);
+    const endObj = getTaskEndDate(startObj, Math.max(1, numericMd), holidays, isOvertime);
 
     const yyyy = endObj.getFullYear();
     const mm = String(endObj.getMonth() + 1).padStart(2, "0");
@@ -112,7 +115,7 @@ export function AssignToMeDialog({
     });
 
     return { endDateStr, formattedDate };
-  }, [startDate, md, holidays]);
+  }, [startDate, md, holidays, isOvertime]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,6 +174,7 @@ export function AssignToMeDialog({
         md: safeMd,
         startDate: startDate,
         endDate: calculatedEndDate,
+        isOvertime: isOvertime,
         updatedAt: serverTimestamp(),
       };
 
@@ -201,7 +205,8 @@ export function AssignToMeDialog({
           previousMd: task.md !== undefined ? task.md : null,
           previousStartDate: task.startDate || null,
           status: "ON PROGRESS",
-          details: `Mengambil task "${task.name || "Untitled"}" via Assign To Me (${safeMd} MD)`,
+          isOvertime: isOvertime,
+          details: `Mengambil task "${task.name || "Untitled"}" via Assign To Me (${safeMd} MD${isOvertime ? ", Lembur/OT" : ""})`,
           changes: [
             { field: "status", label: "Status Task", oldValue: task.status || "TODO", newValue: "ON PROGRESS" },
             { field: "pic", label: "PIC", oldValue: task.pic || "Unassigned", newValue: viewerName },
@@ -408,6 +413,26 @@ export function AssignToMeDialog({
             </div>
           </div>
 
+            {/* Overtime Toggle */}
+            <div className="flex items-center space-x-2 pt-1 pb-1">
+              <input
+                type="checkbox"
+                id="assign-is-overtime"
+                checked={isOvertime}
+                onChange={(e) => setIsOvertime(e.target.checked)}
+                className="rounded border-input text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+              />
+              <label
+                htmlFor="assign-is-overtime"
+                className="text-xs font-semibold cursor-pointer text-foreground flex items-center gap-1.5 select-none"
+              >
+                <span>Task Overtime (Lembur)</span>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+                  {isOvertime ? "Weekend & libur dihitung" : "OT"}
+                </span>
+              </label>
+            </div>
+
           {/* Live End Date Calculation Preview */}
           <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-between text-xs">
             <div className="space-y-0.5">
@@ -418,8 +443,8 @@ export function AssignToMeDialog({
               </p>
             </div>
             <div className="text-right text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">{Number(md) >= 1 ? md : 1}</span> Hari Kerja
-              <p className="text-[10px] text-muted-foreground/80">(Lewati libur & weekend)</p>
+              <span className="font-semibold text-foreground">{Number(md) >= 1 ? md : 1}</span> {isOvertime ? "Hari Kalender (OT)" : "Hari Kerja"}
+              <p className="text-[10px] text-muted-foreground/80">{isOvertime ? "(Weekend & libur tidak di-skip)" : "(Lewati libur & weekend)"}</p>
             </div>
           </div>
 

@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, ListPlus, AlertCircle, ArrowRight, AlertTriangle, Calendar, Layers, Clock, CheckCircle2, FileText, ExternalLink, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { checkTaskOverlap, OverlapResult } from "@/lib/overlap-utils";
+import { checkTaskOverlap, getTaskEndDate, formatDateString, OverlapResult } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
 import { useAuth } from "@/components/auth-context";
 import { serverTimestamp } from "firebase/firestore";
@@ -48,6 +48,7 @@ const formSchema = z.object({
   status: z.string().min(1, "Status is required"),
   md: z.number().min(0.01, "MD must be greater than 0"),
   startDate: z.string().min(1, "Start Date is required"),
+  isOvertime: z.boolean(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -120,6 +121,7 @@ export function TaskDialog({
       status: "TODO",
       md: 1,
       startDate: new Date().toISOString().split("T")[0],
+      isOvertime: false,
     },
   });
 
@@ -142,6 +144,7 @@ export function TaskDialog({
           status: taskToEdit.status || "TODO",
           md: taskToEdit.md || 1,
           startDate: taskToEdit.startDate || new Date().toISOString().split("T")[0],
+          isOvertime: Boolean(taskToEdit.isOvertime || taskToEdit.overtime),
         });
         setIsTbdDate(taskToEdit.startDate === "TBD");
 
@@ -176,6 +179,7 @@ export function TaskDialog({
           status: "TODO",
           md: 1,
           startDate: new Date().toISOString().split("T")[0],
+          isOvertime: false,
         });
         setIsTbdDate(false);
       }
@@ -196,6 +200,7 @@ export function TaskDialog({
         form.setValue("startDate", chosen.startDate);
         setIsTbdDate(chosen.startDate === "TBD");
       }
+      form.setValue("isOvertime", Boolean(chosen.isOvertime || chosen.overtime));
       if (Array.isArray(chosen.notes)) {
         setNotes(
           chosen.notes.map((n: any, idx: number) => ({
@@ -259,6 +264,24 @@ export function TaskDialog({
   const watchedStartDate = form.watch("startDate");
   const watchedMd = form.watch("md");
   const watchedName = form.watch("name");
+  const watchedIsOvertime = form.watch("isOvertime");
+
+  const estimatedEndDate = useMemo(() => {
+    if (isTbdDate || !watchedStartDate || watchedStartDate === "TBD") return null;
+    const start = new Date(watchedStartDate);
+    if (isNaN(start.getTime())) return null;
+    const validMd = Math.max(1, Math.ceil(Number(watchedMd) || 1));
+    const end = getTaskEndDate(start, validMd, holidays, watchedIsOvertime);
+    return {
+      dateStr: formatDateString(end),
+      formatted: end.toLocaleDateString("id-ID", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+    };
+  }, [isTbdDate, watchedStartDate, watchedMd, holidays, watchedIsOvertime]);
 
   const liveOverlap = useMemo(() => {
     if (!open) return { hasOverlap: false, overlappingTasks: [] };
@@ -269,12 +292,13 @@ export function TaskDialog({
         startDate: isTbdDate ? "TBD" : watchedStartDate,
         md: watchedMd,
         name: watchedName,
+        isOvertime: watchedIsOvertime,
       },
       allTasks,
       holidays,
       epics
     );
-  }, [open, currentTargetId, watchedPic, isTbdDate, watchedStartDate, watchedMd, watchedName, allTasks, holidays, epics]);
+  }, [open, currentTargetId, watchedPic, isTbdDate, watchedStartDate, watchedMd, watchedName, watchedIsOvertime, allTasks, holidays, epics]);
 
   const executeSave = async (data: FormValues) => {
     try {
@@ -381,6 +405,7 @@ export function TaskDialog({
         startDate: data.startDate,
         md: data.md,
         name: data.name,
+        isOvertime: data.isOvertime,
       },
       allTasks,
       holidays,
@@ -431,6 +456,7 @@ export function TaskDialog({
                   form.setValue("status", "TODO");
                   form.setValue("md", 1);
                   form.setValue("startDate", new Date().toISOString().split("T")[0]);
+                  form.setValue("isOvertime", false);
                   setIsTbdDate(false);
                   setNotes([]);
                 }}
@@ -612,6 +638,64 @@ export function TaskDialog({
                     </div>
                     <Input type="number" step="any" min="0.01" placeholder="e.g. 0.5 or 1.5" disabled={readOnly} className={cn(readOnly && "bg-muted text-muted-foreground cursor-not-allowed")} {...form.register("md", { valueAsNumber: true })} />
                   </div>
+                </div>
+
+                {/* Overtime (Lembur) Toggle & Schedule Summary */}
+                <div className="p-3 rounded-lg border border-border/80 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="taskIsOvertime"
+                        checked={form.watch("isOvertime")}
+                        disabled={readOnly}
+                        onChange={(e) => {
+                          if (readOnly) return;
+                          form.setValue("isOvertime", e.target.checked, { shouldValidate: true });
+                        }}
+                        className="rounded border-input text-primary focus:ring-primary h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <label
+                        htmlFor="taskIsOvertime"
+                        className={cn(
+                          "text-xs font-semibold select-none flex items-center gap-1.5",
+                          readOnly ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer text-foreground"
+                        )}
+                      >
+                        <span>Overtime Task (Lembur)</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                          OT
+                        </span>
+                      </label>
+                    </div>
+                    {form.watch("isOvertime") ? (
+                      <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                        Weekend & libur dihitung
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">
+                        Lewati weekend & hari libur
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {form.watch("isOvertime")
+                      ? "Task lembur: dikerjakan di akhir pekan atau hari libur (hari libur tidak di-skip, dihitung kalender berurutan)."
+                      : "Task normal: otomatis melewati hari Sabtu, Minggu, dan hari libur nasional."}
+                  </p>
+
+                  {/* Estimated End Date info */}
+                  {estimatedEndDate && (
+                    <div className="flex items-center justify-between pt-1.5 border-t border-border/50 text-[11px]">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        Estimasi Selesai (End Date):
+                      </span>
+                      <span className="font-semibold text-foreground">
+                        {estimatedEndDate.formatted} ({estimatedEndDate.dateStr})
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Notes Section */}

@@ -9,7 +9,7 @@ export function getDayStatus(date: Date, holidays: any[] = []) {
   return false;
 }
 
-export function getTaskEndDate(startDate: Date, md: number, holidays: any[] = []): Date {
+export function getTaskEndDate(startDate: Date, md: number, holidays: any[] = [], isOvertime: boolean = false): Date {
   let curr = new Date(startDate);
   curr.setHours(0, 0, 0, 0);
   let workingDays = 0;
@@ -17,7 +17,7 @@ export function getTaskEndDate(startDate: Date, md: number, holidays: any[] = []
   // Float MD rounding up for Gantt chart box filling (e.g. 0.5 MD -> 1 day box, 2.5 MD -> 3 day boxes)
   const validMd = Math.max(1, Math.ceil(Number(md) || 1));
   while (workingDays < validMd) {
-    if (!getDayStatus(curr, holidays)) {
+    if (isOvertime || !getDayStatus(curr, holidays)) {
       workingDays++;
     }
     if (workingDays < validMd) {
@@ -44,7 +44,10 @@ export interface OverlapResult {
   overlappingTasks: OverlappingTaskDetail[];
 }
 
-export function getTaskDateRange(task: { startDate?: string; md?: number }, holidays: any[] = []): { start: Date; end: Date; isValid: boolean } {
+export function getTaskDateRange(
+  task: { startDate?: string; md?: number; isOvertime?: boolean; overtime?: boolean },
+  holidays: any[] = []
+): { start: Date; end: Date; isValid: boolean } {
   if (!task.startDate || task.startDate === "TBD") {
     return { start: new Date(0), end: new Date(0), isValid: false };
   }
@@ -55,8 +58,9 @@ export function getTaskDateRange(task: { startDate?: string; md?: number }, holi
   }
   start.setHours(0, 0, 0, 0);
 
+  const isOvertime = Boolean(task.isOvertime || task.overtime);
   const md = Math.max(1, Math.ceil(Number(task.md) || 1));
-  const end = getTaskEndDate(start, md, holidays);
+  const end = getTaskEndDate(start, md, holidays, isOvertime);
   end.setHours(23, 59, 59, 999);
 
   return { start, end, isValid: true };
@@ -76,7 +80,7 @@ export function formatDateString(d: Date): string {
  * Check if target task will overlap with any existing tasks of the same PIC
  */
 export function checkTaskOverlap(
-  target: { id?: string; pic?: string; startDate?: string; md?: number; name?: string; status?: string },
+  target: { id?: string; pic?: string; startDate?: string; md?: number; name?: string; status?: string; isOvertime?: boolean; overtime?: boolean },
   allTasks: any[] = [],
   holidays: any[] = [],
   epics: any[] = []

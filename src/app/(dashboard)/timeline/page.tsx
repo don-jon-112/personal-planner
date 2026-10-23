@@ -136,16 +136,17 @@ function getDayStatus(date: Date, holidays: any[] = []) {
   return false;
 }
 
-function getTaskEndDate(startDate: Date, md: number, holidays: any[] = []): Date {
+function getTaskEndDate(startDate: Date, md: number, holidays: any[] = [], isOvertime: boolean = false): Date {
   let curr = new Date(startDate);
   curr.setHours(0, 0, 0, 0);
   let workingDays = 0;
+  const validMd = Math.max(1, Math.ceil(Number(md) || 1));
   
-  while (workingDays < md) {
-    if (!getDayStatus(curr, holidays)) {
+  while (workingDays < validMd) {
+    if (isOvertime || !getDayStatus(curr, holidays)) {
       workingDays++;
     }
-    if (workingDays < md) {
+    if (workingDays < validMd) {
       curr.setDate(curr.getDate() + 1);
     }
   }
@@ -280,15 +281,17 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
       taskStart.setHours(0,0,0,0);
       const startIndex = dates.findIndex(d => d.getTime() === taskStart.getTime());
 
+      const isOvertime = Boolean(task.isOvertime || task.overtime);
       let activeDateSet = new Set<number>();
       const targetMd = Math.ceil(parseFloat(task.md) || 0);
       if (startIndex !== -1 && targetMd > 0) {
         let workingDays = 0;
         let currIdx = startIndex;
         while (workingDays < targetMd && currIdx < dates.length) {
-          activeDateSet.add(currIdx);
           const d = dates[currIdx];
-          if (!getDayStatus(d, holidays)) {
+          const isOffDay = Boolean(getDayStatus(d, holidays));
+          if (isOvertime || !isOffDay) {
+            activeDateSet.add(currIdx);
             workingDays++;
           }
           if (workingDays < targetMd) {
@@ -300,7 +303,7 @@ function exportTimelineToExcel(epics: any[], tasks: any[], dates: Date[] = [], h
       html += `<tr class="task-row">
         <td class="center">${rowNum++}</td>
         <td class="center">TASK</td>
-        <td style="padding-left: 20px;">${task.name || ''}</td>
+        <td style="padding-left: 20px;">${task.name || ''}${isOvertime ? ' (OT)' : ''}</td>
         <td class="center">${task.pic || '-'}</td>
         <td class="${stClass}">${st}</td>
         <td class="number">${task.md || 0}</td>
@@ -501,6 +504,14 @@ function TaskRow({
           </TooltipProvider>
         )}
         <TaskText text={task.name} className="text-sm font-medium text-secondary-foreground pl-1" />
+        {Boolean(task.isOvertime || task.overtime) && (
+          <span
+            className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0 ml-1.5 select-none"
+            title="Overtime Task (Lembur - weekend/libur dihitung)"
+          >
+            OT
+          </span>
+        )}
       </div>
 
       {/* 2. PIC Column */}
@@ -662,7 +673,8 @@ function TaskRow({
           const visibleStart = dates[0].getTime();
           const visibleEnd = dates[dates.length - 1].getTime();
           
-          const taskEnd = getTaskEndDate(taskStart, task.md, holidays);
+          const isOvertime = Boolean(task.isOvertime || task.overtime);
+          const taskEnd = getTaskEndDate(taskStart, task.md, holidays, isOvertime);
           const taskEndTime = taskEnd.getTime();
           const taskStartTime = taskStart.getTime();
 
@@ -694,7 +706,8 @@ function TaskRow({
           return (
             <div 
               className={cn(
-                "absolute top-2 h-[60%] shadow-sm pointer-events-none border border-black/10 z-0 flex items-center justify-end px-1",
+                "absolute top-2 h-[60%] shadow-sm pointer-events-none border border-black/10 flex items-center justify-end px-1",
+                isOvertime ? "z-20 ring-1 ring-amber-400/90 shadow-md" : "z-0",
                 taskStartTime < visibleStart ? "rounded-l-none" : "rounded-l",
                 taskEndTime > visibleEnd ? "rounded-r-none" : "rounded-r",
                 hasOverlap && "ring-2 ring-amber-500/80 ring-offset-0"
@@ -705,6 +718,11 @@ function TaskRow({
                 backgroundColor: getPicColor(task.pic, pics),
               }}
             >
+              {isOvertime && (
+                <span className="text-[9px] font-black text-amber-300 bg-black/60 px-1 py-0.2 rounded shadow-2xs mr-1 tracking-tighter" title="Overtime Task (Lembur)">
+                  OT
+                </span>
+              )}
               {hasOverlap && barWidthDays >= 1 && (
                 <span className="text-[9px] font-black text-amber-200 bg-black/50 px-1 py-0.2 rounded shadow-2xs tracking-tighter" title="Overlap Task">
                   !!

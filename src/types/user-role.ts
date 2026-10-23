@@ -78,6 +78,7 @@ export interface TaskAssignmentLog {
   previousMd?: number;
   previousStartDate?: string;
   status?: string;
+  isOvertime?: boolean;
 
   // Secret vault specific (optional)
   secretId?: string;
