@@ -182,7 +182,7 @@ export default function UsersRolesPage() {
       username: "",
       password: generateStrongPassword(),
       isSuperAdmin: false,
-      projectIds: projects.map((p) => p.id), // default assign to existing projects
+      projectIds: projects.map((p) => p.id).filter(Boolean), // default assign to existing projects
       projectRoles: {},
     });
     setShowPasswordInModal(true);
@@ -191,13 +191,14 @@ export default function UsersRolesPage() {
 
   // Handle open edit user
   const handleOpenEditUser = (user: UserProfile) => {
-    setEditingUserId(user.id);
+    const validId = user.id || (user as any)._id || "";
+    setEditingUserId(validId);
     setUserFormData({
       name: user.name || "",
       username: user.username || "",
       password: user.password || "",
       isSuperAdmin: Boolean(user.isSuperAdmin),
-      projectIds: user.projectIds || [],
+      projectIds: (user.projectIds || []).filter((id) => Boolean(id) && id !== "undefined"),
       projectRoles: user.projectRoles || {},
     });
     setShowPasswordInModal(false);
@@ -232,13 +233,33 @@ export default function UsersRolesPage() {
     }
 
     try {
+      // Clean and sanitize projectIds
+      const cleanProjectIds = (userFormData.projectIds || []).filter(
+        (id) => typeof id === "string" && id.trim().length > 0 && id !== "undefined"
+      );
+
+      // Clean and sanitize projectRoles so no empty, null, or undefined keys/values get sent to Firestore
+      const cleanProjectRoles: Record<string, string[]> = {};
+      if (userFormData.projectRoles && typeof userFormData.projectRoles === "object") {
+        Object.entries(userFormData.projectRoles).forEach(([projId, roleIds]) => {
+          if (projId && typeof projId === "string" && projId.trim().length > 0 && projId !== "undefined" && Array.isArray(roleIds)) {
+            const validRoleIds = roleIds.filter(
+              (rId) => typeof rId === "string" && rId.trim().length > 0 && rId !== "undefined"
+            );
+            if (validRoleIds.length > 0) {
+              cleanProjectRoles[projId.trim()] = validRoleIds;
+            }
+          }
+        });
+      }
+
       const payload: Partial<UserProfile> = {
         name: userFormData.name.trim(),
         username: userFormData.username.trim(),
         password: userFormData.password.trim(),
-        isSuperAdmin: userFormData.isSuperAdmin,
-        projectIds: userFormData.projectIds,
-        projectRoles: userFormData.projectRoles,
+        isSuperAdmin: Boolean(userFormData.isSuperAdmin),
+        projectIds: cleanProjectIds,
+        projectRoles: cleanProjectRoles,
       };
 
       let savedId = editingUserId;
@@ -1131,20 +1152,21 @@ export default function UsersRolesPage() {
 
                   <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
                     {projects.map((proj) => {
+                      if (!proj || !proj.id) return null;
                       const isAssigned = userFormData.projectIds.includes(proj.id);
                       const currentRolesForProj = userFormData.projectRoles[proj.id] || [];
 
                       // Deduplicate available roles for this project to eliminate repetitive buttons in the modal
                       const availableRolesMap = new Map<string, ProjectRole & { allIds: string[] }>();
                       roles.forEach((r) => {
-                        if (r.projectId === proj.id || r.projectId === "_global_" || !r.projectId) {
+                        if (r && r.id && (r.projectId === proj.id || r.projectId === "_global_" || !r.projectId)) {
                           const normName = (r.name || "").trim().toLowerCase();
                           const scopeKey = `${normName}::${r.projectId || "_global_"}`;
                           const existing = availableRolesMap.get(scopeKey);
                           if (!existing) {
                             availableRolesMap.set(scopeKey, { ...r, allIds: [r.id] });
                           } else {
-                            existing.allIds.push(r.id);
+                            if (!existing.allIds.includes(r.id)) existing.allIds.push(r.id);
                             // Prefer role with newer updatedAt or non-default custom edits
                             if (r.updatedAt && (!existing.updatedAt || r.updatedAt > existing.updatedAt)) {
                               availableRolesMap.set(scopeKey, { ...r, allIds: existing.allIds });
@@ -1169,18 +1191,21 @@ export default function UsersRolesPage() {
                                 checked={isAssigned}
                                 onChange={(e) => {
                                   const checked = e.target.checked;
-                                  let nextProjectIds = [...userFormData.projectIds];
+                                  const projId = proj.id;
+                                  if (!projId) return;
+
+                                  let nextProjectIds = [...userFormData.projectIds].filter((id) => Boolean(id) && id !== "undefined");
                                   let nextProjectRoles = { ...userFormData.projectRoles };
 
                                   if (checked) {
-                                    if (!nextProjectIds.includes(proj.id)) nextProjectIds.push(proj.id);
+                                    if (!nextProjectIds.includes(projId)) nextProjectIds.push(projId);
                                     // Default assign first available role if any
-                                    if (!nextProjectRoles[proj.id] && availableRoles.length > 0) {
-                                      nextProjectRoles[proj.id] = [availableRoles[0].id];
+                                    if (!nextProjectRoles[projId] && availableRoles.length > 0 && availableRoles[0]?.id) {
+                                      nextProjectRoles[projId] = [availableRoles[0].id];
                                     }
                                   } else {
-                                    nextProjectIds = nextProjectIds.filter((id) => id !== proj.id);
-                                    delete nextProjectRoles[proj.id];
+                                    nextProjectIds = nextProjectIds.filter((id) => id !== projId);
+                                    delete nextProjectRoles[projId];
                                   }
 
                                   setUserFormData({
@@ -1207,10 +1232,13 @@ export default function UsersRolesPage() {
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {availableRoles.map((role) => {
-                                  const hasRole = role.allIds.some((id) => currentRolesForProj.includes(id));
+                                  const roleId = role.id;
+                                  if (!roleId) return null;
+                                  const validAllIds = (role.allIds || [roleId]).filter(Boolean);
+                                  const hasRole = validAllIds.some((id) => currentRolesForProj.includes(id));
                                   return (
                                     <label
-                                      key={role.id}
+                                      key={roleId}
                                       className={cn(
                                         "inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer border transition-colors",
                                         hasRole
@@ -1223,15 +1251,18 @@ export default function UsersRolesPage() {
                                         checked={hasRole}
                                         onChange={(e) => {
                                           const checked = e.target.checked;
-                                          let updated = currentRolesForProj.filter((rId) => !role.allIds.includes(rId));
+                                          const projId = proj.id;
+                                          if (!projId || !roleId) return;
+
+                                          let updated = currentRolesForProj.filter((rId) => Boolean(rId) && !validAllIds.includes(rId));
                                           if (checked) {
-                                            updated.push(role.id);
+                                            updated.push(roleId);
                                           }
                                           setUserFormData({
                                             ...userFormData,
                                             projectRoles: {
                                               ...userFormData.projectRoles,
-                                              [proj.id]: updated,
+                                              [projId]: updated,
                                             },
                                           });
                                         }}

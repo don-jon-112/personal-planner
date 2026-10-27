@@ -27,7 +27,7 @@ export function useCollection<T>(collectionName: string) {
       const querySnapshot = await getDocs(q);
       const data: T[] = [];
       querySnapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() } as T);
+        data.push({ ...doc.data(), id: doc.id } as T);
       });
       return data;
     },
@@ -37,13 +37,17 @@ export function useCollection<T>(collectionName: string) {
 // Helper to strip undefined values recursively so Firestore never throws "Unsupported field value: undefined"
 function cleanUndefined(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(cleanUndefined);
+  if (Array.isArray(obj)) {
+    return obj
+      .filter((item) => item !== undefined)
+      .map(cleanUndefined);
+  }
   // Do not modify special objects (Date, RegExp, or Firestore FieldValues/Snapshots)
   if (obj.constructor && obj.constructor.name !== 'Object') return obj;
   
   const clean: any = {};
   for (const [key, val] of Object.entries(obj)) {
-    if (val !== undefined) {
+    if (val !== undefined && key !== "" && key !== "undefined" && key.trim() !== "") {
       clean[key] = cleanUndefined(val);
     }
   }
@@ -88,13 +92,17 @@ export function useUpdateDocument(collectionName: string) {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
-      const docRef = doc(db, collectionName, id);
+      const cleanId = String(id || '').trim();
+      if (!cleanId || cleanId === 'undefined') {
+        throw new Error(`Valid Document ID is required to update ${collectionName}, received: ${String(id)}`);
+      }
+      const docRef = doc(db, collectionName, cleanId);
       const sanitized = cleanUndefined(data);
       const writePromise = setDoc(docRef, {
         ...sanitized,
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      if (mode !== 'online') return { id, ...sanitized };
+      if (mode !== 'online') return { id: cleanId, ...sanitized };
       try {
         await Promise.race([
           writePromise,
@@ -103,7 +111,7 @@ export function useUpdateDocument(collectionName: string) {
       } catch (err) {
         console.warn("Update pending sync:", err);
       }
-      return { id, ...sanitized };
+      return { id: cleanId, ...sanitized };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });
@@ -118,9 +126,13 @@ export function useDeleteDocument(collectionName: string) {
   return useMutation({
     mutationFn: async (id: string) => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
-      const docRef = doc(db, collectionName, id);
+      const cleanId = String(id || '').trim();
+      if (!cleanId || cleanId === 'undefined') {
+        throw new Error(`Valid Document ID is required to delete from ${collectionName}, received: ${String(id)}`);
+      }
+      const docRef = doc(db, collectionName, cleanId);
       const writePromise = deleteDoc(docRef);
-      if (mode !== 'online') return id;
+      if (mode !== 'online') return cleanId;
       try {
         await Promise.race([
           writePromise,
@@ -129,7 +141,7 @@ export function useDeleteDocument(collectionName: string) {
       } catch (err) {
         console.warn("Delete pending sync:", err);
       }
-      return id;
+      return cleanId;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });
@@ -146,12 +158,15 @@ export function useUpdateBatch(collectionName: string) {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const batch = writeBatch(db);
       updates.forEach((update) => {
-        const docRef = doc(db, collectionName, update.id);
-        const sanitized = cleanUndefined(update.data);
-        batch.update(docRef, {
-          ...sanitized,
-          updatedAt: serverTimestamp(),
-        });
+        const cleanId = String(update.id || '').trim();
+        if (cleanId && cleanId !== 'undefined') {
+          const docRef = doc(db, collectionName, cleanId);
+          const sanitized = cleanUndefined(update.data);
+          batch.update(docRef, {
+            ...sanitized,
+            updatedAt: serverTimestamp(),
+          });
+        }
       });
       const writePromise = batch.commit();
       if (mode !== 'online') return updates;
@@ -176,14 +191,17 @@ export function useDocument<T>(collectionName: string, docId: string) {
   return useQuery({
     queryKey: [collectionName, docId],
     queryFn: async () => {
-      const docRef = doc(db, collectionName, docId);
+      const cleanId = String(docId || '').trim();
+      if (!cleanId || cleanId === 'undefined') return null;
+      const docRef = doc(db, collectionName, cleanId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() } as T;
+        return { ...docSnap.data(), id: docSnap.id } as T;
       } else {
         return null;
       }
     },
+    enabled: Boolean(docId && docId !== 'undefined'),
   });
 }
 
@@ -194,14 +212,18 @@ export function useSetDocument(collectionName: string) {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
-      const docRef = doc(db, collectionName, id);
+      const cleanId = String(id || '').trim();
+      if (!cleanId || cleanId === 'undefined') {
+        throw new Error(`Valid Document ID is required to set document in ${collectionName}, received: ${String(id)}`);
+      }
+      const docRef = doc(db, collectionName, cleanId);
       const sanitized = cleanUndefined(data);
       // use merge: true to avoid overwriting fields not specified
       const writePromise = setDoc(docRef, {
         ...sanitized,
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      if (mode !== 'online') return { id, ...sanitized };
+      if (mode !== 'online') return { id: cleanId, ...sanitized };
       try {
         await Promise.race([
           writePromise,
@@ -210,7 +232,7 @@ export function useSetDocument(collectionName: string) {
       } catch (err) {
         console.warn("SetDoc pending sync:", err);
       }
-      return { id, ...sanitized };
+      return { id: cleanId, ...sanitized };
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: [collectionName] });

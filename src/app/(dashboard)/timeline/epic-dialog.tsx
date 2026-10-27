@@ -7,10 +7,6 @@ import * as z from "zod";
 import { useAddDocument, useUpdateDocument, useCollection } from "@/hooks/use-firestore";
 import { useProject } from "@/components/project-context";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
-import { useConfirm } from "@/components/confirm-dialog-provider";
-import { useAuth } from "@/components/auth-context";
-import { serverTimestamp } from "firebase/firestore";
-import { saveProjectCacheToRedis } from "@/lib/cache-client";
 import { 
   Dialog, 
   DialogContent, 
@@ -28,7 +24,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Layers, CheckSquare, Clock, ArrowRight, FileText, User, RotateCcw, Search, X } from "lucide-react";
+import { Layers, CheckSquare, Clock, ArrowRight, FileText, User, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
@@ -63,8 +59,6 @@ export function EpicDialog({
   readOnly?: boolean,
 }) {
   const { activeProjectId, isItemInActiveProject } = useProject();
-  const { currentUser } = useAuth();
-  const confirm = useConfirm();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
   const setOpen = setControlledOpen || setUncontrolledOpen;
@@ -75,8 +69,6 @@ export function EpicDialog({
 
   const { mutateAsync: addEpic, isPending: isAdding } = useAddDocument("timelineEpics");
   const { mutateAsync: updateEpic, isPending: isUpdating } = useUpdateDocument("timelineEpics");
-  const { mutateAsync: updateTaskDoc } = useUpdateDocument("timelineTasks");
-  const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");
 
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -139,71 +131,6 @@ export function EpicDialog({
       console.error(error);
     }
   }
-
-  const handleBackToTodo = async (task: any) => {
-    const taskId = task.id || task._id || task.taskId;
-    if (!taskId) return;
-
-    const ok = await confirm({
-      title: "Kembalikan ke TODO?",
-      description: `Apakah Anda yakin ingin mengembalikan task "${task.name}" ke status TODO? PIC dan Start Date akan direset menjadi TBD.`,
-      confirmText: "Ya, Kembalikan ke TODO",
-      cancelText: "Batal",
-      variant: "default",
-    });
-    if (!ok) return;
-
-    try {
-      const updatedData = {
-        status: "TODO",
-        pic: "TBD",
-        startDate: "TBD",
-        endDate: "",
-        updatedAt: serverTimestamp(),
-      };
-
-      await updateTaskDoc({
-        id: taskId,
-        data: updatedData,
-      });
-
-      // Audit log in assignmentLogs
-      try {
-        await addAssignmentLog({
-          taskId: taskId,
-          taskName: task.name || "Untitled Task",
-          epicId: epicToEdit?.id || null,
-          epicName: epicToEdit?.name || "-",
-          projectId: task.projectId || activeProjectId || "_global_",
-          userId: currentUser?.id || "unknown",
-          username: currentUser?.username || "-",
-          userName: currentUser?.name || currentUser?.username || "User",
-          action: "BACK_TODO",
-          previousStatus: task.status || "ON PROGRESS",
-          previousPic: task.pic || "-",
-          previousStartDate: task.startDate || "-",
-          status: "TODO",
-          pic: "TBD",
-          startDate: "TBD",
-          claimedAt: serverTimestamp(),
-          timestamp: new Date().toISOString(),
-        });
-      } catch (logErr) {
-        console.warn("Failed to create assignment log:", logErr);
-      }
-
-      // Sync Redis cache
-      const currentTasks = allTasks.filter((t: any) => isItemInActiveProject(t.projectId));
-      const nextTasks = currentTasks.map((t: any) =>
-        t.id === taskId ? { ...t, ...updatedData } : t
-      );
-      saveProjectCacheToRedis(activeProjectId || "_global_", {
-        tasks: nextTasks,
-      }).catch(console.warn);
-    } catch (err) {
-      console.error("Failed to return task to TODO:", err);
-    }
-  };
 
   const isPending = isAdding || isUpdating;
 
@@ -368,8 +295,6 @@ export function EpicDialog({
                             })
                           : task.startDate || "TBD";
 
-                        const isTaskOnProgress = (task.status || "").trim().toUpperCase() === "ON PROGRESS" || (task.status || "").trim().toUpperCase() === "IN PROGRESS";
-
                         return (
                           <TableRow 
                             key={task.id || idx}
@@ -424,19 +349,6 @@ export function EpicDialog({
                             </TableCell>
                             <TableCell className="py-1.5 text-right pr-3" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1.5">
-                                {isTaskOnProgress && (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 px-2 text-[11px] font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-700 hover:border-amber-500/50"
-                                    onClick={() => handleBackToTodo(task)}
-                                    title="Kembalikan status task ke TODO dan reset PIC & Start Date ke TBD"
-                                  >
-                                    <RotateCcw className="w-3 h-3 mr-1" />
-                                    BACK TODO
-                                  </Button>
-                                )}
                                 <Button
                                   type="button"
                                   variant="ghost"
