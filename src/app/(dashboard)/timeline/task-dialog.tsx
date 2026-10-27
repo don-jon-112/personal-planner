@@ -46,6 +46,7 @@ const formSchema = z.object({
   epicId: z.string(),
   pic: z.string().min(1, "PIC is required (select TBD if not yet decided)"),
   status: z.string().min(1, "Status is required"),
+  priority: z.union([z.number(), z.string(), z.nan(), z.null()]).optional(),
   md: z.number().min(0.01, "MD must be greater than 0"),
   startDate: z.string().min(1, "Start Date is required"),
   isOvertime: z.boolean(),
@@ -119,6 +120,7 @@ export function TaskDialog({
       epicId: "",
       pic: "TBD",
       status: "TODO",
+      priority: "",
       md: 1,
       startDate: new Date().toISOString().split("T")[0],
       isOvertime: false,
@@ -142,6 +144,7 @@ export function TaskDialog({
           epicId: taskToEdit.epicId || "",
           pic: taskToEdit.pic || "TBD",
           status: taskToEdit.status || "TODO",
+          priority: taskToEdit.priority !== undefined && taskToEdit.priority !== null ? taskToEdit.priority : "",
           md: taskToEdit.md || 1,
           startDate: taskToEdit.startDate || new Date().toISOString().split("T")[0],
           isOvertime: Boolean(taskToEdit.isOvertime || taskToEdit.overtime),
@@ -177,6 +180,7 @@ export function TaskDialog({
           epicId: taskToEdit?.epicId || "",
           pic: "TBD",
           status: "TODO",
+          priority: "",
           md: 1,
           startDate: new Date().toISOString().split("T")[0],
           isOvertime: false,
@@ -195,6 +199,11 @@ export function TaskDialog({
       form.setValue("name", chosen.name || "");
       if (chosen.pic) form.setValue("pic", chosen.pic);
       if (chosen.status) form.setValue("status", chosen.status);
+      if (chosen.priority !== undefined && chosen.priority !== null) {
+        form.setValue("priority", chosen.priority);
+      } else {
+        form.setValue("priority", "");
+      }
       if (chosen.md) form.setValue("md", chosen.md);
       if (chosen.startDate) {
         form.setValue("startDate", chosen.startDate);
@@ -306,6 +315,19 @@ export function TaskDialog({
       const projId = activeProjectId || taskToEdit?.projectId || "_global_";
       const projName = activeProject?.name || "Global / Shared";
 
+      let parsedPriority: number | null = null;
+      if (data.priority !== undefined && data.priority !== null && data.priority !== "") {
+        const pNum = Number(data.priority);
+        if (!isNaN(pNum) && pNum > 0) {
+          parsedPriority = Math.round(pNum);
+        }
+      }
+      const taskDataToSave = {
+        ...data,
+        priority: parsedPriority,
+        notes,
+      };
+
       if (targetId) {
         const existingTask = taskToEdit || allTasks.find((t: any) => t.id === targetId);
         const oldStatus = existingTask?.status || "TODO";
@@ -313,7 +335,7 @@ export function TaskDialog({
         const statusChanged = oldStatus !== newStatus;
 
         // Update existing task (or assign backlog task to epic)
-        await updateTask({ id: targetId, data: { ...data, notes } });
+        await updateTask({ id: targetId, data: taskDataToSave });
 
         // If status changed, record audit log & sync Redis immediately
         if (statusChanged) {
@@ -337,6 +359,8 @@ export function TaskDialog({
               userName: currentUserName,
               previousStatus: oldStatus,
               status: newStatus,
+              priority: parsedPriority,
+              previousPriority: existingTask?.priority ?? null,
               previousPic: existingTask?.pic || "-",
               md: data.md,
               startDate: isTbdDate ? "TBD" : data.startDate,
@@ -365,14 +389,14 @@ export function TaskDialog({
 
         // Auto-update Redis timeline project cache
         const updatedTasks = allTasks.map((t: any) =>
-          t.id === targetId ? { ...t, ...data, notes, id: targetId } : t
+          t.id === targetId ? { ...t, ...taskDataToSave, id: targetId } : t
         );
         saveProjectCacheToRedis(projId, { tasks: updatedTasks, epics: filteredEpics }).catch(console.warn);
       } else {
         // Create brand new task
-        const newDoc = await addTask({ ...data, notes, order: Date.now(), projectId: activeProjectId || undefined });
+        const newDoc = await addTask({ ...taskDataToSave, order: Date.now(), projectId: activeProjectId || undefined });
         const newId = (newDoc as any)?.id;
-        const updatedTasks = [...allTasks, { ...data, notes, order: Date.now(), projectId: activeProjectId || undefined, id: newId }];
+        const updatedTasks = [...allTasks, { ...taskDataToSave, order: Date.now(), projectId: activeProjectId || undefined, id: newId }];
         saveProjectCacheToRedis(projId, { tasks: updatedTasks, epics: filteredEpics }).catch(console.warn);
       }
       setShowOverlapConfirm(false);
@@ -599,6 +623,18 @@ export function TaskDialog({
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-2 w-[110px] shrink-0">
+                    <Label title="Priority (P1, P2, ...)">Priority (P)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="e.g. 1"
+                      disabled={readOnly}
+                      className={cn(readOnly && "bg-muted text-muted-foreground cursor-not-allowed")}
+                      {...form.register("priority")}
+                    />
                   </div>
                 </div>
 

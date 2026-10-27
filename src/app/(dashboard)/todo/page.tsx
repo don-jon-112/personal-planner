@@ -122,6 +122,85 @@ export default function TodoPage() {
     setAssignToMeTask(null);
   };
 
+  const handleSetInReview = async (task: any) => {
+    const taskId = task.id || task._id || task.taskId;
+    if (!taskId) return;
+    const oldStatus = task.status || "ON PROGRESS";
+
+    try {
+      const updatedData = {
+        status: "IN REVIEW",
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateTaskDoc({
+        id: taskId,
+        data: updatedData,
+      });
+
+      // Audit log in assignmentLogs & Redis
+      if (oldStatus !== "IN REVIEW") {
+        try {
+          const epic = activeEpics.find((e: any) => e.id === task.epicId);
+          const currentUserName = currentUser?.name || currentUser?.username || "User";
+          const projectId = task.projectId || activeProject?.id || "_global_";
+
+          const logPayload = {
+            category: "task" as const,
+            action: "STATUS_CHANGE",
+            taskId: taskId,
+            taskName: task.name || "Untitled Task",
+            epicId: task.epicId || null,
+            epicName: epic?.name || "-",
+            projectId: projectId,
+            projectName: activeProject?.name || "Global / Shared",
+            userId: currentUser?.id || "unknown",
+            username: currentUser?.username || "-",
+            userName: currentUserName,
+            previousStatus: oldStatus,
+            status: "IN REVIEW",
+            previousPic: task.pic || "-",
+            md: task.md,
+            startDate: task.startDate,
+            endDate: task.endDate,
+            details: `Mengubah status task dari "${oldStatus}" menjadi "IN REVIEW"`,
+            changes: [
+              {
+                field: "status",
+                label: "Status Task",
+                oldValue: oldStatus,
+                newValue: "IN REVIEW",
+              },
+            ],
+            claimedAt: serverTimestamp(),
+            timestamp: new Date().toISOString(),
+          };
+
+          const newLogDoc = await addAssignmentLog(logPayload);
+          appendAssignmentLogToRedis({
+            ...logPayload,
+            id: (newLogDoc as any)?.id || `log-${Date.now()}`,
+          }).catch(console.warn);
+        } catch (logErr) {
+          console.warn("Failed to create set in review audit log:", logErr);
+        }
+      }
+
+      // Optimistic update local tasks & Redis cache
+      setLocalTasks((prev) => {
+        const nextTasks = prev.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t));
+        const projectId = activeProject?.id || "_global_";
+        saveProjectCacheToRedis(projectId, {
+          tasks: nextTasks,
+          epics: localEpics,
+        }).catch(console.warn);
+        return nextTasks;
+      });
+    } catch (e) {
+      console.error("Failed to set task status to IN REVIEW:", e);
+    }
+  };
+
   const handleBackToTodo = async (task: any) => {
     const taskId = task.id || task._id || task.taskId;
     if (!taskId) return;
@@ -393,6 +472,9 @@ export default function TodoPage() {
         } else if (taskSortConfig.key === "md") {
           aVal = Number(a.md) || 0;
           bVal = Number(b.md) || 0;
+        } else if (taskSortConfig.key === "priority") {
+          aVal = a.priority !== undefined && a.priority !== null && a.priority !== "" ? Number(a.priority) : 999999;
+          bVal = b.priority !== undefined && b.priority !== null && b.priority !== "" ? Number(b.priority) : 999999;
         }
 
         if (aVal < bVal) return taskSortConfig.direction === "asc" ? -1 : 1;
@@ -843,6 +925,15 @@ export default function TodoPage() {
                       </div>
                     </TableHead>
                     <TableHead
+                      onClick={() => requestTaskSort("priority")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors text-center w-[60px]"
+                      title="Priority (P1, P2, ...)"
+                    >
+                      <div className="flex items-center justify-center gap-1 font-semibold">
+                        (P) <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
                       onClick={() => requestTaskSort("status")}
                       className="cursor-pointer hover:bg-muted/60 transition-colors"
                     >
@@ -856,13 +947,13 @@ export default function TodoPage() {
                 <TableBody>
                   {isTasksLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                         Loading tasks...
                       </TableCell>
                     </TableRow>
                   ) : processedTasks.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                         <p className="text-base font-medium">No tasks found.</p>
                         <p className="text-xs text-muted-foreground/70 mt-1">
                           {hasEdit ? 'Click "New Task" above to create your first task.' : 'No tasks recorded in this project.'}
@@ -890,6 +981,7 @@ export default function TodoPage() {
                             handleEdit={handleEditTask}
                             deleteTask={deleteTask}
                             onAssignToMe={setAssignToMeTask}
+                            onSetInReview={handleSetInReview}
                             onBackToTodo={handleBackToTodo}
                             isDragDisabled={isTaskDragDisabled}
                             canEdit={hasEdit}

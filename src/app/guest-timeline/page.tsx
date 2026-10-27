@@ -352,7 +352,19 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, statuses = [] }: { 
           );
         })()}
       </div>
-      <div className="w-[60px] md:sticky md:left-[490px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
+      <div className="w-[45px] md:sticky md:left-[490px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-1 py-2 text-xs font-mono overflow-hidden">
+        {task.priority !== undefined && task.priority !== null && task.priority !== "" ? (
+          <span
+            className="font-bold text-[11px] px-1.5 py-0.5 rounded bg-muted/80 text-foreground border border-border/60"
+            title={`Priority ${task.priority}`}
+          >
+            P{task.priority}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/40 text-xs">-</span>
+        )}
+      </div>
+      <div className="w-[60px] md:sticky md:left-[535px] md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-2 py-2 text-sm font-mono">
         {task.md}
       </div>
 
@@ -467,7 +479,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAll
         className="flex border-b bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="w-[550px] md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
+        <div className="w-[595px] md:sticky md:left-0 md:z-20 bg-muted border-r shrink-0 flex items-center px-2 py-2">
           <button className="mr-1 ml-2 text-muted-foreground hover:text-foreground focus:outline-none p-1">
             {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
@@ -799,7 +811,7 @@ function GuestTimelineInner() {
               <div className="flex flex-col sticky top-0 z-30 shadow-sm bg-background">
                 {/* Month Row */}
                 <div className="flex bg-muted border-b">
-                  <div className="w-[550px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0" />
+                  <div className="w-[595px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0" />
                   <div className="flex">
                     {(() => {
                       const months: { name: string, days: number }[] = [];
@@ -832,7 +844,10 @@ function GuestTimelineInner() {
                   <div className="w-[250px] md:sticky md:left-0 md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">Epic / Task</div>
                   <div className="w-[120px] md:sticky md:left-[250px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center">PIC</div>
                   <div className="w-[120px] md:sticky md:left-[370px] md:z-40 bg-muted border-r shrink-0 px-4 py-2 font-semibold text-sm uppercase tracking-wider flex items-center justify-center">Status</div>
-                  <div className="w-[60px] md:sticky md:left-[490px] md:z-40 bg-muted border-r shrink-0 px-1 py-1 font-semibold text-sm uppercase tracking-wider flex items-center justify-center gap-1">
+                  <div className="w-[45px] md:sticky md:left-[490px] md:z-40 bg-muted border-r shrink-0 px-1 py-1 font-semibold text-xs uppercase tracking-wider flex items-center justify-center select-none" title="Priority (P1, P2, ...)">
+                    (P)
+                  </div>
+                  <div className="w-[60px] md:sticky md:left-[535px] md:z-40 bg-muted border-r shrink-0 px-1 py-1 font-semibold text-sm uppercase tracking-wider flex items-center justify-center gap-1">
                     MD
                     <div className="flex flex-col items-center justify-center">
                       <button onClick={() => setCollapseAllTrigger(prev => prev + 1)} title="Collapse All" className="hover:bg-muted-foreground/10 rounded"><ChevronUp className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground"/></button>

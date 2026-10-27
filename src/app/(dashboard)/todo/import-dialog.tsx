@@ -30,6 +30,7 @@ interface ParsedTask {
   pic: string;
   startDate: string;
   md: number;
+  priority?: number;
   status: string;
 }
 
@@ -63,12 +64,12 @@ export function ImportDialog({
 
   // Template Download Handler (.xlsx Excel)
   const handleDownloadExcelTemplate = () => {
-    const headers = ["Task Name", "Epic Name", "PIC", "Start Date", "MD", "Status"];
+    const headers = ["Task Name", "Epic Name", "PIC", "Start Date", "MD", "Priority", "Status"];
     const sampleRows = [
-      ["Design Database Schema", "Backend Architecture", "Jonathan", "2026-09-01", 3, "DONE"],
-      ["Setup Authentication API", "Backend Architecture", "Jonathan", "2026-09-04", 2, "IN REVIEW"],
-      ["Develop Landing Page & Navigation", "Frontend UI", "Alice", "2026-09-01", 4, "ON PROGRESS"],
-      ["Write User Guide & Backlog Docs", "", "TBD", "TBD", 2, "TODO"],
+      ["Design Database Schema", "Backend Architecture", "Jonathan", "2026-09-01", 3, 1, "DONE"],
+      ["Setup Authentication API", "Backend Architecture", "Jonathan", "2026-09-04", 2, 2, "IN REVIEW"],
+      ["Develop Landing Page & Navigation", "Frontend UI", "Alice", "2026-09-01", 4, 1, "ON PROGRESS"],
+      ["Write User Guide & Backlog Docs", "", "TBD", "TBD", 2, "", "TODO"],
     ];
 
     const data = [headers, ...sampleRows];
@@ -81,6 +82,7 @@ export function ImportDialog({
       { wch: 16 }, // PIC
       { wch: 16 }, // Start Date
       { wch: 10 }, // MD
+      { wch: 10 }, // Priority
       { wch: 16 }, // Status
     ];
 
@@ -114,6 +116,7 @@ export function ImportDialog({
     );
     const dateIdx = header.findIndex((h) => h.includes("date") || h.includes("start"));
     const mdIdx = header.findIndex((h) => (h === "md" || h.includes("manday") || h.includes("duration") || h.includes("day")) && !h.includes("date"));
+    const priorityIdx = header.findIndex((h) => h === "p" || h === "priority" || h.includes("prior"));
     const statusIdx = header.findIndex((h) => h.includes("status") || h.includes("state"));
 
     const tasks: ParsedTask[] = [];
@@ -165,6 +168,13 @@ export function ImportDialog({
       let md = typeof rawMd === "number" ? rawMd : parseFloat(String(rawMd || "1"));
       if (isNaN(md) || md <= 0) md = 1;
 
+      // Parse Priority (optional integer)
+      let priority: number | undefined = undefined;
+      if (priorityIdx !== -1 && cols[priorityIdx] !== undefined && cols[priorityIdx] !== null && String(cols[priorityIdx]).trim() !== "") {
+        const pNum = Number(String(cols[priorityIdx]).replace(/[^0-9]/g, ""));
+        if (!isNaN(pNum) && pNum > 0) priority = Math.round(pNum);
+      }
+
       // Parse Status
       let rawStatus = (statusIdx !== -1 && cols[statusIdx] !== undefined ? String(cols[statusIdx]) : "TODO")
         .toUpperCase()
@@ -188,6 +198,7 @@ export function ImportDialog({
         pic,
         startDate,
         md,
+        priority,
         status,
       });
     }
@@ -310,6 +321,7 @@ export function ImportDialog({
           pic: item.pic || "TBD",
           startDate: item.startDate || "TBD",
           md: item.md || 1,
+          priority: item.priority ?? null,
           status: item.status || "TODO",
           order: Date.now() + i * 10,
           projectId: activeProjectId || undefined,
@@ -446,6 +458,7 @@ export function ImportDialog({
                       <TableHead className="text-xs py-2">PIC</TableHead>
                       <TableHead className="text-xs py-2">Start Date</TableHead>
                       <TableHead className="text-xs py-2">MD</TableHead>
+                      <TableHead className="text-xs py-2 text-center">(P)</TableHead>
                       <TableHead className="text-xs py-2">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -467,6 +480,15 @@ export function ImportDialog({
                         <TableCell className="whitespace-nowrap">{task.pic}</TableCell>
                         <TableCell className="whitespace-nowrap">{task.startDate}</TableCell>
                         <TableCell>{task.md}</TableCell>
+                        <TableCell className="text-center">
+                          {task.priority ? (
+                            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted/80 text-foreground border border-border/60">
+                              P{task.priority}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/40 text-[10px]">-</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <span
                             className={cn(

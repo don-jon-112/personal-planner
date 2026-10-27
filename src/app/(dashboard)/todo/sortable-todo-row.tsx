@@ -4,7 +4,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TableRow, TableCell } from "@/components/ui/table";
-import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle, FileText, UserCheck, RotateCcw } from "lucide-react";
+import { GripVertical, MoreHorizontal, Calendar, Clock, AlertTriangle, FileText, UserCheck, RotateCcw, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -30,6 +30,7 @@ interface SortableTodoRowProps {
   handleEdit: (task: any) => void;
   deleteTask: (id: string) => void;
   onAssignToMe?: (task: any) => void;
+  onSetInReview?: (task: any) => void;
   onBackToTodo?: (task: any) => void;
   isDragDisabled?: boolean;
   canEdit?: boolean;
@@ -57,6 +58,7 @@ export function SortableTodoRow({
   handleEdit,
   deleteTask,
   onAssignToMe,
+  onSetInReview,
   onBackToTodo,
   isDragDisabled,
   canEdit = true,
@@ -219,6 +221,19 @@ export function SortableTodoRow({
         </span>
       </TableCell>
 
+      <TableCell className="whitespace-nowrap text-center w-[50px]">
+        {item.priority !== undefined && item.priority !== null && item.priority !== "" ? (
+          <span
+            className="inline-flex items-center justify-center font-bold text-[11px] px-1.5 py-0.5 rounded font-mono bg-muted/80 text-foreground border border-border/60"
+            title={`Priority ${item.priority}`}
+          >
+            P{item.priority}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/40">-</span>
+        )}
+      </TableCell>
+
       <TableCell className="whitespace-nowrap">
         {(() => {
           const color = getStatusColor(item.status);
@@ -258,18 +273,29 @@ export function SortableTodoRow({
             {(() => {
               const st = (item.status || "").trim().toUpperCase();
               const isOnProgress = st === "ON PROGRESS" || st === "IN PROGRESS";
-              if (isOnProgress && onBackToTodo) {
-                return (
-                  <DropdownMenuItem
-                    className="text-amber-600 dark:text-amber-400 font-medium focus:text-amber-600 cursor-pointer"
-                    onClick={() => onBackToTodo(item)}
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    <span>BACK TODO</span>
-                  </DropdownMenuItem>
-                );
-              }
-              return null;
+              if (!isOnProgress) return null;
+              return (
+                <>
+                  {onSetInReview && (
+                    <DropdownMenuItem
+                      className="text-purple-600 dark:text-purple-400 font-medium focus:text-purple-600 cursor-pointer"
+                      onClick={() => onSetInReview(item)}
+                    >
+                      <ClipboardCheck className="w-4 h-4 mr-2" />
+                      <span>IN REVIEW</span>
+                    </DropdownMenuItem>
+                  )}
+                  {onBackToTodo && (
+                    <DropdownMenuItem
+                      className="text-amber-600 dark:text-amber-400 font-medium focus:text-amber-600 cursor-pointer"
+                      onClick={() => onBackToTodo(item)}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      <span>BACK TODO</span>
+                    </DropdownMenuItem>
+                  )}
+                </>
+              );
             })()}
             {canDelete !== false && (
               <DropdownMenuItem

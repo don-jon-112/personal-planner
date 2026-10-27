@@ -92,6 +92,7 @@ interface ColWidths {
   task: number;
   pic: number;
   status: number;
+  priority: number;
   md: number;
   actions: number;
 }
@@ -100,6 +101,7 @@ const DEFAULT_COL_WIDTHS: ColWidths = {
   task: 250,
   pic: 120,
   status: 120,
+  priority: 45,
   md: 60,
   actions: 50,
 };
@@ -114,11 +116,12 @@ function computeOffsets(widths: ColWidths) {
   const task = 0;
   const pic = widths.task;
   const status = pic + widths.pic;
-  const md = status + widths.status;
+  const priority = status + widths.status;
+  const md = priority + (widths.priority ?? DEFAULT_COL_WIDTHS.priority);
   const actions = md + widths.md;
   const totalHeader = actions + widths.actions;
-  const epicTitle = actions; // Epic title spans task + pic + status + md (up to actions column)
-  return { task, pic, status, md, actions, totalHeader, epicTitle };
+  const epicTitle = actions; // Epic title spans task + pic + status + priority + md (up to actions column)
+  return { task, pic, status, priority, md, actions, totalHeader, epicTitle };
 }
 
 // -------------------------------------------------------------
@@ -564,6 +567,23 @@ function TaskRow({
         )}
       </div>
 
+      {/* 3b. Priority Column */}
+      <div
+        style={{ width: `${colWidths.priority ?? DEFAULT_COL_WIDTHS.priority}px`, left: `${offsets.priority}px` }}
+        className="md:sticky md:z-20 bg-background border-r shrink-0 flex items-center justify-center px-1 py-2 text-xs font-mono overflow-hidden"
+      >
+        {task.priority !== undefined && task.priority !== null && task.priority !== "" ? (
+          <span
+            className="font-bold text-[11px] px-1.5 py-0.5 rounded bg-muted/80 text-foreground border border-border/60"
+            title={`Priority ${task.priority}`}
+          >
+            P{task.priority}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/40 text-xs">-</span>
+        )}
+      </div>
+
       {/* 4. MD Column */}
       <div
         style={{ width: `${colWidths.md}px`, left: `${offsets.md}px` }}
@@ -592,6 +612,15 @@ function TaskRow({
                   >
                     <UserCheck className="w-4 h-4 mr-2" />
                     <span>Assign To Me</span>
+                  </DropdownMenuItem>
+                )}
+                {isOnProgress && onSetInReview && (
+                  <DropdownMenuItem
+                    className="text-purple-600 dark:text-purple-400 font-medium focus:text-purple-600 cursor-pointer"
+                    onClick={() => onSetInReview(task)}
+                  >
+                    <ClipboardCheck className="w-4 h-4 mr-2" />
+                    <span>IN REVIEW</span>
                   </DropdownMenuItem>
                 )}
                 {isOnProgress && onBackToTodo && (
@@ -994,6 +1023,7 @@ export default function TimelinePage() {
           task: typeof parsed.task === "number" ? Math.min(600, Math.max(150, parsed.task)) : DEFAULT_COL_WIDTHS.task,
           pic: typeof parsed.pic === "number" ? Math.min(220, Math.max(80, parsed.pic)) : DEFAULT_COL_WIDTHS.pic,
           status: typeof parsed.status === "number" ? Math.min(200, Math.max(80, parsed.status)) : DEFAULT_COL_WIDTHS.status,
+          priority: DEFAULT_COL_WIDTHS.priority,
           md: DEFAULT_COL_WIDTHS.md,
           actions: DEFAULT_COL_WIDTHS.actions,
         });
@@ -2082,6 +2112,15 @@ export default function TimelinePage() {
                       onMouseDown={(e) => handleMouseDownResize(e, "status")}
                       onDoubleClick={() => handleDoubleClickReset("status")}
                     />
+                  </div>
+
+                  {/* 3b. Priority Header (Fixed) */}
+                  <div
+                    style={{ width: `${colWidths.priority ?? DEFAULT_COL_WIDTHS.priority}px`, left: `${offsets.priority}px` }}
+                    className="md:sticky md:z-40 bg-muted border-r shrink-0 px-1 py-2 font-semibold text-xs uppercase tracking-wider flex items-center justify-center select-none"
+                    title="Priority (P1, P2, ...)"
+                  >
+                    (P)
                   </div>
 
                   {/* 4. MD Header (Fixed) */}
