@@ -539,21 +539,32 @@ export default function UsersRolesPage() {
 
     if (confirmed) {
       try {
-        await deleteRole(role.id);
+        const roleIdToDelete = String(role?.id || (role as any)?._id || "").trim();
+        if (!roleIdToDelete || roleIdToDelete === "undefined") {
+          throw new Error("Invalid Role ID to delete.");
+        }
+        await deleteRole(roleIdToDelete);
 
         // Clean up user assignments for deleted role ID
         const userUpdates: Promise<any>[] = [];
         users.forEach((u) => {
+          const userId = String(u?.id || "").trim();
+          if (!userId || userId === "undefined") return;
+
           let changed = false;
           const nextRoles: Record<string, string[]> = {};
           Object.entries(u.projectRoles || {}).forEach(([pId, rIds]) => {
-            const filtered = rIds.filter((id) => id !== role.id);
-            if (filtered.length !== rIds.length) changed = true;
-            nextRoles[pId] = filtered;
+            if (Array.isArray(rIds)) {
+              const filtered = rIds.filter((id) => id !== roleIdToDelete);
+              if (filtered.length !== rIds.length) changed = true;
+              nextRoles[pId] = filtered;
+            }
           });
           if (changed) {
             userUpdates.push(
-              updateUser({ id: u.id, data: { projectRoles: nextRoles } })
+              updateUser({ id: userId, data: { projectRoles: nextRoles } }).catch((err) => {
+                console.warn(`Failed to clean role from user ${userId}:`, err);
+              })
             );
           }
         });
