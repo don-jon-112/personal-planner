@@ -210,8 +210,10 @@ export default function UsersRolesPage() {
   };
 
   // Save User
-  const handleSaveUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveUser = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
     if (!userFormData.name.trim() || !userFormData.username.trim() || !userFormData.password.trim()) {
       await alertModal({
         title: "Validation Error",
@@ -257,7 +259,7 @@ export default function UsersRolesPage() {
               .map((rId) => String(rId || "").trim())
               .filter((rId) => rId.length > 0 && rId !== "undefined");
             if (validRoleIds.length > 0) {
-              cleanProjectRoles[trimmedProjId] = validRoleIds;
+              cleanProjectRoles[trimmedProjId] = Array.from(new Set(validRoleIds));
             }
           }
         });
@@ -280,6 +282,24 @@ export default function UsersRolesPage() {
         savedId = res?.id;
       }
 
+      // Optimistically update React Query users cache for instantaneous UI feedback
+      const record = {
+        id: savedId || `user_${Date.now()}`,
+        ...payload,
+      } as UserProfile;
+      queryClient.setQueryData<UserProfile[]>(["users"], (oldUsers = []) => {
+        const idx = oldUsers.findIndex(
+          (u) => u.id === record.id || (u.username && u.username.toLowerCase() === payload.username!.toLowerCase())
+        );
+        if (idx >= 0) {
+          const updated = [...oldUsers];
+          updated[idx] = { ...updated[idx], ...record };
+          return updated;
+        }
+        return [...oldUsers, record];
+      });
+      await queryClient.invalidateQueries({ queryKey: ["users"] });
+
       // Update localStorage cached users immediately for instant login
       try {
         const rawCached = localStorage.getItem("planner_cached_users");
@@ -287,10 +307,6 @@ export default function UsersRolesPage() {
         const idx = cachedUsers.findIndex(
           (u) => u.id === savedId || u.username.toLowerCase() === payload.username!.toLowerCase()
         );
-        const record = {
-          id: savedId || `user_${Date.now()}`,
-          ...payload,
-        } as UserProfile;
         if (idx >= 0) {
           cachedUsers[idx] = { ...cachedUsers[idx], ...record };
         } else {
@@ -464,7 +480,11 @@ export default function UsersRolesPage() {
       };
 
       if (editingRoleId) {
-        await updateRole({ id: editingRoleId, data: payload });
+        await updateRole({ id: editingRoleId, data: { id: editingRoleId, ...payload } });
+        queryClient.setQueryData<ProjectRole[]>(["roles"], (old = []) => {
+          return old.map((r) => (r.id === editingRoleId ? { ...r, ...payload, id: editingRoleId } : r));
+        });
+        await queryClient.invalidateQueries({ queryKey: ["roles"] });
       } else {
         // Deterministic ID to guarantee no duplicates even on double-click or network retry
         const scopeSlug = roleFormData.projectId === "_global_" || !roleFormData.projectId ? "global" : roleFormData.projectId;
@@ -478,6 +498,7 @@ export default function UsersRolesPage() {
         await setDoc(
           doc(db, "roles", deterministicId),
           cleanUndefined({
+            id: deterministicId,
             ...payload,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -485,6 +506,10 @@ export default function UsersRolesPage() {
           { merge: true }
         );
 
+        queryClient.setQueryData<ProjectRole[]>(["roles"], (old = []) => {
+          const filtered = old.filter((r) => r.id !== deterministicId);
+          return [...filtered, { id: deterministicId, ...payload } as ProjectRole];
+        });
         await queryClient.invalidateQueries({ queryKey: ["roles"] });
       }
 
@@ -828,9 +853,29 @@ export default function UsersRolesPage() {
                                 (user.projectIds || []).map((projId) => {
                                   const proj = projects.find((p) => p.id === projId);
                                   const assignedRoleIds = user.projectRoles?.[projId] || [];
-                                  const assignedRoleNames = roles
-                                    .filter((r) => assignedRoleIds.includes(r.id))
-                                    .map((r) => r.name);
+                                  const assignedRoleNames = assignedRoleIds
+                                    .map((rId) => {
+                                      // 1. Direct match by id
+                                      const matchedById = roles.find((r) => r.id === rId);
+                                      if (matchedById) return matchedById.name;
+
+                                      // 2. Match by role name or alias/suffix
+                                      const cleanRId = rId.trim().toLowerCase();
+                                      const matchedByName = roles.find(
+                                        (r) =>
+                                          (r.name || "").trim().toLowerCase() === cleanRId ||
+                                          r.id.toLowerCase().endsWith(`_${cleanRId}`)
+                                      );
+                                      if (matchedByName) return matchedByName.name;
+
+                                      // 3. Fallback: humanize the slug (e.g. "role_global_asd" -> "asd")
+                                      if (rId.startsWith("role_")) {
+                                        const parts = rId.split("_");
+                                        return parts.slice(2).join(" ") || rId;
+                                      }
+                                      return rId;
+                                    })
+                                    .filter(Boolean);
 
                                   return (
                                     <div key={projId} className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -1035,7 +1080,13 @@ export default function UsersRolesPage() {
       {/* ================= USER CREATE/EDIT DIALOG ================= */}
       <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
         <DialogContent className="sm:max-w-2xl w-[calc(100vw-2rem)] max-w-full max-h-[90vh] overflow-y-auto">
-          <form onSubmit={handleSaveUser}>
+          <form
+            autoComplete="off"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSaveUser(e);
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserCog className="w-5 h-5 text-primary" />
@@ -1057,6 +1108,12 @@ export default function UsersRolesPage() {
                     id="user-name"
                     value={userFormData.name}
                     onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveUser(e);
+                      }
+                    }}
                     placeholder="e.g. John Doe"
                     required
                   />
@@ -1068,8 +1125,19 @@ export default function UsersRolesPage() {
                   </Label>
                   <Input
                     id="user-username"
+                    name="admin_managed_user_account"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
                     value={userFormData.username}
                     onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveUser(e);
+                      }
+                    }}
                     placeholder="e.g. john.doe"
                     required
                     autoCapitalize="none"
@@ -1103,9 +1171,22 @@ export default function UsersRolesPage() {
                 <div className="relative mt-1">
                   <Input
                     id="user-password"
-                    type={showPasswordInModal ? "text" : "password"}
+                    name="admin_managed_user_secret"
+                    type="text"
+                    style={showPasswordInModal ? undefined : ({ WebkitTextSecurity: "disc" } as React.CSSProperties)}
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
+                    spellCheck={false}
                     value={userFormData.password}
                     onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveUser(e);
+                      }
+                    }}
                     placeholder="Enter or generate password"
                     required
                     className="pr-20 font-mono text-sm"
@@ -1259,39 +1340,48 @@ export default function UsersRolesPage() {
                                   const validAllIds = (role.allIds || [roleId]).filter(Boolean);
                                   const hasRole = validAllIds.some((id) => currentRolesForProj.includes(id));
                                   return (
-                                    <label
+                                    <button
+                                      type="button"
                                       key={roleId}
+                                      onClick={() => {
+                                        const projId = proj.id;
+                                        if (!projId || !roleId) return;
+
+                                        const current = userFormData.projectRoles[projId] || [];
+                                        let updated: string[];
+                                        if (hasRole) {
+                                          // Toggle off: remove this role and any duplicates
+                                          updated = current.filter((rId) => Boolean(rId) && !validAllIds.includes(rId));
+                                        } else {
+                                          // Toggle on: add this roleId
+                                          updated = [
+                                            ...current.filter((rId) => Boolean(rId) && !validAllIds.includes(rId)),
+                                            roleId,
+                                          ];
+                                        }
+
+                                        setUserFormData({
+                                          ...userFormData,
+                                          projectRoles: {
+                                            ...userFormData.projectRoles,
+                                            [projId]: updated,
+                                          },
+                                        });
+                                      }}
                                       className={cn(
-                                        "inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer border transition-colors",
+                                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border transition-all cursor-pointer select-none",
                                         hasRole
-                                          ? "bg-primary text-primary-foreground border-primary font-medium"
-                                          : "bg-background text-foreground border-border hover:bg-muted"
+                                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                          : "bg-background text-foreground border-border hover:bg-muted hover:border-border/80"
                                       )}
                                     >
-                                      <input
-                                        type="checkbox"
-                                        checked={hasRole}
-                                        onChange={(e) => {
-                                          const checked = e.target.checked;
-                                          const projId = proj.id;
-                                          if (!projId || !roleId) return;
-
-                                          let updated = currentRolesForProj.filter((rId) => Boolean(rId) && !validAllIds.includes(rId));
-                                          if (checked) {
-                                            updated.push(roleId);
-                                          }
-                                          setUserFormData({
-                                            ...userFormData,
-                                            projectRoles: {
-                                              ...userFormData.projectRoles,
-                                              [projId]: updated,
-                                            },
-                                          });
-                                        }}
-                                        className="hidden"
-                                      />
+                                      {hasRole ? (
+                                        <Check className="w-3.5 h-3.5 text-primary-foreground stroke-[2.5]" />
+                                      ) : (
+                                        <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                                      )}
                                       <span>{role.name}</span>
-                                    </label>
+                                    </button>
                                   );
                                 })}
                               </div>
@@ -1309,7 +1399,11 @@ export default function UsersRolesPage() {
               <Button type="button" variant="outline" onClick={() => setIsUserModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isAddingUser || isUpdatingUser}>
+              <Button
+                type="button"
+                onClick={handleSaveUser}
+                disabled={isAddingUser || isUpdatingUser}
+              >
                 {isAddingUser || isUpdatingUser ? "Saving..." : editingUserId ? "Update User" : "Create User"}
               </Button>
             </DialogFooter>

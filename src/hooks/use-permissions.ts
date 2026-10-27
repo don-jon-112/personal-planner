@@ -21,7 +21,16 @@ export function usePermissions() {
     
     if (!assignedRoleIds.length) return [];
 
-    return allRoles.filter((r) => assignedRoleIds.includes(r.id));
+    return allRoles.filter((r) =>
+      assignedRoleIds.includes(r.id) ||
+      assignedRoleIds.some((rId) => {
+        const cleanRId = rId.trim().toLowerCase();
+        return (
+          (r.name && r.name.trim().toLowerCase() === cleanRId) ||
+          r.id.toLowerCase().endsWith(`_${cleanRId}`)
+        );
+      })
+    );
   }, [isSuperAdmin, currentUser, activeProject, allRoles]);
 
   // All assigned roles across any of the user's projects (used for global menus & fallback)
@@ -29,7 +38,16 @@ export function usePermissions() {
     if (isSuperAdmin || !currentUser || !currentUser.projectRoles) return [];
     const allAssignedIds = Array.from(new Set(Object.values(currentUser.projectRoles).flat()));
     if (!allAssignedIds.length) return [];
-    return allRoles.filter((r) => allAssignedIds.includes(r.id));
+    return allRoles.filter((r) =>
+      allAssignedIds.includes(r.id) ||
+      allAssignedIds.some((rId) => {
+        const cleanRId = rId.trim().toLowerCase();
+        return (
+          (r.name && r.name.trim().toLowerCase() === cleanRId) ||
+          r.id.toLowerCase().endsWith(`_${cleanRId}`)
+        );
+      })
+    );
   }, [isSuperAdmin, currentUser, allRoles]);
 
   /**
