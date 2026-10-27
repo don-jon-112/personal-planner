@@ -177,12 +177,16 @@ export default function UsersRolesPage() {
   // Handle open create user
   const handleOpenCreateUser = () => {
     setEditingUserId(null);
+    const validProjectIds = (projects || [])
+      .map((p) => p?.id)
+      .filter((id): id is string => typeof id === "string" && id.trim().length > 0 && id !== "undefined");
+
     setUserFormData({
       name: "",
       username: "",
       password: generateStrongPassword(),
       isSuperAdmin: false,
-      projectIds: projects.map((p) => p.id).filter(Boolean), // default assign to existing projects
+      projectIds: validProjectIds,
       projectRoles: {},
     });
     setShowPasswordInModal(true);
@@ -192,7 +196,7 @@ export default function UsersRolesPage() {
   // Handle open edit user
   const handleOpenEditUser = (user: UserProfile) => {
     const validId = user.id || (user as any)._id || "";
-    setEditingUserId(validId);
+    setEditingUserId(validId && validId !== "undefined" ? validId : null);
     setUserFormData({
       name: user.name || "",
       username: user.username || "",
@@ -220,7 +224,7 @@ export default function UsersRolesPage() {
     // Check duplicate username
     const existing = users.find(
       (u) =>
-        u.username.toLowerCase() === userFormData.username.trim().toLowerCase() &&
+        (u.username || "").toLowerCase() === userFormData.username.trim().toLowerCase() &&
         u.id !== editingUserId
     );
     if (existing) {
@@ -238,16 +242,22 @@ export default function UsersRolesPage() {
         (id) => typeof id === "string" && id.trim().length > 0 && id !== "undefined"
       );
 
-      // Clean and sanitize projectRoles so no empty, null, or undefined keys/values get sent to Firestore
+      // Clean and sanitize projectRoles so only active, valid assigned projects and role IDs are stored
       const cleanProjectRoles: Record<string, string[]> = {};
       if (userFormData.projectRoles && typeof userFormData.projectRoles === "object") {
         Object.entries(userFormData.projectRoles).forEach(([projId, roleIds]) => {
-          if (projId && typeof projId === "string" && projId.trim().length > 0 && projId !== "undefined" && Array.isArray(roleIds)) {
-            const validRoleIds = roleIds.filter(
-              (rId) => typeof rId === "string" && rId.trim().length > 0 && rId !== "undefined"
-            );
+          const trimmedProjId = String(projId || "").trim();
+          if (
+            trimmedProjId &&
+            trimmedProjId !== "undefined" &&
+            cleanProjectIds.includes(trimmedProjId) &&
+            Array.isArray(roleIds)
+          ) {
+            const validRoleIds = roleIds
+              .map((rId) => String(rId || "").trim())
+              .filter((rId) => rId.length > 0 && rId !== "undefined");
             if (validRoleIds.length > 0) {
-              cleanProjectRoles[projId.trim()] = validRoleIds;
+              cleanProjectRoles[trimmedProjId] = validRoleIds;
             }
           }
         });
@@ -263,7 +273,7 @@ export default function UsersRolesPage() {
       };
 
       let savedId = editingUserId;
-      if (editingUserId) {
+      if (editingUserId && editingUserId !== "undefined") {
         await updateUser({ id: editingUserId, data: payload });
       } else {
         const res = await addUser(payload);
@@ -463,14 +473,15 @@ export default function UsersRolesPage() {
 
         const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
         const { db } = await import("@/firebase/config");
+        const { cleanUndefined } = await import("@/hooks/use-firestore");
 
         await setDoc(
           doc(db, "roles", deterministicId),
-          {
+          cleanUndefined({
             ...payload,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-          },
+          }),
           { merge: true }
         );
 

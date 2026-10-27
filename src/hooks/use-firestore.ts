@@ -35,7 +35,7 @@ export function useCollection<T>(collectionName: string) {
 }
 
 // Helper to strip undefined values recursively so Firestore never throws "Unsupported field value: undefined"
-function cleanUndefined(obj: any): any {
+export function cleanUndefined(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) {
     return obj
@@ -48,7 +48,10 @@ function cleanUndefined(obj: any): any {
   const clean: any = {};
   for (const [key, val] of Object.entries(obj)) {
     if (val !== undefined && key !== "" && key !== "undefined" && key.trim() !== "") {
-      clean[key] = cleanUndefined(val);
+      const cleanedVal = cleanUndefined(val);
+      if (cleanedVal !== undefined) {
+        clean[key] = cleanedVal;
+      }
     }
   }
   return clean;
@@ -67,6 +70,9 @@ export function useAddDocument(collectionName: string) {
         ...sanitized,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+      });
+      writePromise.catch((err) => {
+        console.warn(`Background add to ${collectionName} pending/error:`, err);
       });
       if (mode !== 'online') return { id: docRef.id, ...sanitized };
       try {
@@ -102,6 +108,9 @@ export function useUpdateDocument(collectionName: string) {
         ...sanitized,
         updatedAt: serverTimestamp(),
       }, { merge: true });
+      writePromise.catch((err) => {
+        console.warn(`Background update to ${collectionName} pending/error:`, err);
+      });
       if (mode !== 'online') return { id: cleanId, ...sanitized };
       try {
         await Promise.race([
@@ -132,6 +141,9 @@ export function useDeleteDocument(collectionName: string) {
       }
       const docRef = doc(db, collectionName, cleanId);
       const writePromise = deleteDoc(docRef);
+      writePromise.catch((err) => {
+        console.warn(`Background delete from ${collectionName} pending/error:`, err);
+      });
       if (mode !== 'online') return cleanId;
       try {
         await Promise.race([
@@ -169,6 +181,9 @@ export function useUpdateBatch(collectionName: string) {
         }
       });
       const writePromise = batch.commit();
+      writePromise.catch((err) => {
+        console.warn(`Background batch commit to ${collectionName} pending/error:`, err);
+      });
       if (mode !== 'online') return updates;
       try {
         await Promise.race([
@@ -223,6 +238,9 @@ export function useSetDocument(collectionName: string) {
         ...sanitized,
         updatedAt: serverTimestamp(),
       }, { merge: true });
+      writePromise.catch((err) => {
+        console.warn(`Background setDoc to ${collectionName} pending/error:`, err);
+      });
       if (mode !== 'online') return { id: cleanId, ...sanitized };
       try {
         await Promise.race([

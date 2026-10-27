@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, enableMultiTabIndexedDbPersistence, disableNetwork, enableNetwork } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, enableMultiTabIndexedDbPersistence, disableNetwork, enableNetwork } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -15,7 +15,15 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
+
+let db: any;
+try {
+  db = initializeFirestore(app, {
+    ignoreUndefinedProperties: true,
+  });
+} catch {
+  db = getFirestore(app);
+}
 
 if (typeof window !== 'undefined') {
   enableMultiTabIndexedDbPersistence(db).catch((err) => {
