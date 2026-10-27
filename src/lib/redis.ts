@@ -11,6 +11,14 @@ export function getProjectEpicsKey(projectId: string): string {
   return `${CACHE_PREFIX}epics:${projectId || "_global_"}`;
 }
 
+export function getProjectPicsKey(projectId: string): string {
+  return `${CACHE_PREFIX}pics:${projectId || "_global_"}`;
+}
+
+export function getProjectStatusesKey(projectId: string): string {
+  return `${CACHE_PREFIX}statuses:${projectId || "_global_"}`;
+}
+
 export function getProjectTimelineKey(projectId: string): string {
   return `${CACHE_PREFIX}timeline:${projectId || "_global_"}`;
 }

@@ -1467,11 +1467,13 @@ export default function TimelinePage() {
       saveProjectCacheToRedis(projectId, {
         tasks: localTasks,
         epics: orderedEpics,
+        pics: projectPics,
+        statuses: taskStatuses,
       });
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [localTasks, orderedEpics, hasEdit, isLoadingEpics, isLoadingTasks, activeProject?.id]);
+  }, [localTasks, orderedEpics, projectPics, taskStatuses, hasEdit, isLoadingEpics, isLoadingTasks, activeProject?.id]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -1928,7 +1930,6 @@ export default function TimelinePage() {
               epicToEdit={editingEpic}
               readOnly={!hasEdit}
               onSelectTask={(task) => {
-                setIsEpicDialogOpen(false);
                 setEditingTask(task);
                 setIsTaskDialogOpen(true);
               }}

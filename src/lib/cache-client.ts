@@ -6,30 +6,37 @@ export async function fetchCachedTimelineData(projectId: string): Promise<{
   source: "redis" | "miss";
   tasks: any[] | null;
   epics: any[] | null;
+  pics: any[] | null;
+  statuses: any[] | null;
 }> {
   try {
     const res = await fetch(`/api/cache/timeline?projectId=${encodeURIComponent(projectId || "_global_")}`);
     if (!res.ok) {
-      return { source: "miss", tasks: null, epics: null };
+      return { source: "miss", tasks: null, epics: null, pics: null, statuses: null };
     }
     const data = await res.json();
-    if (data.source === "redis" && (Array.isArray(data.tasks) || Array.isArray(data.epics))) {
+    if (
+      data.source === "redis" &&
+      (Array.isArray(data.tasks) || Array.isArray(data.epics) || Array.isArray(data.pics) || Array.isArray(data.statuses))
+    ) {
       return {
         source: "redis",
         tasks: data.tasks || [],
         epics: data.epics || [],
+        pics: data.pics || [],
+        statuses: data.statuses || [],
       };
     }
-    return { source: "miss", tasks: null, epics: null };
+    return { source: "miss", tasks: null, epics: null, pics: null, statuses: null };
   } catch (err) {
     console.warn("[CacheClient] Failed to fetch cached timeline from Redis:", err);
-    return { source: "miss", tasks: null, epics: null };
+    return { source: "miss", tasks: null, epics: null, pics: null, statuses: null };
   }
 }
 
 export async function saveProjectCacheToRedis(
   projectId: string,
-  payload: { tasks?: any[]; epics?: any[] }
+  payload: { tasks?: any[]; epics?: any[]; pics?: any[]; statuses?: any[] }
 ): Promise<boolean> {
   // Only sync when online
   if (typeof window !== "undefined") {

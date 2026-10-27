@@ -88,6 +88,20 @@ export default function TodoPage() {
     return pics.filter((p: any) => isItemInActiveProject(p.projectId));
   }, [pics, isItemInActiveProject]);
 
+  // Alphabetically sorted epics for filter dropdown
+  const sortedEpicsForFilter = useMemo(() => {
+    return [...activeEpics].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    );
+  }, [activeEpics]);
+
+  // Alphabetically sorted PICs for filter dropdown
+  const sortedPicsForFilter = useMemo(() => {
+    return [...activePics].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    );
+  }, [activePics]);
+
   const overlapMap = useMemo(() => {
     return computeAllTaskOverlaps(activeTasks, holidays, activeEpics);
   }, [activeTasks, holidays, activeEpics]);
@@ -375,11 +389,13 @@ export default function TodoPage() {
       saveProjectCacheToRedis(projectId, {
         tasks: localTasks,
         epics: localEpics,
+        pics: activePics,
+        statuses: taskStatuses,
       });
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [localTasks, localEpics, hasEdit, isTasksLoading, isEpicsLoading, activeProject?.id]);
+  }, [localTasks, localEpics, activePics, taskStatuses, hasEdit, isTasksLoading, isEpicsLoading, activeProject?.id]);
 
   // Reset pages to 1 when search, filters, sorting, or page size change
   useEffect(() => {
@@ -695,22 +711,21 @@ export default function TodoPage() {
       </PanelHeader>
 
       {/* Dialogs */}
-      <TaskDialog
-        open={isTaskDialogOpen}
-        onOpenChange={setIsTaskDialogOpen}
-        taskToEdit={editingTask}
-        readOnly={!hasEdit}
-      />
       <EpicDialog
         open={isEpicDialogOpen}
         onOpenChange={setIsEpicDialogOpen}
         epicToEdit={editingEpic}
         readOnly={!hasEdit}
         onSelectTask={(task) => {
-          setIsEpicDialogOpen(false);
           setEditingTask(task);
           setIsTaskDialogOpen(true);
         }}
+      />
+      <TaskDialog
+        open={isTaskDialogOpen}
+        onOpenChange={setIsTaskDialogOpen}
+        taskToEdit={editingTask}
+        readOnly={!hasEdit}
       />
       <ImportDialog
         open={isImportDialogOpen}
@@ -812,12 +827,12 @@ export default function TodoPage() {
                       ))}
                     </DropdownMenuGroup>
 
-                    {activePics.length > 0 && (
+                    {sortedPicsForFilter.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
                           <DropdownMenuLabel>Filter by PIC</DropdownMenuLabel>
-                          {activePics.map((pic) => (
+                          {sortedPicsForFilter.map((pic) => (
                             <DropdownMenuCheckboxItem
                               key={pic.id}
                               checked={picFilters.includes(pic.name)}
@@ -830,7 +845,7 @@ export default function TodoPage() {
                       </>
                     )}
 
-                    {activeEpics.length > 0 && (
+                    {sortedEpicsForFilter.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
@@ -841,7 +856,7 @@ export default function TodoPage() {
                           >
                             Backlog (No Epic)
                           </DropdownMenuCheckboxItem>
-                          {activeEpics.map((epic) => (
+                          {sortedEpicsForFilter.map((epic) => (
                             <DropdownMenuCheckboxItem
                               key={epic.id}
                               checked={epicFilters.includes(epic.id)}

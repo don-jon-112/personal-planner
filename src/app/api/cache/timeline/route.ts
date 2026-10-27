@@ -4,6 +4,8 @@ import {
   setCache,
   getProjectTasksKey,
   getProjectEpicsKey,
+  getProjectPicsKey,
+  getProjectStatusesKey,
   getProjectTimelineKey,
 } from "@/lib/redis";
 
@@ -11,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/cache/timeline?projectId=...
- * Retrieves cached timeline tasks & epics from Redis for viewers.
+ * Retrieves cached timeline tasks, epics, pics, & statuses from Redis.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,19 +22,25 @@ export async function GET(request: NextRequest) {
 
     const tasksKey = getProjectTasksKey(projectId);
     const epicsKey = getProjectEpicsKey(projectId);
+    const picsKey = getProjectPicsKey(projectId);
+    const statusesKey = getProjectStatusesKey(projectId);
 
-    const [tasks, epics] = await Promise.all([
+    const [tasks, epics, pics, statuses] = await Promise.all([
       getCache<any[]>(tasksKey),
       getCache<any[]>(epicsKey),
+      getCache<any[]>(picsKey),
+      getCache<any[]>(statusesKey),
     ]);
 
-    if (tasks !== null || epics !== null) {
+    if (tasks !== null || epics !== null || pics !== null || statuses !== null) {
       return NextResponse.json({
         success: true,
         source: "redis",
         projectId,
         tasks: tasks || [],
         epics: epics || [],
+        pics: pics || [],
+        statuses: statuses || [],
       });
     }
 
@@ -42,6 +50,8 @@ export async function GET(request: NextRequest) {
       projectId,
       tasks: null,
       epics: null,
+      pics: null,
+      statuses: null,
     });
   } catch (err: any) {
     console.error("[API Cache GET] Error:", err.message);
@@ -54,13 +64,13 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/cache/timeline
- * Saves / updates project tasks and/or epics in Redis.
- * Called whenever an editor/admin updates a task or epic in online mode.
+ * Saves / updates project tasks, epics, pics, and/or statuses in Redis.
+ * Called whenever an editor/admin updates project data in online mode.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projectId = "_global_", tasks, epics } = body;
+    const { projectId = "_global_", tasks, epics, pics, statuses } = body;
 
     const promises: Promise<any>[] = [];
 
@@ -74,16 +84,26 @@ export async function POST(request: NextRequest) {
       promises.push(setCache(epicsKey, epics));
     }
 
-    if (Array.isArray(tasks) && Array.isArray(epics)) {
-      const combinedKey = getProjectTimelineKey(projectId);
-      promises.push(
-        setCache(combinedKey, {
-          tasks,
-          epics,
-          cachedAt: new Date().toISOString(),
-        })
-      );
+    if (Array.isArray(pics)) {
+      const picsKey = getProjectPicsKey(projectId);
+      promises.push(setCache(picsKey, pics));
     }
+
+    if (Array.isArray(statuses)) {
+      const statusesKey = getProjectStatusesKey(projectId);
+      promises.push(setCache(statusesKey, statuses));
+    }
+
+    const combinedKey = getProjectTimelineKey(projectId);
+    promises.push(
+      setCache(combinedKey, {
+        tasks: Array.isArray(tasks) ? tasks : undefined,
+        epics: Array.isArray(epics) ? epics : undefined,
+        pics: Array.isArray(pics) ? pics : undefined,
+        statuses: Array.isArray(statuses) ? statuses : undefined,
+        cachedAt: new Date().toISOString(),
+      })
+    );
 
     await Promise.all(promises);
 

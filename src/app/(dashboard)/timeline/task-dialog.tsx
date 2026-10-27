@@ -454,7 +454,7 @@ export function TaskDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+        <DialogContent overlayClassName="z-[60]" className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto z-[60]">
           <DialogHeader>
             <DialogTitle>
               {readOnly
