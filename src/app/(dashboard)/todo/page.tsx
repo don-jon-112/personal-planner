@@ -508,6 +508,7 @@ export default function TodoPage() {
   // Filtered & Sorted Epics
   const processedEpics = useMemo(() => {
     let list = [...localEpics];
+    const currentTasks = localTasks.length > 0 ? localTasks : activeTasks;
 
     if (epicSearchQuery.trim().length >= 3) {
       const q = epicSearchQuery.toLowerCase().trim();
@@ -516,15 +517,29 @@ export default function TodoPage() {
 
     if (epicSortConfig !== null) {
       list.sort((a, b) => {
-        let aVal = a[epicSortConfig.key] || "";
-        let bVal = b[epicSortConfig.key] || "";
+        let aVal: any = a[epicSortConfig.key] || "";
+        let bVal: any = b[epicSortConfig.key] || "";
 
         if (epicSortConfig.key === "taskCount") {
-          aVal = activeTasks.filter((t) => t.epicId === a.id).length;
-          bVal = activeTasks.filter((t) => t.epicId === b.id).length;
+          aVal = currentTasks.filter((t) => t.epicId === a.id).length;
+          bVal = currentTasks.filter((t) => t.epicId === b.id).length;
         } else if (epicSortConfig.key === "totalMd") {
-          aVal = activeTasks.filter((t) => t.epicId === a.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
-          bVal = activeTasks.filter((t) => t.epicId === b.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+          aVal = currentTasks.filter((t) => t.epicId === a.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+          bVal = currentTasks.filter((t) => t.epicId === b.id).reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+        } else if (epicSortConfig.key === "progress") {
+          const aTasks = currentTasks.filter((t) => t.epicId === a.id);
+          const bTasks = currentTasks.filter((t) => t.epicId === b.id);
+          const aDone = aTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length;
+          const bDone = bTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length;
+          aVal = aTasks.length > 0 ? aDone / aTasks.length : 0;
+          bVal = bTasks.length > 0 ? bDone / bTasks.length : 0;
+        } else if (epicSortConfig.key === "status") {
+          const aTasks = currentTasks.filter((t) => t.epicId === a.id);
+          const bTasks = currentTasks.filter((t) => t.epicId === b.id);
+          const aDone = aTasks.length > 0 && aTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length === aTasks.length;
+          const bDone = bTasks.length > 0 && bTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length === bTasks.length;
+          aVal = aDone ? "DONE" : aTasks.length > 0 ? "ON PROGRESS" : "NO TASKS";
+          bVal = bDone ? "DONE" : bTasks.length > 0 ? "ON PROGRESS" : "NO TASKS";
         }
 
         if (aVal < bVal) return epicSortConfig.direction === "asc" ? -1 : 1;
@@ -540,7 +555,7 @@ export default function TodoPage() {
     }
 
     return list;
-  }, [localEpics, activeTasks, epicSearchQuery, epicSortConfig]);
+  }, [localEpics, localTasks, activeTasks, epicSearchQuery, epicSortConfig]);
 
   // Paginated Tasks & Epics
   const paginatedTasks = useMemo(() => {
@@ -1066,6 +1081,22 @@ export default function TodoPage() {
                       </div>
                     </TableHead>
                     <TableHead
+                      onClick={() => requestEpicSort("progress")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors min-w-[150px]"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Progress <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      onClick={() => requestEpicSort("status")}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        Status <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+                    <TableHead
                       onClick={() => requestEpicSort("totalMd")}
                       className="cursor-pointer hover:bg-muted/60 transition-colors"
                     >
@@ -1079,13 +1110,13 @@ export default function TodoPage() {
                 <TableBody>
                   {isEpicsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                         Loading epics...
                       </TableCell>
                     </TableRow>
                   ) : processedEpics.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         <p className="text-base font-medium">No epics found.</p>
                         <p className="text-xs text-muted-foreground/70 mt-1">
                           {hasEdit ? 'Click "New Epic" above to create an epic.' : 'No epics recorded in this project.'}
@@ -1107,7 +1138,7 @@ export default function TodoPage() {
                           <SortableEpicRow
                             key={epic.id}
                             epic={epic}
-                            tasks={activeTasks}
+                            tasks={localTasks.length > 0 ? localTasks : activeTasks}
                             handleEdit={handleEditEpic}
                             deleteEpic={deleteEpic}
                             isDragDisabled={isEpicDragDisabled}

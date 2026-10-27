@@ -4,7 +4,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TableRow, TableCell } from "@/components/ui/table";
-import { GripVertical, MoreHorizontal, Layers, CheckSquare, Clock } from "lucide-react";
+import { GripVertical, MoreHorizontal, Layers, CheckSquare, Clock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -53,7 +53,18 @@ export function SortableEpicRow({
   const epicTasks = tasks.filter((t) => t.epicId === epic.id);
   const totalTasks = epicTasks.length;
   const totalMd = Number(epicTasks.reduce((sum, t) => sum + (parseFloat(t.md) || 0), 0).toFixed(3));
-  const doneTasks = epicTasks.filter((t) => t.status === "DONE").length;
+  const doneTasks = epicTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length;
+  const activeTasks = epicTasks.filter((t) => {
+    const s = (t.status || "").trim().toUpperCase();
+    return s !== "WON'T DO" && s !== "WONT DO";
+  }).length;
+
+  const isAllDone = totalTasks > 0 && (doneTasks === totalTasks || (activeTasks > 0 && doneTasks === activeTasks));
+  const percentage = totalTasks === 0
+    ? 0
+    : activeTasks === 0
+    ? 100
+    : Math.round((doneTasks / activeTasks) * 100);
 
   return (
     <TableRow
@@ -89,11 +100,59 @@ export function SortableEpicRow({
 
       <TableCell>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs font-semibold px-2.5 py-1 rounded-md">
-            <CheckSquare className="w-3.5 h-3.5" />
-            {doneTasks} / {totalTasks} Tasks Done
+          <span className="inline-flex items-center gap-1.5 bg-secondary text-secondary-foreground text-xs font-semibold px-2.5 py-1 rounded-md">
+            <CheckSquare className="w-3.5 h-3.5 text-primary" />
+            {doneTasks} / {totalTasks} Tasks
           </span>
         </div>
+      </TableCell>
+
+      <TableCell className="min-w-[150px]">
+        <div className="flex items-center gap-2.5">
+          <div className="flex-1 bg-muted/80 rounded-full h-2 overflow-hidden border border-border/40">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-300",
+                isAllDone
+                  ? "bg-emerald-500"
+                  : percentage > 0
+                  ? "bg-primary"
+                  : "bg-muted-foreground/20"
+              )}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+          <span className={cn(
+            "text-xs font-bold font-mono min-w-[36px] text-right",
+            isAllDone ? "text-emerald-600 dark:text-emerald-400 font-extrabold" : "text-foreground"
+          )}>
+            {percentage}%
+          </span>
+        </div>
+      </TableCell>
+
+      <TableCell>
+        {isAllDone ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs">
+            <CheckCircle2 className="w-3 h-3" />
+            DONE
+          </span>
+        ) : totalTasks === 0 ? (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider bg-muted text-muted-foreground border border-border/40">
+            NO TASKS
+          </span>
+        ) : doneTasks > 0 || epicTasks.some((t) => {
+            const s = (t.status || "").trim().toUpperCase();
+            return s === "ON PROGRESS" || s === "IN REVIEW" || s === "IN PROGRESS";
+          }) ? (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30">
+            ON PROGRESS
+          </span>
+        ) : (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-500/15 text-slate-700 dark:text-slate-400 border border-slate-500/30">
+            TODO
+          </span>
+        )}
       </TableCell>
 
       <TableCell>
