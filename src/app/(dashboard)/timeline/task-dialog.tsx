@@ -948,7 +948,10 @@ export function TaskDialog({
 
       {/* Overlap Confirmation Dialog */}
       <Dialog open={showOverlapConfirm} onOpenChange={setShowOverlapConfirm}>
-        <DialogContent className="sm:max-w-[480px] border-amber-500/30">
+        <DialogContent
+          overlayClassName="z-[100]"
+          className="sm:max-w-[480px] border-amber-500/30 z-[101] shadow-2xl"
+        >
           <DialogHeader>
             <div className="w-12 h-12 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-2 mx-auto sm:mx-0">
               <AlertTriangle className="w-6 h-6" />

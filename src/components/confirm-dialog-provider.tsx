@@ -168,7 +168,10 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           if (!isOpen) handleConfirmAction(false);
         }}
       >
-        <DialogContent className="sm:max-w-[420px] p-6 gap-5">
+        <DialogContent
+          overlayClassName="z-[100]"
+          className="sm:max-w-[420px] p-6 gap-5 z-[101] shadow-2xl"
+        >
           <div className="flex items-start gap-4">
             {renderIcon(confirmConfig.icon, confirmConfig.variant)}
             <div className="space-y-1.5 flex-1 min-w-0">
@@ -214,7 +217,10 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           if (!isOpen) handleAlertClose();
         }}
       >
-        <DialogContent className="sm:max-w-[420px] p-6 gap-5">
+        <DialogContent
+          overlayClassName="z-[100]"
+          className="sm:max-w-[420px] p-6 gap-5 z-[101] shadow-2xl"
+        >
           <div className="flex items-start gap-4">
             {renderIcon(alertConfig.variant, alertConfig.variant)}
             <div className="space-y-1.5 flex-1 min-w-0">
