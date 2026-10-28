@@ -33,14 +33,15 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
 
   // Safely get user info if AuthProvider is present
-  let isSuperAdmin = true;
+  let isSuperAdmin = false;
   let currentUser: any = null;
   try {
     const auth = useAuth();
     isSuperAdmin = auth.isSuperAdmin;
     currentUser = auth.currentUser;
   } catch {
-    // default to superAdmin/unrestricted if outside AuthProvider
+    // default to superAdmin/unrestricted only if outside AuthProvider
+    isSuperAdmin = true;
   }
 
   // Normalize projects list sorted by creation or default first, filtered by user project assignments
@@ -48,7 +49,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     if (!rawProjects) return [];
     const filtered = isSuperAdmin
       ? rawProjects
-      : rawProjects.filter((p) => currentUser?.projectIds?.includes(p.id));
+      : rawProjects.filter((p) => {
+          if (!currentUser || !Array.isArray(currentUser.projectIds)) return false;
+          return currentUser.projectIds.includes(p.id);
+        });
 
     return [...filtered].sort((a, b) => {
       if (a.isDefault) return -1;
@@ -56,6 +60,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       return (a.name || "").localeCompare(b.name || "");
     });
   }, [rawProjects, isSuperAdmin, currentUser]);
+
+  // System-level default project reference (for backward compatibility of untagged legacy items)
+  const defaultProject = useMemo(() => {
+    if (!rawProjects || rawProjects.length === 0) return null;
+    return rawProjects.find((p) => p.isDefault) || rawProjects[0];
+  }, [rawProjects]);
 
   // Auto-initialize default project if collection is loaded and completely empty
   useEffect(() => {
@@ -157,17 +167,20 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Helper: checks if an item belongs to the active project.
-   * If the active project is the default project (or the first project created),
-   * items with undefined or null projectId will also be treated as matching for backward compatibility.
+   * If an item has an explicit projectId, it must match the activeProject.
+   * If an item has no projectId (legacy), it belongs ONLY to the system default project.
    */
   const isItemInActiveProject = useCallback((itemProjectId?: string) => {
     if (!activeProject) return false;
-    if (itemProjectId) {
-      return itemProjectId === activeProject.id;
+    const cleanId = (itemProjectId || "").trim();
+    if (cleanId) {
+      return cleanId === activeProject.id;
     }
-    // Backward compatibility: items without projectId belong to the default project
-    return !!activeProject.isDefault || activeProject.id === projects[0]?.id;
-  }, [activeProject, projects]);
+    // Backward compatibility: items without projectId belong ONLY to the system default project
+    if (activeProject.isDefault) return true;
+    if (defaultProject && activeProject.id === defaultProject.id) return true;
+    return false;
+  }, [activeProject, defaultProject]);
 
   return (
     <ProjectContext.Provider

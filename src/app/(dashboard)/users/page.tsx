@@ -186,7 +186,7 @@ export default function UsersRolesPage() {
       username: "",
       password: generateStrongPassword(),
       isSuperAdmin: false,
-      projectIds: validProjectIds,
+      projectIds: [],
       projectRoles: {},
     });
     setShowPasswordInModal(true);

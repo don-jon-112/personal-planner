@@ -53,6 +53,7 @@ import { SortableTodoRow } from "./sortable-todo-row";
 import { SortableEpicRow } from "./sortable-epic-row";
 import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -60,9 +61,9 @@ import { fetchCachedTimelineData, saveProjectCacheToRedis, appendAssignmentLogTo
 
 export default function TodoPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "epics">("tasks");
-  const { activeProject, isItemInActiveProject } = useProject();
+  const { projects, activeProject, isItemInActiveProject, isLoading: isProjectsLoading } = useProject();
   const { canView, canEdit, canDelete } = usePermissions();
-  const { currentUser } = useAuth();
+  const { currentUser, isSuperAdmin } = useAuth();
   const confirm = useConfirm();
 
   const hasView = canView("todo");
@@ -334,7 +335,10 @@ export default function TodoPage() {
     setCacheSource("loading");
 
     async function loadViewerData() {
-      const projectId = activeProject?.id || "_global_";
+      if (!activeProject?.id) {
+        return;
+      }
+      const projectId = activeProject.id;
       const cached = await fetchCachedTimelineData(projectId);
       if (!isMounted) return;
 
@@ -342,8 +346,10 @@ export default function TodoPage() {
       const hasEpics = Array.isArray(cached.epics) && cached.epics.length > 0;
 
       if (cached.source === "redis" && (hasTasks || hasEpics)) {
-        setLocalEpics(cached.epics || []);
-        setLocalTasks(cached.tasks || []);
+        const scopedTasks = (cached.tasks || []).filter((t: any) => isItemInActiveProject(t.projectId));
+        const scopedEpics = (cached.epics || []).filter((e: any) => isItemInActiveProject(e.projectId));
+        setLocalEpics(scopedEpics);
+        setLocalTasks(scopedTasks);
         setCacheSource("redis");
       } else {
         // Fallback to Firebase
@@ -645,6 +651,21 @@ export default function TodoPage() {
   const isTaskDragDisabled = taskSortConfig !== null || !hasEdit;
   const isEpicDragDisabled = epicSortConfig !== null || !hasEdit;
 
+  // Check if non-admin user has no assigned projects
+  if (!isSuperAdmin && !isProjectsLoading && projects.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 rounded-2xl border border-dashed border-border bg-card text-center shadow-xs">
+        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+          <Layers className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold tracking-tight">No Assigned Projects</h2>
+        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+          You are currently not assigned to any project workspaces. Please contact your administrator to grant you access to one or more projects.
+        </p>
+      </div>
+    );
+  }
+
   if (!hasView) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
@@ -668,12 +689,7 @@ export default function TodoPage() {
         <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             <CheckSquare className="w-6 h-6 text-primary" /> Task Plan
-            {activeProject && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
-                {activeProject.name}
-              </span>
-            )}
+            <ProjectSwitcher variant="header" className="h-7 text-xs ml-1" />
             {!hasEdit && (
               <>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">

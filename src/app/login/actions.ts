@@ -90,12 +90,16 @@ export async function authenticateUser(username: string, password: string) {
     return { success: false, error: 'Username is required' };
   }
 
-  // 1. Check if user is entering Master Admin password directly
+  // 1. Check if user is logging in as admin with Master Admin password
   const masterPassword = process.env.SITE_PASSWORD;
-  if (masterPassword && (rawPass === masterPassword || trimmedPass === masterPassword)) {
+  if (
+    masterPassword &&
+    (trimmedUser.toLowerCase() === 'admin' || trimmedUser.toLowerCase() === 'master_admin') &&
+    (rawPass === masterPassword || trimmedPass === masterPassword)
+  ) {
     const session: SessionData = {
       userId: 'master_admin',
-      username: trimmedUser || 'admin',
+      username: 'admin',
       name: 'Master Admin',
       isSuperAdmin: true,
     };

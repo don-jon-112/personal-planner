@@ -28,6 +28,7 @@ import {
   RotateCcw,
   Database,
   Zap,
+  Layers,
 } from "lucide-react";
 import { serverTimestamp } from "firebase/firestore";
 import { fetchCachedTimelineData, saveProjectCacheToRedis, appendAssignmentLogToRedis } from "@/lib/cache-client";
@@ -83,6 +84,8 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { DateRangeFilter, DateRangeConfig, computeTimelineDates } from "./date-range-filter";
 import { useProject } from "@/components/project-context";
+import { ProjectSwitcher } from "@/components/project-switcher";
+import { useAuth } from "@/components/auth-context";
 
 // -------------------------------------------------------------
 // COLUMN DEFINITIONS & RESIZING CONSTANTS
@@ -974,7 +977,8 @@ function EpicSegmentGroup({
 export default function TimelinePage() {
   const confirm = useConfirm();
   const alertModal = useAlertModal();
-  const { activeProject, isItemInActiveProject } = useProject();
+  const { projects, activeProject, isItemInActiveProject, isLoading: isProjectsLoading } = useProject();
+  const { isSuperAdmin } = useAuth();
 
   const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
   const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
@@ -1398,7 +1402,10 @@ export default function TimelinePage() {
     setCacheSource("loading");
 
     async function loadViewerData() {
-      const projectId = activeProject?.id || "_global_";
+      if (!activeProject?.id) {
+        return;
+      }
+      const projectId = activeProject.id;
       const cached = await fetchCachedTimelineData(projectId);
       if (!isMounted) return;
 
@@ -1406,8 +1413,10 @@ export default function TimelinePage() {
       const hasEpics = Array.isArray(cached.epics) && cached.epics.length > 0;
 
       if (cached.source === "redis" && (hasTasks || hasEpics)) {
-        const epics = (cached.epics || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-        const tasks = (cached.tasks || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        const scopedEpics = (cached.epics || []).filter((e: any) => isItemInActiveProject(e.projectId));
+        const scopedTasks = (cached.tasks || []).filter((t: any) => isItemInActiveProject(t.projectId));
+        const epics = scopedEpics.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        const tasks = scopedTasks.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
         setOrderedEpics(epics);
         setLocalTasks(tasks);
         setCacheSource("redis");
@@ -1750,6 +1759,23 @@ export default function TimelinePage() {
     }
   };
 
+  // Check if non-admin user has no assigned projects
+  if (!isSuperAdmin && !isProjectsLoading && projects.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <Panel className="max-w-md text-center p-8 border-dashed border-border bg-card shadow-xs">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+            <Layers className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1">No Assigned Projects</h2>
+          <p className="text-xs text-muted-foreground">
+            You are currently not assigned to any project workspaces. Please contact your administrator to grant you access to one or more projects.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
+
   if (!hasView) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
@@ -1772,12 +1798,7 @@ export default function TimelinePage() {
         <div className="w-full xl:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             <CalendarClock className="w-6 h-6 text-primary" /> Timeline
-            {activeProject && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
-                {activeProject.name}
-              </span>
-            )}
+            <ProjectSwitcher variant="header" className="h-7 text-xs ml-1" />
             {!hasEdit && (
               <>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">

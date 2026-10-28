@@ -121,7 +121,13 @@ export function EpicDialog({
   async function onSubmit(data: FormValues) {
     try {
       if (epicToEdit?.id) {
-        await updateEpic({ id: epicToEdit.id, data });
+        await updateEpic({
+          id: epicToEdit.id,
+          data: {
+            ...data,
+            projectId: activeProjectId || epicToEdit?.projectId || undefined,
+          },
+        });
       } else {
         await addEpic({ ...data, order: Date.now(), projectId: activeProjectId || undefined });
       }

@@ -120,15 +120,17 @@ export default function LoginPage() {
         return
       }
 
-      // Fallback: Check if password entered is the master password
-      const masterCheck = await loginWithMaster(trimmedPass)
-      if (masterCheck.success) {
-        if (masterCheck.session) {
-          localStorage.setItem('planner_auth_session', JSON.stringify(masterCheck.session))
+      // Fallback: Check if user is logging in as admin with master password
+      if (trimmedUser.toLowerCase() === 'admin' || trimmedUser.toLowerCase() === 'master_admin') {
+        const masterCheck = await loginWithMaster(trimmedPass)
+        if (masterCheck.success) {
+          if (masterCheck.session) {
+            localStorage.setItem('planner_auth_session', JSON.stringify(masterCheck.session))
+          }
+          router.push(masterCheck.isGuest ? '/guest-timeline' : '/')
+          router.refresh()
+          return
         }
-        router.push(masterCheck.isGuest ? '/guest-timeline' : '/')
-        router.refresh()
-        return
       }
 
       setError(serverAuth.error || `User "${trimmedUser}" not found. Please verify your credentials.`)

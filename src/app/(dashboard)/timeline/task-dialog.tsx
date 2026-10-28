@@ -326,6 +326,7 @@ export function TaskDialog({
         ...data,
         priority: parsedPriority,
         notes,
+        projectId: activeProjectId || taskToEdit?.projectId || undefined,
       };
 
       if (targetId) {
