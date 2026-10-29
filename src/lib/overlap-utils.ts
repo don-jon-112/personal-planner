@@ -76,8 +76,59 @@ export function formatDateString(d: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+export interface TaskDayAllocation {
+  dateStr: string;
+  date: Date;
+  md: number;
+}
+
 /**
- * Check if target task will overlap with any existing tasks of the same PIC
+ * Returns the list of working dates occupied by a task and the MD allocated to each day.
+ * - If total MD <= 1, it occupies 1 day with that MD (e.g. 0.5 MD on startDate).
+ * - If total MD > 1, working days are filled up to 1.0 MD per day, with the remainder on the last day.
+ */
+export function getTaskDailyAllocations(
+  task: { startDate?: string; md?: number; isOvertime?: boolean; overtime?: boolean },
+  holidays: any[] = []
+): TaskDayAllocation[] {
+  if (!task.startDate || task.startDate === "TBD") return [];
+  const start = new Date(task.startDate);
+  if (isNaN(start.getTime())) return [];
+  start.setHours(0, 0, 0, 0);
+
+  const rawMd = Number(task.md);
+  const totalMd = isNaN(rawMd) || rawMd <= 0 ? 1 : rawMd;
+  const isOvertime = Boolean(task.isOvertime || task.overtime);
+  const numDays = Math.max(1, Math.ceil(totalMd));
+
+  const allocations: TaskDayAllocation[] = [];
+  let curr = new Date(start);
+  let remainingMd = totalMd;
+
+  while (allocations.length < numDays) {
+    if (isOvertime || !getDayStatus(curr, holidays)) {
+      const isLastDay = allocations.length === numDays - 1;
+      const dayMd = isLastDay ? remainingMd : Math.min(1.0, remainingMd);
+      const dayDate = new Date(curr);
+      dayDate.setHours(0, 0, 0, 0);
+
+      allocations.push({
+        dateStr: formatDateString(dayDate),
+        date: dayDate,
+        md: Math.round(dayMd * 10000) / 10000,
+      });
+      remainingMd = Math.max(0, remainingMd - dayMd);
+    }
+    curr.setDate(curr.getDate() + 1);
+  }
+
+  return allocations;
+}
+
+/**
+ * Check if target task will overlap with any existing tasks of the same PIC.
+ * Overlap occurs if on ANY day occupied by the target task, the PIC's combined MD across tasks exceeds 1.0 MD.
+ * If the daily total for that user is <= 1.0 MD, it is NOT considered an overlap.
  */
 export function checkTaskOverlap(
   target: { id?: string; pic?: string; startDate?: string; md?: number; name?: string; status?: string; isOvertime?: boolean; overtime?: boolean },
@@ -97,8 +148,8 @@ export function checkTaskOverlap(
     return { hasOverlap: false, overlappingTasks: [] };
   }
 
-  const targetRange = getTaskDateRange(target, holidays);
-  if (!targetRange.isValid) {
+  const targetAllocations = getTaskDailyAllocations(target, holidays);
+  if (targetAllocations.length === 0) {
     return { hasOverlap: false, overlappingTasks: [] };
   }
 
@@ -107,35 +158,69 @@ export function checkTaskOverlap(
     if (e.id) epicMap.set(e.id, e.name || "Unnamed Epic");
   });
 
-  const conflicts: OverlappingTaskDetail[] = [];
+  const targetPicLower = target.pic.trim().toLowerCase();
+  const samePicTasks: {
+    task: any;
+    allocations: TaskDayAllocation[];
+    range: { start: Date; end: Date; isValid: boolean };
+  }[] = [];
 
   for (const t of allTasks) {
-    // Exclude the task itself if editing
     if (target.id && t.id === target.id) continue;
-
-    // Exclude tasks marked as WON'T DO
     if (t.status === "WON'T DO" || t.status === "WONT DO") continue;
-
-    // Check same PIC (case-insensitive trim)
-    if (!t.pic || t.pic.trim().toLowerCase() !== target.pic.trim().toLowerCase()) continue;
+    if (!t.pic || t.pic.trim().toLowerCase() !== targetPicLower) continue;
     if (t.pic.toUpperCase() === "TBD") continue;
+    if (!t.startDate || t.startDate === "TBD") continue;
+
+    const tAllocations = getTaskDailyAllocations(t, holidays);
+    if (tAllocations.length === 0) continue;
 
     const tRange = getTaskDateRange(t, holidays);
-    if (!tRange.isValid) continue;
+    samePicTasks.push({
+      task: t,
+      allocations: tAllocations,
+      range: tRange,
+    });
+  }
 
-    // Overlap condition: startA <= endB and endA >= startB
-    if (targetRange.start.getTime() <= tRange.end.getTime() && targetRange.end.getTime() >= tRange.start.getTime()) {
-      conflicts.push({
-        id: t.id,
-        name: t.name || "Untitled Task",
-        epicId: t.epicId,
-        epicName: epicMap.get(t.epicId) || "Backlog / No Epic",
-        pic: t.pic,
-        status: t.status || "TODO",
-        startDate: t.startDate,
-        endDateStr: formatDateString(tRange.end),
-        md: Number(t.md) || 1,
-      });
+  const conflictingTaskIds = new Set<string>();
+  const conflicts: OverlappingTaskDetail[] = [];
+
+  for (const targetDay of targetAllocations) {
+    const tasksOnThisDay: { task: any; dayMd: number; range: { start: Date; end: Date; isValid: boolean } }[] = [];
+    let dayTotalMd = targetDay.md;
+
+    for (const item of samePicTasks) {
+      const matchAlloc = item.allocations.find((a) => a.dateStr === targetDay.dateStr);
+      if (matchAlloc) {
+        tasksOnThisDay.push({
+          task: item.task,
+          dayMd: matchAlloc.md,
+          range: item.range,
+        });
+        dayTotalMd += matchAlloc.md;
+      }
+    }
+
+    // Only considered overlap if on this day the total MD exceeds 1.0 (with floating point tolerance)
+    const roundedDayTotal = Math.round(dayTotalMd * 10000) / 10000;
+    if (roundedDayTotal > 1.0) {
+      for (const item of tasksOnThisDay) {
+        if (!conflictingTaskIds.has(item.task.id)) {
+          conflictingTaskIds.add(item.task.id);
+          conflicts.push({
+            id: item.task.id,
+            name: item.task.name || "Untitled Task",
+            epicId: item.task.epicId,
+            epicName: epicMap.get(item.task.epicId) || "Backlog / No Epic",
+            pic: item.task.pic,
+            status: item.task.status || "TODO",
+            startDate: item.task.startDate,
+            endDateStr: formatDateString(item.range.end),
+            md: Number(item.task.md) || 1,
+          });
+        }
+      }
     }
   }
 
@@ -146,7 +231,9 @@ export function checkTaskOverlap(
 }
 
 /**
- * Precomputes overlaps for all tasks in the system for fast lookup
+ * Precomputes overlaps for all tasks in the system for fast lookup.
+ * Overlap occurs if on ANY day for a PIC, the combined MD across active tasks exceeds 1.0 MD.
+ * If the daily total for that user is <= 1.0 MD, it is NOT considered an overlap.
  */
 export function computeAllTaskOverlaps(
   allTasks: any[] = [],
@@ -159,50 +246,111 @@ export function computeAllTaskOverlaps(
     if (e.id) epicMap.set(e.id, e.name || "Unnamed Epic");
   });
 
-  // Filter tasks that have concrete dates & valid PIC
-  const validTasks = allTasks.map(t => {
-    const range = getTaskDateRange(t, holidays);
-    return {
-      ...t,
-      range,
-      isCheckable: range.isValid && t.pic && t.pic.trim() !== "" && t.pic.toUpperCase() !== "TBD"
-    };
-  });
-
-  for (let i = 0; i < validTasks.length; i++) {
-    const taskA = validTasks[i];
-    if (!taskA.isCheckable) {
-      overlapMap.set(taskA.id, { hasOverlap: false, overlappingTasks: [] });
-      continue;
+  // Initialize all tasks with no overlap
+  for (const t of allTasks) {
+    if (t?.id) {
+      overlapMap.set(t.id, { hasOverlap: false, overlappingTasks: [] });
     }
+  }
 
-    const conflicts: OverlappingTaskDetail[] = [];
+  type ParsedTask = {
+    id: string;
+    task: any;
+    pic: string;
+    allocations: TaskDayAllocation[];
+    range: { start: Date; end: Date; isValid: boolean };
+  };
 
-    for (let j = 0; j < validTasks.length; j++) {
-      if (i === j) continue;
-      const taskB = validTasks[j];
-      if (!taskB.isCheckable) continue;
+  const tasksByPic = new Map<string, ParsedTask[]>();
 
-      if (taskA.pic.trim().toLowerCase() === taskB.pic.trim().toLowerCase()) {
-        if (taskA.range.start.getTime() <= taskB.range.end.getTime() && taskA.range.end.getTime() >= taskB.range.start.getTime()) {
-          conflicts.push({
-            id: taskB.id,
-            name: taskB.name || "Untitled Task",
-            epicId: taskB.epicId,
-            epicName: epicMap.get(taskB.epicId) || "Backlog / No Epic",
-            pic: taskB.pic,
-            status: taskB.status || "TODO",
-            startDate: taskB.startDate,
-            endDateStr: formatDateString(taskB.range.end),
-            md: Number(taskB.md) || 1,
-          });
+  for (const t of allTasks) {
+    if (!t?.id) continue;
+    if (t.status === "WON'T DO" || t.status === "WONT DO") continue;
+    if (!t.pic || t.pic.trim() === "" || t.pic.toUpperCase() === "TBD") continue;
+    if (!t.startDate || t.startDate === "TBD") continue;
+
+    const allocations = getTaskDailyAllocations(t, holidays);
+    if (allocations.length === 0) continue;
+
+    const range = getTaskDateRange(t, holidays);
+    const picKey = t.pic.trim().toLowerCase();
+
+    const parsed: ParsedTask = {
+      id: t.id,
+      task: t,
+      pic: t.pic,
+      allocations,
+      range,
+    };
+
+    if (!tasksByPic.has(picKey)) {
+      tasksByPic.set(picKey, []);
+    }
+    tasksByPic.get(picKey)!.push(parsed);
+  }
+
+  const conflictsByTaskId = new Map<string, Map<string, OverlappingTaskDetail>>();
+
+  for (const [, picTasks] of tasksByPic.entries()) {
+    if (picTasks.length < 2) continue;
+
+    // Group tasks on each date
+    const dateAllocations = new Map<string, { parsed: ParsedTask; dayMd: number }[]>();
+
+    for (const pt of picTasks) {
+      for (const alloc of pt.allocations) {
+        if (!dateAllocations.has(alloc.dateStr)) {
+          dateAllocations.set(alloc.dateStr, []);
         }
+        dateAllocations.get(alloc.dateStr)!.push({
+          parsed: pt,
+          dayMd: alloc.md,
+        });
       }
     }
 
-    overlapMap.set(taskA.id, {
-      hasOverlap: conflicts.length > 0,
-      overlappingTasks: conflicts,
+    for (const [, itemsOnDate] of dateAllocations.entries()) {
+      if (itemsOnDate.length < 2) continue;
+
+      const totalMdOnDate = itemsOnDate.reduce((sum, item) => sum + item.dayMd, 0);
+      const roundedTotal = Math.round(totalMdOnDate * 10000) / 10000;
+
+      // Overlap only if daily combined MD > 1.0
+      if (roundedTotal > 1.0) {
+        for (let i = 0; i < itemsOnDate.length; i++) {
+          const itemA = itemsOnDate[i];
+          if (!conflictsByTaskId.has(itemA.parsed.id)) {
+            conflictsByTaskId.set(itemA.parsed.id, new Map());
+          }
+          const mapA = conflictsByTaskId.get(itemA.parsed.id)!;
+
+          for (let j = 0; j < itemsOnDate.length; j++) {
+            if (i === j) continue;
+            const itemB = itemsOnDate[j];
+            if (!mapA.has(itemB.parsed.id)) {
+              mapA.set(itemB.parsed.id, {
+                id: itemB.parsed.id,
+                name: itemB.parsed.task.name || "Untitled Task",
+                epicId: itemB.parsed.task.epicId,
+                epicName: epicMap.get(itemB.parsed.task.epicId) || "Backlog / No Epic",
+                pic: itemB.parsed.task.pic,
+                status: itemB.parsed.task.status || "TODO",
+                startDate: itemB.parsed.task.startDate,
+                endDateStr: formatDateString(itemB.parsed.range.end),
+                md: Number(itemB.parsed.task.md) || 1,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (const [taskId, conflictMap] of conflictsByTaskId.entries()) {
+    const conflictingTasks = Array.from(conflictMap.values());
+    overlapMap.set(taskId, {
+      hasOverlap: conflictingTasks.length > 0,
+      overlappingTasks: conflictingTasks,
     });
   }
 
