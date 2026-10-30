@@ -216,16 +216,18 @@ export async function deleteCache(keys: string | string[]): Promise<boolean> {
 /**
  * Health check for both instances
  */
-export async function pingAllRedis(): Promise<{
+export async function pingAllRedis(customPrimaryUrl?: string, customSecondaryUrl?: string): Promise<{
   primary: { configured: boolean; connected: boolean; message: string };
   secondary: { configured: boolean; connected: boolean; message: string };
   connected: boolean;
 }> {
-  const { primary, secondary } = getAllRedisClients();
-  const hasPrimaryEnv = Boolean(process.env.REDIS_URL && process.env.REDIS_URL.trim());
-  const hasSecondaryEnv = Boolean(process.env.REDIS_URL_2 && process.env.REDIS_URL_2.trim());
+  const primary = customPrimaryUrl ? createRedisInstance(customPrimaryUrl, "Primary (Test)") : getRedisClient();
+  const secondary = customSecondaryUrl ? createRedisInstance(customSecondaryUrl, "Secondary (Test)") : getRedisClientSecondary();
 
-  const pingClient = async (client: Redis | null, name: string, hasEnv: boolean) => {
+  const hasPrimaryEnv = Boolean(customPrimaryUrl || (process.env.REDIS_URL && process.env.REDIS_URL.trim()));
+  const hasSecondaryEnv = Boolean(customSecondaryUrl || (process.env.REDIS_URL_2 && process.env.REDIS_URL_2.trim()));
+
+  const pingClient = async (client: Redis | null, name: string, hasEnv: boolean, isTemp: boolean) => {
     if (!hasEnv) {
       return {
         configured: false,
@@ -245,12 +247,18 @@ export async function pingAllRedis(): Promise<{
         await client.connect();
       }
       const pong = await client.ping();
+      if (isTemp) {
+        try { client.disconnect(); } catch (_) {}
+      }
       return {
         configured: true,
         connected: pong === "PONG",
         message: `${name} active (${pong}).`,
       };
     } catch (err: any) {
+      if (isTemp) {
+        try { client.disconnect(); } catch (_) {}
+      }
       return {
         configured: true,
         connected: false,
@@ -260,8 +268,8 @@ export async function pingAllRedis(): Promise<{
   };
 
   const [pResult, sResult] = await Promise.all([
-    pingClient(primary, "Primary Redis (Layerbase)", hasPrimaryEnv),
-    pingClient(secondary, "Backup Redis (Upstash)", hasSecondaryEnv),
+    pingClient(primary, "Primary Redis", hasPrimaryEnv, Boolean(customPrimaryUrl)),
+    pingClient(secondary, "Backup Redis (Upstash)", hasSecondaryEnv, Boolean(customSecondaryUrl)),
   ]);
 
   return {

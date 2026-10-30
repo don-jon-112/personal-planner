@@ -15,6 +15,9 @@ import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider"
 import { syncAllProjectsCacheToRedis, checkRedisStatus, RedisHealthStatus } from "@/lib/cache-client";
 import { cn } from "@/lib/utils";
 import { DatabaseProviderSection } from "./database-provider-section";
+import { getActiveDatabaseProvider, getActivePostgresUrl } from "@/lib/db-config";
+import { Input } from "@/components/ui/input";
+import { ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
 
 const ALL_COLLECTIONS = [
   "appSettings",
@@ -70,6 +73,134 @@ export default function SettingsPage() {
   });
   const [isFetchingSyncStatus, setIsFetchingSyncStatus] = useState(false);
   const [redisStatus, setRedisStatus] = useState<RedisHealthStatus | null>(null);
+  const [isRedisConfigOpen, setIsRedisConfigOpen] = useState(false);
+  const [redisPrimaryUrl, setRedisPrimaryUrl] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("custom_redis_primary") || "";
+    return "";
+  });
+  const [redisSecondaryUrl, setRedisSecondaryUrl] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("custom_redis_secondary") || "";
+    return "";
+  });
+  const [isTestingRedis, setIsTestingRedis] = useState(false);
+  const [redisTestMessage, setRedisTestMessage] = useState<{ success: boolean; text: string } | null>(null);
+  const [isUpdatingRedisVercel, setIsUpdatingRedisVercel] = useState(false);
+
+  const handleTestRedisCustom = async () => {
+    if (!redisPrimaryUrl.trim() && !redisSecondaryUrl.trim()) {
+      await alertModal({
+        title: "URL Redis Belum Diisi",
+        description: "Masukkan setidaknya Primary Redis URL (REDIS_URL) untuk menguji koneksi.",
+        variant: "warning",
+      });
+      return;
+    }
+
+    try {
+      setIsTestingRedis(true);
+      setRedisTestMessage(null);
+      const res = await fetch("/api/cache/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          primaryUrl: redisPrimaryUrl.trim() || undefined,
+          secondaryUrl: redisSecondaryUrl.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      setRedisStatus(data);
+      if (data.connected) {
+        setRedisTestMessage({
+          success: true,
+          text: `Koneksi Redis Berhasil! ${data.primary?.connected ? "Primary Online." : ""} ${data.secondary?.connected ? "Backup Online." : ""}`,
+        });
+      } else {
+        setRedisTestMessage({
+          success: false,
+          text: `Koneksi Gagal: ${data.primary?.message || data.secondary?.message || "Tidak dapat menjangkau server Redis."}`,
+        });
+      }
+    } catch (err: any) {
+      setRedisTestMessage({
+        success: false,
+        text: `Error: ${err.message || "Gagal menguji koneksi Redis."}`,
+      });
+    } finally {
+      setIsTestingRedis(false);
+    }
+  };
+
+  const handlePushRedisToVercel = async () => {
+    if (!redisPrimaryUrl.trim()) {
+      await alertModal({
+        title: "Primary Redis URL Wajib Diisi",
+        description: "Masukkan Primary Redis URL (REDIS_URL) sebelum melakukan push ke Vercel.",
+        variant: "warning",
+      });
+      return;
+    }
+
+    const ok = await confirm({
+      title: "Push Konfigurasi Redis ke Vercel?",
+      description: "Sistem akan menyimpan variabel REDIS_URL dan REDIS_URL_2 (jika diisi) ke Environment Variables Vercel dan memicu Redeploy otomatis. Lanjutkan?",
+      confirmText: "Ya, Push ke Vercel & Deploy",
+      cancelText: "Batal",
+      variant: "primary",
+    });
+
+    if (!ok) return;
+
+    try {
+      setIsUpdatingRedisVercel(true);
+      const envs = [
+        { key: "REDIS_URL", value: redisPrimaryUrl.trim() },
+      ];
+      if (redisSecondaryUrl.trim()) {
+        envs.push({ key: "REDIS_URL_2", value: redisSecondaryUrl.trim() });
+      }
+
+      const res = await fetch("/api/vercel/update-env", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          envs,
+          triggerDeploy: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("custom_redis_primary", redisPrimaryUrl.trim());
+          if (redisSecondaryUrl.trim()) {
+            localStorage.setItem("custom_redis_secondary", redisSecondaryUrl.trim());
+          }
+        }
+        await alertModal({
+          title: "Redis Berhasil Disimpan di Vercel!",
+          description: "Environment variables REDIS_URL berhasil disimpan di Vercel dan auto-deploy sedang berjalan. Server akan segera aktif dengan Redis baru ini.",
+          variant: "success",
+        });
+        setTimeout(() => {
+          checkRedisStatus().then(setRedisStatus).catch(() => {});
+        }, 3000);
+      } else {
+        await alertModal({
+          title: "Gagal Update Vercel",
+          description: data.error || "Gagal menyimpan variabel Redis ke Vercel.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      await alertModal({
+        title: "Error Vercel",
+        description: err.message || "Terjadi kesalahan saat menghubungi API Vercel.",
+        variant: "error",
+      });
+    } finally {
+      setIsUpdatingRedisVercel(false);
+    }
+  };
   const [isSyncingRedis, setIsSyncingRedis] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -143,12 +274,32 @@ export default function SettingsPage() {
 
   const syncAllDataToRedis = async () => {
     try {
-      const [epicsSnap, tasksSnap] = await Promise.all([
-        getDocs(collection(db, "timelineEpics")),
-        getDocs(collection(db, "timelineTasks")),
-      ]);
-      const epics = epicsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const tasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const activeDb = getActiveDatabaseProvider();
+      let epics: any[] = [];
+      let tasks: any[] = [];
+
+      if (activeDb === 'postgres') {
+        const customUrl = getActivePostgresUrl();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (customUrl) headers['x-custom-db-url'] = customUrl;
+
+        const [epicsRes, tasksRes] = await Promise.all([
+          fetch('/api/db/query?collection=timelineEpics', { headers, cache: 'no-store' }),
+          fetch('/api/db/query?collection=timelineTasks', { headers, cache: 'no-store' }),
+        ]);
+
+        const epicsJson = await epicsRes.json();
+        const tasksJson = await tasksRes.json();
+        epics = epicsJson.data || [];
+        tasks = tasksJson.data || [];
+      } else {
+        const [epicsSnap, tasksSnap] = await Promise.all([
+          getDocs(collection(db, "timelineEpics")),
+          getDocs(collection(db, "timelineTasks")),
+        ]);
+        epics = epicsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        tasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
 
       const projectsData: Record<string, { tasks: any[]; epics: any[] }> = {};
       epics.forEach((e: any) => {
@@ -164,7 +315,7 @@ export default function SettingsPage() {
 
       return await syncAllProjectsCacheToRedis(projectsData);
     } catch (err) {
-      console.warn("Failed to sync cache to Redis:", err);
+      console.warn("Failed to sync cache to Redis from active database:", err);
       return false;
     }
   };
@@ -754,50 +905,141 @@ export default function SettingsPage() {
               </div>
 
               {/* Redis Cache Sync for Viewers */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border bg-emerald-500/5 border-emerald-500/20 gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-sm text-foreground flex items-center gap-1.5">
-                      <Zap className="w-4 h-4 text-emerald-500" />
-                      Redis Dual Cache (for Viewers)
+              <div className="rounded-xl border bg-emerald-500/5 border-emerald-500/20 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                        <Zap className="w-4 h-4 text-emerald-500" />
+                        Redis Dual Cache (for Viewers)
+                      </p>
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold px-2.5 py-0.5 rounded-full border",
+                          redisStatus?.primary?.connected
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                            : "bg-destructive/10 text-destructive border-destructive/20"
+                        )}
+                        title={redisStatus?.primary?.message || "Primary Redis"}
+                      >
+                        Primary: {redisStatus?.primary?.connected ? "Online" : "Offline"}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold px-2.5 py-0.5 rounded-full border",
+                          redisStatus?.secondary?.connected
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                            : "bg-muted text-muted-foreground border-border"
+                        )}
+                        title={redisStatus?.secondary?.message || "Backup Redis"}
+                      >
+                        Backup: {redisStatus?.secondary?.connected ? "Online" : (redisStatus?.secondary?.configured ? "Offline" : "Not Set")}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Sync mengambil data dari database yang sedang aktif (<b>{typeof window !== "undefined" && getActiveDatabaseProvider() === "postgres" ? "PostgreSQL / Supabase" : "Firebase Bawaan"}</b>).
                     </p>
-                    <span
-                      className={cn(
-                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                        redisStatus?.primary?.connected
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                          : "bg-destructive/10 text-destructive border-destructive/20"
-                      )}
-                      title={redisStatus?.primary?.message || "Primary Redis (Layerbase)"}
-                    >
-                      Primary: {redisStatus?.primary?.connected ? "Online" : "Offline"}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                        redisStatus?.secondary?.connected
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                          : "bg-muted text-muted-foreground border-border"
-                      )}
-                      title={redisStatus?.secondary?.message || "Backup Redis (Upstash)"}
-                    >
-                      Backup: {redisStatus?.secondary?.connected ? "Online" : (redisStatus?.secondary?.configured ? "Offline" : "Not Set")}
-                    </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Data di-update simultan ke Primary & Backup. Jika Primary kena limit/down, viewer otomatis failover ke Backup Upstash sebelum ke Firebase.
-                  </p>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 flex-wrap sm:flex-nowrap justify-end">
+                    <Button 
+                      type="button"
+                      onClick={() => setIsRedisConfigOpen(!isRedisConfigOpen)} 
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-8 gap-1.5 bg-background shadow-2xs w-full sm:w-auto"
+                    >
+                      <SettingsIcon className="w-3.5 h-3.5" />
+                      <span>{isRedisConfigOpen ? "Tutup Form URI" : "Atur Redis URI"}</span>
+                      {isRedisConfigOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </Button>
+
+                    <Button 
+                      type="button"
+                      onClick={handleManualSyncToRedis} 
+                      disabled={isSyncingRedis}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-8 gap-1.5 border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 bg-background font-medium shadow-2xs w-full sm:w-auto"
+                      title="Sinkronkan task dan epic dari database aktif ke Redis cache"
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${isSyncingRedis ? "animate-spin" : ""}`} />
+                      <span>{isSyncingRedis ? "Syncing..." : "Sync Both Redis"}</span>
+                    </Button>
+                  </div>
                 </div>
-                <Button 
-                  onClick={handleManualSyncToRedis} 
-                  disabled={isSyncingRedis}
-                  variant="outline"
-                  size="sm"
-                  className="w-full sm:w-auto shrink-0 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                >
-                  <Zap className={`w-4 h-4 mr-2 ${isSyncingRedis ? "animate-spin" : ""}`} />
-                  {isSyncingRedis ? "Syncing..." : "Sync Both Redis"}
-                </Button>
+
+                {/* Form Input Redis URI & Push ke Vercel */}
+                {isRedisConfigOpen && (
+                  <div className="pt-3 border-t border-emerald-500/20 space-y-3 animate-in fade-in-50 duration-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div className="space-y-1">
+                        <label className="font-semibold text-foreground flex items-center justify-between">
+                          <span>Primary Redis URI (REDIS_URL) *</span>
+                          <span className="text-[10px] text-muted-foreground font-normal">Upstash / Layerbase / Redis Cloud</span>
+                        </label>
+                        <Input
+                          type="password"
+                          placeholder="rediss://default:PASSWORD@endpoint.upstash.io:6379"
+                          value={redisPrimaryUrl}
+                          onChange={(e) => setRedisPrimaryUrl(e.target.value)}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="font-semibold text-foreground flex items-center justify-between">
+                          <span>Backup Redis URI (REDIS_URL_2)</span>
+                          <span className="text-[10px] text-muted-foreground font-normal">Opsional (Failover)</span>
+                        </label>
+                        <Input
+                          type="password"
+                          placeholder="rediss://default:PASSWORD@backup.upstash.io:6379"
+                          value={redisSecondaryUrl}
+                          onChange={(e) => setRedisSecondaryUrl(e.target.value)}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+                    </div>
+
+                    {redisTestMessage && (
+                      <div className={cn(
+                        "p-2.5 rounded-lg border text-xs flex items-center gap-2",
+                        redisTestMessage.success
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                          : "bg-destructive/10 border-destructive/30 text-destructive"
+                      )}>
+                        <span>{redisTestMessage.text}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTestRedisCustom}
+                        disabled={isTestingRedis || isUpdatingRedisVercel}
+                        className="gap-2 text-xs h-8 bg-background shadow-2xs font-medium"
+                      >
+                        <RefreshCw className={cn("w-3.5 h-3.5", isTestingRedis && "animate-spin")} />
+                        <span>{isTestingRedis ? "Menguji Koneksi..." : "Uji Koneksi Redis"}</span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handlePushRedisToVercel}
+                        disabled={isTestingRedis || isUpdatingRedisVercel}
+                        className="gap-2 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                        title="Simpan REDIS_URL ke Vercel dan redeploy otomatis"
+                      >
+                        <Zap className={cn("w-3.5 h-3.5", isUpdatingRedisVercel && "animate-spin")} />
+                        <span>{isUpdatingRedisVercel ? "Menyimpan ke Vercel..." : "Push Redis ke Vercel & Deploy"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </section>
