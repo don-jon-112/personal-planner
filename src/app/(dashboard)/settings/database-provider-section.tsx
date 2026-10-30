@@ -286,11 +286,19 @@ export function DatabaseProviderSection() {
           resetToDefaultFirebase();
         }
 
-        await alertModal({
-          title: "Vercel Berhasil Diperbarui!",
-          description: "DATABASE_URL berhasil diperbarui di Vercel! Vercel sedang melakukan build/redeploy ulang otomatis (~1 menit) agar database baru ini langsung aktif secara permanen untuk semua pengunjung.",
-          variant: "success",
-        });
+        if (data.deployed) {
+          await alertModal({
+            title: "Vercel Berhasil Diperbarui & Redeploy Berjalan!",
+            description: "DATABASE_URL berhasil diperbarui di Vercel dan build/redeploy ulang otomatis sedang berjalan (~1 menit). Halaman akan segera menggunakan database baru.",
+            variant: "success",
+          });
+        } else {
+          await alertModal({
+            title: "ENV Berhasil Disimpan di Vercel",
+            description: `Variabel lingkungan berhasil diperbarui di Vercel! Namun trigger auto-deploy memerlukan redeploy manual: ${data.deployError || "Deployment ID tidak ditemukan"}. Silakan buka dashboard Vercel dan klik tombol Redeploy.`,
+            variant: "warning",
+          });
+        }
       } else {
         await alertModal({
           title: "Gagal Update Vercel",
