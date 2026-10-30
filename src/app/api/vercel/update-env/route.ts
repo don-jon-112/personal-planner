@@ -158,21 +158,36 @@ export async function POST(req: NextRequest) {
           const latestDeploymentId = latestDeployment?.uid || latestDeployment?.id;
 
           if (latestDeploymentId) {
-            // Step 2: Trigger redeployment of the latest deployment
-            const deployRes = await fetch(`https://api.vercel.com/v13/deployments${teamQuery}`, {
+            const projectName = latestDeployment?.name || projectId;
+            
+            // Step 2: Trigger redeployment with required name and deploymentId
+            let deployRes = await fetch(`https://api.vercel.com/v13/deployments${teamQuery}`, {
               method: 'POST',
               headers,
               body: JSON.stringify({
+                name: projectName,
                 deploymentId: latestDeploymentId,
                 target: 'production',
               }),
             });
 
-            const deployData = await deployRes.json().catch(() => ({}));
+            let deployData = await deployRes.json().catch(() => ({}));
 
-            if (deployRes.ok && deployData?.id) {
+            // Fallback: try dedicated rebuild endpoint if needed
+            if (!deployRes.ok) {
+              const rebuildRes = await fetch(
+                `https://api.vercel.com/v13/deployments/${latestDeploymentId}/rebuild${teamQuery}`,
+                { method: 'POST', headers }
+              );
+              if (rebuildRes.ok) {
+                deployRes = rebuildRes;
+                deployData = await rebuildRes.json().catch(() => ({}));
+              }
+            }
+
+            if (deployRes.ok && (deployData?.id || deployData?.uid)) {
               deployed = true;
-              deployId = deployData.id;
+              deployId = deployData.id || deployData.uid;
             } else {
               deployError = deployData?.error?.message || `Vercel API error HTTP ${deployRes.status}`;
               console.warn('Vercel deployment failed:', deployData);
