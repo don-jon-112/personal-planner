@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
 import { syncAllProjectsCacheToRedis, checkRedisStatus, RedisHealthStatus } from "@/lib/cache-client";
 import { cn } from "@/lib/utils";
+import { DatabaseProviderSection } from "./database-provider-section";
 
 const ALL_COLLECTIONS = [
   "appSettings",
@@ -649,6 +650,8 @@ export default function SettingsPage() {
               </div>
             )}
           </section>
+
+          <DatabaseProviderSection />
 
           <section className="bg-card border rounded-xl p-6 shadow-sm">
             <div className="mb-6">

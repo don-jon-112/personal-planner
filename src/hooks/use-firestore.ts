@@ -4,7 +4,7 @@ import {
   doc, 
   getDocs, 
   getDoc,
-  setDoc,
+  setDoc, 
   addDoc, 
   updateDoc, 
   deleteDoc,
@@ -15,6 +15,19 @@ import {
   where
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
+import { getActiveDatabaseProvider, getActivePostgresUrl } from "@/lib/db-config";
+
+// Helper to get headers for PostgreSQL API requests
+function getPostgresHeaders(): HeadersInit {
+  const customUrl = getActivePostgresUrl();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (customUrl) {
+    headers['x-custom-db-url'] = customUrl;
+  }
+  return headers;
+}
 
 // Generic Hook to Fetch Documents
 export interface UseCollectionOptions {
@@ -22,7 +35,7 @@ export interface UseCollectionOptions {
   enabled?: boolean;
 }
 
-// Generic Hook to Fetch Documents (Supports optional projectId scoping)
+// Generic Hook to Fetch Documents (Supports optional projectId scoping & multi-database provider)
 export function useCollection<T>(collectionName: string, options?: UseCollectionOptions) {
   const projectId = options?.projectId;
   const isEnabled = options?.enabled !== undefined ? options.enabled : true;
@@ -31,6 +44,24 @@ export function useCollection<T>(collectionName: string, options?: UseCollection
     queryKey: projectId ? [collectionName, { projectId }] : [collectionName],
     enabled: isEnabled,
     queryFn: async () => {
+      // PostgreSQL / Supabase Provider via Connection String
+      if (getActiveDatabaseProvider() === 'postgres') {
+        let url = `/api/db/query?collection=${encodeURIComponent(collectionName)}`;
+        if (projectId) {
+          url += `&projectId=${encodeURIComponent(projectId)}`;
+        }
+        const res = await fetch(url, {
+          headers: getPostgresHeaders(),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Gagal mengambil data dari PostgreSQL');
+        }
+        const json = await res.json();
+        return (json.data || []) as T[];
+      }
+
+      // Default Firebase Firestore Provider
       let q;
       if (projectId) {
         q = query(collection(db, collectionName), where("projectId", "==", projectId));
@@ -76,6 +107,26 @@ export function useAddDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async (newData: any) => {
+      // PostgreSQL Provider
+      if (getActiveDatabaseProvider() === 'postgres') {
+        const sanitized = cleanUndefined(newData);
+        const res = await fetch('/api/db/query', {
+          method: 'POST',
+          headers: getPostgresHeaders(),
+          body: JSON.stringify({
+            collection: collectionName,
+            data: sanitized,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Gagal menambahkan dokumen ke PostgreSQL');
+        }
+        const json = await res.json();
+        return json.data;
+      }
+
+      // Default Firebase
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(collection(db, collectionName));
       const sanitized = cleanUndefined(newData);
@@ -110,11 +161,33 @@ export function useUpdateDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const cleanId = String(id || '').trim();
       if (!cleanId || cleanId === 'undefined') {
         throw new Error(`Valid Document ID is required to update ${collectionName}, received: ${String(id)}`);
       }
+
+      // PostgreSQL Provider
+      if (getActiveDatabaseProvider() === 'postgres') {
+        const sanitized = cleanUndefined(data);
+        const res = await fetch('/api/db/query', {
+          method: 'PUT',
+          headers: getPostgresHeaders(),
+          body: JSON.stringify({
+            collection: collectionName,
+            id: cleanId,
+            data: sanitized,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Gagal mengupdate dokumen di PostgreSQL');
+        }
+        const json = await res.json();
+        return json.data;
+      }
+
+      // Default Firebase
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, cleanId);
       const sanitized = cleanUndefined(data);
       const writePromise = setDoc(docRef, {
@@ -147,11 +220,26 @@ export function useDeleteDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const cleanId = String(id || '').trim();
       if (!cleanId || cleanId === 'undefined') {
         throw new Error(`Valid Document ID is required to delete from ${collectionName}, received: ${String(id)}`);
       }
+
+      // PostgreSQL Provider
+      if (getActiveDatabaseProvider() === 'postgres') {
+        const res = await fetch(`/api/db/query?collection=${encodeURIComponent(collectionName)}&id=${encodeURIComponent(cleanId)}`, {
+          method: 'DELETE',
+          headers: getPostgresHeaders(),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Gagal menghapus dokumen di PostgreSQL');
+        }
+        return cleanId;
+      }
+
+      // Default Firebase
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, cleanId);
       const writePromise = deleteDoc(docRef);
       writePromise.catch((err) => {
@@ -180,6 +268,29 @@ export function useUpdateBatch(collectionName: string) {
   
   return useMutation({
     mutationFn: async (updates: { id: string; data: any }[]) => {
+      // PostgreSQL Provider
+      if (getActiveDatabaseProvider() === 'postgres') {
+        const batch = updates.map((u) => ({
+          id: String(u.id || '').trim(),
+          data: cleanUndefined(u.data),
+        })).filter(u => Boolean(u.id));
+
+        const res = await fetch('/api/db/query', {
+          method: 'POST',
+          headers: getPostgresHeaders(),
+          body: JSON.stringify({
+            collection: collectionName,
+            batch,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Gagal batch update ke PostgreSQL');
+        }
+        return updates;
+      }
+
+      // Default Firebase
       const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const batch = writeBatch(db);
       updates.forEach((update) => {
@@ -221,6 +332,18 @@ export function useDocument<T>(collectionName: string, docId: string) {
     queryFn: async () => {
       const cleanId = String(docId || '').trim();
       if (!cleanId || cleanId === 'undefined') return null;
+
+      // PostgreSQL Provider
+      if (getActiveDatabaseProvider() === 'postgres') {
+        const res = await fetch(`/api/db/query?collection=${encodeURIComponent(collectionName)}&id=${encodeURIComponent(cleanId)}`, {
+          headers: getPostgresHeaders(),
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        return json.data as T;
+      }
+
+      // Default Firebase
       const docRef = doc(db, collectionName, cleanId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
@@ -239,11 +362,33 @@ export function useSetDocument(collectionName: string) {
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const cleanId = String(id || '').trim();
       if (!cleanId || cleanId === 'undefined') {
         throw new Error(`Valid Document ID is required to set document in ${collectionName}, received: ${String(id)}`);
       }
+
+      // PostgreSQL Provider
+      if (getActiveDatabaseProvider() === 'postgres') {
+        const sanitized = cleanUndefined(data);
+        const res = await fetch('/api/db/query', {
+          method: 'PUT',
+          headers: getPostgresHeaders(),
+          body: JSON.stringify({
+            collection: collectionName,
+            id: cleanId,
+            data: sanitized,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Gagal set document ke PostgreSQL');
+        }
+        const json = await res.json();
+        return json.data;
+      }
+
+      // Default Firebase
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('syncMode') : 'online';
       const docRef = doc(db, collectionName, cleanId);
       const sanitized = cleanUndefined(data);
       // use merge: true to avoid overwriting fields not specified
