@@ -510,7 +510,7 @@ export function DatabaseProviderSection() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
           {/* Tombol Migrasi Data ke PostgreSQL */}
           {selectedProvider === "postgres" && (
             <Button
@@ -519,20 +519,35 @@ export function DatabaseProviderSection() {
               size="sm"
               onClick={handleStartMigration}
               disabled={isMigrating || isTesting || isUpdatingVercel}
-              className="gap-2 text-xs w-full sm:w-auto border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium"
+              className="gap-2 text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium"
             >
               <UploadCloud className="w-3.5 h-3.5" />
               {isMigrating ? "Memindahkan Data..." : "Migrasikan Data dari Firebase"}
             </Button>
           )}
 
-          {/* Tombol Utama: Push ke Vercel (Cara 2) */}
+          {/* Tombol 1: Terapkan Sekarang (Instan di Browser) */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleSaveAndActivate}
+            disabled={isMigrating || isTesting || isUpdatingVercel}
+            className="gap-2 text-xs border-primary/40 text-primary hover:bg-primary/10 font-medium"
+            title="Simpan pilihan database ini dan langsung aktifkan di browser detik ini juga"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Terapkan Sekarang (Instan)</span>
+          </Button>
+
+          {/* Tombol 2: Push ke Vercel & Auto-Deploy (Permanen di Server) */}
           <Button
             type="button"
             size="sm"
             onClick={handleUpdateVercel}
             disabled={isMigrating || isTesting || isUpdatingVercel}
-            className="gap-2 text-xs w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
+            className="gap-2 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
+            title="Simpan DATABASE_URL ke Vercel dan redeploy agar aktif permanen untuk semua pengunjung"
           >
             <Zap className={cn("w-3.5 h-3.5", isUpdatingVercel && "animate-spin")} />
             <span>{isUpdatingVercel ? "Mengupdate Vercel..." : "Push ke Vercel & Auto-Deploy"}</span>
