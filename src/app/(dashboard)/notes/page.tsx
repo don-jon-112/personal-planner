@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Plus } from "lucide-react";
 import { useCollection, useDeleteDocument, useUpdateDocument } from "@/hooks/use-firestore";
-import { NoteDialog } from "./note-dialog";
+import dynamic from "next/dynamic";
+
+const NoteDialog = dynamic(
+  () => import("./note-dialog").then((m) => m.NoteDialog),
+  { ssr: false }
+);
 import { NoteDetailDialog } from "./note-detail-dialog";
 import { SortableNoteItem } from "./sortable-note-item";
 import {

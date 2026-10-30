@@ -47,7 +47,10 @@ const COLUMNS = [
 export default function BugsPage() {
   const confirm = useConfirm();
   const { activeProject, isItemInActiveProject } = useProject();
-  const { data: rawBugs, isLoading } = useCollection<any>("bugReports");
+  const { data: rawBugs, isLoading } = useCollection<any>("bugReports", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
   const { mutate: deleteBug } = useDeleteDocument("bugReports");
   const { mutate: updateBug } = useUpdateDocument("bugReports");
 

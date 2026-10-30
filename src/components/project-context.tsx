@@ -1,6 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
+import { db } from "@/firebase/config";
 import { Project } from "@/types/project";
 import { useCollection, useAddDocument, useUpdateDocument, useDeleteDocument } from "@/hooks/use-firestore";
 import { DEFAULT_TASK_STATUSES } from "@/hooks/use-task-statuses";
@@ -31,6 +34,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { mutateAsync: addStatusDoc } = useAddDocument("timelineStatuses");
 
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const hasSelfHealedRef = useRef(false);
 
   // Safely get user info if AuthProvider is present
   let isSuperAdmin = false;
@@ -66,6 +71,81 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     if (!rawProjects || rawProjects.length === 0) return null;
     return rawProjects.find((p) => p.isDefault) || rawProjects[0];
   }, [rawProjects]);
+
+  // Self-Healing Migration: Automatically backfill legacy documents created before multi-project support
+  useEffect(() => {
+    if (!defaultProject?.id || hasSelfHealedRef.current) return;
+    if (typeof window !== "undefined" && sessionStorage.getItem("planner_legacy_migrated")) {
+      hasSelfHealedRef.current = true;
+      return;
+    }
+
+    hasSelfHealedRef.current = true;
+
+    const performSelfHealing = async () => {
+      try {
+        const collectionsToCheck = [
+          "timelineTasks",
+          "timelineEpics",
+          "bugReports",
+          "weeklyReports",
+          "timelinePics",
+          "secretKeys",
+        ];
+        let anyMigrated = false;
+
+        for (const colName of collectionsToCheck) {
+          const colRef = collection(db, colName);
+          const snap = await getDocs(colRef);
+          const unassignedDocs: string[] = [];
+
+          snap.forEach((d) => {
+            const data = d.data();
+            if (!data.projectId || !data.projectId.trim()) {
+              unassignedDocs.push(d.id);
+            }
+          });
+
+          if (unassignedDocs.length > 0) {
+            anyMigrated = true;
+            // Write in batches (max 400 per batch as per Firestore limits)
+            const batchSize = 400;
+            for (let i = 0; i < unassignedDocs.length; i += batchSize) {
+              const chunk = unassignedDocs.slice(i, i + batchSize);
+              const batch = writeBatch(db);
+              chunk.forEach((docId) => {
+                batch.update(doc(db, colName, docId), {
+                  projectId: defaultProject.id,
+                });
+              });
+              await batch.commit();
+            }
+            console.log(
+              `[Self-Healing] Successfully migrated ${unassignedDocs.length} legacy documents in "${colName}" to default project "${defaultProject.name}".`
+            );
+          }
+        }
+
+        if (anyMigrated) {
+          // Invalidate TanStack query cache so all UI components immediately refresh with migrated data
+          queryClient.invalidateQueries({ queryKey: ["timelineTasks"] });
+          queryClient.invalidateQueries({ queryKey: ["timelineEpics"] });
+          queryClient.invalidateQueries({ queryKey: ["bugReports"] });
+          queryClient.invalidateQueries({ queryKey: ["weeklyReports"] });
+          queryClient.invalidateQueries({ queryKey: ["timelinePics"] });
+          queryClient.invalidateQueries({ queryKey: ["secretKeys"] });
+        }
+
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("planner_legacy_migrated", "true");
+        }
+      } catch (err) {
+        console.warn("[Self-Healing] Migration check skipped or failed:", err);
+      }
+    };
+
+    performSelfHealing();
+  }, [defaultProject?.id, defaultProject?.name, queryClient]);
 
   // Auto-initialize default project if collection is loaded and completely empty
   useEffect(() => {

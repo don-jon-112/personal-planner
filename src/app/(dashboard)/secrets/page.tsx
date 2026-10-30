@@ -41,8 +41,16 @@ import { appendAssignmentLogToRedis } from "@/lib/cache-client";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { SecretDialog } from "./secret-dialog";
 import { SecretShareDialog } from "./secret-share-dialog";
-import { SecretImportDialog } from "./secret-import-dialog";
-import { SecretExportDialog } from "./secret-export-dialog";
+import dynamic from "next/dynamic";
+
+const SecretImportDialog = dynamic(
+  () => import("./secret-import-dialog").then((m) => m.SecretImportDialog),
+  { ssr: false }
+);
+const SecretExportDialog = dynamic(
+  () => import("./secret-export-dialog").then((m) => m.SecretExportDialog),
+  { ssr: false }
+);
 import { cn } from "@/lib/utils";
 
 // Cell helper for masked value with click-to-reveal & copy button
@@ -251,7 +259,10 @@ export default function SecretsPage() {
   const { currentUser, session } = useAuth();
   const confirm = useConfirm();
 
-  const { data: rawSecrets = [], isLoading } = useCollection<any>("secretKeys");
+  const { data: rawSecrets = [], isLoading } = useCollection<any>("secretKeys", {
+    projectId: activeProjectId,
+    enabled: Boolean(activeProjectId),
+  });
   const { mutate: deleteSecret } = useDeleteDocument("secretKeys");
   const { mutate: updateSecret } = useUpdateDocument("secretKeys");
   const { mutateAsync: addAssignmentLog } = useAddDocument("assignmentLogs");

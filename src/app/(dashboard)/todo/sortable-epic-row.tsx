@@ -25,7 +25,7 @@ interface SortableEpicRowProps {
   canDelete?: boolean;
 }
 
-export function SortableEpicRow({
+export const SortableEpicRow = React.memo(function SortableEpicRow({
   epic,
   tasks = [],
   handleEdit,
@@ -202,4 +202,4 @@ export function SortableEpicRow({
       </TableCell>
     </TableRow>
   );
-}
+});

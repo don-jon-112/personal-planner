@@ -233,3 +233,10 @@
   overflow-x: auto;
   white-space: nowrap;
 }
+
+
+/* Performance Optimizations: Skip layout & paint for off-screen rows in large lists & timelines */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
+}

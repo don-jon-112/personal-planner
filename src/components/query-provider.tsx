@@ -9,7 +9,11 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000,
+            staleTime: 5 * 60 * 1000, // 5 minutes fresh in-memory
+            gcTime: 15 * 60 * 1000, // 15 minutes garbage collection
+            refetchOnWindowFocus: false, // Prevent Firestore hammering & layout shifts on tab change
+            refetchOnReconnect: "always",
+            retry: 1,
           },
         },
       })

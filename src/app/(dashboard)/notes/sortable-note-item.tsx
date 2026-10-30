@@ -12,7 +12,7 @@ import {
 import { useConfirm } from "@/components/confirm-dialog-provider";
 import { htmlToCleanPlainText } from "@/lib/html-utils";
 
-export function SortableNoteItem({
+export const SortableNoteItem = React.memo(function SortableNoteItem({
   note,
   onView,
   onEdit,
@@ -130,4 +130,4 @@ export function SortableNoteItem({
       </div>
     </div>
   );
-}
+});

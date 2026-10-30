@@ -48,8 +48,14 @@ type FormValues = z.infer<typeof formSchema>;
 export default function PicsPage() {
   const confirm = useConfirm();
   const { activeProject, isItemInActiveProject } = useProject();
-  const { data: pics = [], isLoading: isPicsLoading } = useCollection<any>("timelinePics");
-  const { data: tasks = [] } = useCollection<any>("timelineTasks");
+  const { data: pics = [], isLoading: isPicsLoading } = useCollection<any>("timelinePics", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
+  const { data: tasks = [] } = useCollection<any>("timelineTasks", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
 
   const { mutateAsync: addPic, isPending: isAdding } = useAddDocument("timelinePics");
   const { mutateAsync: updatePic } = useUpdateDocument("timelinePics");

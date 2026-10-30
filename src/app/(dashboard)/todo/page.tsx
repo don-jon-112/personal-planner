@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,12 @@ import { serverTimestamp } from "firebase/firestore";
 import { TaskDialog } from "../timeline/task-dialog";
 import { EpicDialog } from "../timeline/epic-dialog";
 import { AssignToMeDialog } from "@/components/assign-to-me-dialog";
-import { ImportDialog } from "./import-dialog";
+import dynamic from "next/dynamic";
+
+const ImportDialog = dynamic(
+  () => import("./import-dialog").then((m) => m.ImportDialog),
+  { ssr: false }
+);
 import { SortableTodoRow } from "./sortable-todo-row";
 import { SortableEpicRow } from "./sortable-epic-row";
 import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
@@ -69,10 +74,19 @@ export default function TodoPage() {
   const hasEdit = canEdit("todo");
   const hasDelete = canDelete("todo");
 
-  // Firestore Collections
-  const { data: tasks = [], isLoading: isTasksLoading } = useCollection<any>("timelineTasks");
-  const { data: epics = [], isLoading: isEpicsLoading } = useCollection<any>("timelineEpics");
-  const { data: pics = [] } = useCollection<any>("timelinePics");
+  // Firestore Collections (Scoped to Active Project)
+  const { data: tasks = [], isLoading: isTasksLoading } = useCollection<any>("timelineTasks", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
+  const { data: epics = [], isLoading: isEpicsLoading } = useCollection<any>("timelineEpics", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
+  const { data: pics = [] } = useCollection<any>("timelinePics", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
   const { data: holidays = [] } = useCollection<any>("timelineHolidays");
   const { statuses: taskStatuses, isCompletedStatus } = useTaskStatuses();
 

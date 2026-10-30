@@ -50,7 +50,10 @@ export function useTaskStatuses(explicitProjectId?: string) {
   const { activeProject, isItemInActiveProject } = useProject();
   const currentProjectId = explicitProjectId || activeProject?.id || "";
 
-  const { data: allStatuses = [], isLoading, refetch } = useCollection<TaskStatus>("timelineStatuses");
+  const { data: allStatuses = [], isLoading, refetch } = useCollection<TaskStatus>("timelineStatuses", {
+    projectId: currentProjectId,
+    enabled: Boolean(currentProjectId),
+  });
   const { mutateAsync: addStatusDoc, isPending: isAdding } = useAddDocument("timelineStatuses");
   const { mutateAsync: updateStatusDoc, isPending: isUpdating } = useUpdateDocument("timelineStatuses");
   const { mutateAsync: deleteStatusDoc, isPending: isDeleting } = useDeleteDocument("timelineStatuses");

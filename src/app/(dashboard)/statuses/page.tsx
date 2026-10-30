@@ -59,7 +59,10 @@ export default function StatusesPage() {
     isCompletedStatus
   } = useTaskStatuses();
 
-  const { data: tasks = [] } = useCollection<any>("timelineTasks");
+  const { data: tasks = [] } = useCollection<any>("timelineTasks", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
   const { mutateAsync: updateTasksBatch } = useUpdateBatch("timelineTasks");
 
   const [searchQuery, setSearchQuery] = useState("");

@@ -11,19 +11,32 @@ import {
   serverTimestamp,
   query,
   orderBy,
-  writeBatch
+  writeBatch,
+  where
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
 
 // Generic Hook to Fetch Documents
-export function useCollection<T>(collectionName: string) {
+export interface UseCollectionOptions {
+  projectId?: string | null;
+  enabled?: boolean;
+}
+
+// Generic Hook to Fetch Documents (Supports optional projectId scoping)
+export function useCollection<T>(collectionName: string, options?: UseCollectionOptions) {
+  const projectId = options?.projectId;
+  const isEnabled = options?.enabled !== undefined ? options.enabled : true;
+
   return useQuery({
-    queryKey: [collectionName],
+    queryKey: projectId ? [collectionName, { projectId }] : [collectionName],
+    enabled: isEnabled,
     queryFn: async () => {
-      // Create a query ordered by createdAt descending if possible
-      // Note: This requires an index in Firestore if combined with other filters,
-      // but simple orderBy is usually fine. Let's just fetch all for now.
-      const q = query(collection(db, collectionName));
+      let q;
+      if (projectId) {
+        q = query(collection(db, collectionName), where("projectId", "==", projectId));
+      } else {
+        q = query(collection(db, collectionName));
+      }
       const querySnapshot = await getDocs(q);
       const data: T[] = [];
       querySnapshot.forEach((doc) => {

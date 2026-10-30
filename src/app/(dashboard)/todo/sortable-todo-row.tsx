@@ -50,7 +50,7 @@ function getPicColor(name: string, pics: any[] = []) {
   return `hsl(${hue}, 65%, 50%)`;
 }
 
-export function SortableTodoRow({
+export const SortableTodoRow = React.memo(function SortableTodoRow({
   item,
   epics = [],
   pics = [],
@@ -321,4 +321,4 @@ export function SortableTodoRow({
       </TableCell>
     </TableRow>
   );
-}
+});

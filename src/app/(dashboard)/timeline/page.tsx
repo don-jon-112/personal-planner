@@ -38,8 +38,16 @@ import { TaskDialog } from "./task-dialog";
 import { AssignToMeDialog } from "@/components/assign-to-me-dialog";
 import { HolidaysDialog } from "./holidays-dialog";
 import { PicsDialog } from "./pics-dialog";
-import { ChartsDialog } from "./charts-dialog";
-import { TimelineExportDialog } from "./timeline-export-dialog";
+import dynamic from "next/dynamic";
+
+const ChartsDialog = dynamic(
+  () => import("./charts-dialog").then((m) => m.ChartsDialog),
+  { ssr: false }
+);
+const TimelineExportDialog = dynamic(
+  () => import("./timeline-export-dialog").then((m) => m.TimelineExportDialog),
+  { ssr: false }
+);
 import { ProjectShareDialog } from "@/components/project-share-dialog";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
@@ -401,7 +409,7 @@ function ColumnResizeHandle({
   );
 }
 
-function TaskRow({
+const TaskRow = React.memo(function TaskRow({
   task,
   dates,
   holidays,
@@ -462,7 +470,7 @@ function TaskRow({
     <div 
       ref={setNodeRef} 
       style={style} 
-      className={cn("flex border-b hover:bg-muted/10 bg-background", isDragging && "z-50 relative")}
+      className={cn("content-visibility-auto flex border-b hover:bg-muted/10 bg-background", isDragging && "z-50 relative")}
     >
       {/* 1. Epic / Task Name Column */}
       <div
@@ -765,7 +773,7 @@ function TaskRow({
       </div>
     </div>
   );
-}
+});
 
 // Epic Segment on current page (supports continuation headers)
 interface EpicSegment {
@@ -776,7 +784,7 @@ interface EpicSegment {
   allEpicTasks: any[];
 }
 
-function EpicSegmentGroup({
+const EpicSegmentGroup = React.memo(function EpicSegmentGroup({
   segment,
   dates,
   holidays,
@@ -967,7 +975,7 @@ function EpicSegmentGroup({
       )}
     </div>
   );
-}
+});
 
 // -------------------------------------------------------------
 // MAIN PAGE
@@ -979,10 +987,19 @@ export default function TimelinePage() {
   const { projects, activeProject, isItemInActiveProject, isLoading: isProjectsLoading } = useProject();
   const { isSuperAdmin } = useAuth();
 
-  const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics");
-  const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks");
+  const { data: rawEpics, isLoading: isLoadingEpics } = useCollection<any>("timelineEpics", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
+  const { data: rawTasks, isLoading: isLoadingTasks } = useCollection<any>("timelineTasks", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
   const { data: holidays } = useCollection<any>("timelineHolidays");
-  const { data: pics } = useCollection<any>("timelinePics");
+  const { data: pics } = useCollection<any>("timelinePics", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
   const { statuses: taskStatuses, getStatusColor } = useTaskStatuses();
   const { canView, canEdit, canDelete, currentUser } = usePermissions();
 

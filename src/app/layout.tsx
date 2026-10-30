@@ -10,11 +10,13 @@ import { Nunito, Nunito_Sans } from "next/font/google";
 const nunito = Nunito({
   variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const nunitoSans = Nunito_Sans({
   variable: "--font-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -52,3 +54,4 @@ export default function RootLayout({
     </html>
   );
 }
+

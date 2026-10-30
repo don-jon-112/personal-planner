@@ -6,7 +6,12 @@ import { Panel, PanelHeader, PanelTitle, PanelDescription, PanelContent } from "
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CalendarClock, ChevronDown, ChevronUp, ChevronRight, PieChart, Filter, RefreshCw, FileSpreadsheet, AlertTriangle, Eye, EyeOff, Lock, ShieldAlert, Loader2 } from "lucide-react";
 import { useCollection } from "@/hooks/use-firestore";
-import { ChartsDialog } from "../(dashboard)/timeline/charts-dialog";
+import dynamic from "next/dynamic";
+
+const ChartsDialog = dynamic(
+  () => import("../(dashboard)/timeline/charts-dialog").then((m) => m.ChartsDialog),
+  { ssr: false }
+);
 import { Project } from "@/types/project";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
@@ -280,14 +285,14 @@ function TaskText({ text, className }: { text: string, className?: string }) {
   );
 }
 
-function TaskRow({ task, dates, holidays, pics, overlapInfo, statuses = [] }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult, statuses?: any[] }) {
+const TaskRow = React.memo(function TaskRow({ task, dates, holidays, pics, overlapInfo, statuses = [] }: { task: any, dates: Date[], holidays: any[], pics: any[], overlapInfo?: OverlapResult, statuses?: any[] }) {
   const taskStart = new Date(task.startDate);
   taskStart.setHours(0,0,0,0);
 
   const hasOverlap = Boolean(overlapInfo?.hasOverlap);
 
   return (
-    <div className="flex border-b hover:bg-muted/10 bg-background">
+    <div className="content-visibility-auto flex border-b hover:bg-muted/10 bg-background">
       <div className="w-[250px] md:sticky md:left-0 md:z-20 bg-background border-r shrink-0 flex items-center px-2 py-2 overflow-hidden">
         {hasOverlap && (
           <TooltipProvider delay={100}>
@@ -455,9 +460,9 @@ function TaskRow({ task, dates, holidays, pics, overlapInfo, statuses = [] }: { 
       </div>
     </div>
   );
-}
+});
 
-function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAllTrigger, expandAllTrigger, statuses }: any) {
+const EpicGroup = React.memo(function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAllTrigger, expandAllTrigger, statuses }: any) {
   const [isExpanded, setIsExpanded] = useState(true);
   
   useEffect(() => {
@@ -523,7 +528,7 @@ function EpicGroup({ epic, tasks, dates, holidays, pics, overlapMap, collapseAll
       )}
     </div>
   );
-}
+});
 
 function GuestTimelineInner() {
   const alertModal = useAlertModal();
@@ -921,4 +926,5 @@ export default function GuestTimelinePage() {
     </Suspense>
   );
 }
+
 

@@ -47,7 +47,10 @@ import {
 
 export default function WeeklyReportPage() {
   const { activeProject, isItemInActiveProject } = useProject();
-  const { data: rawReports, isLoading } = useCollection<any>("weeklyReports");
+  const { data: rawReports, isLoading } = useCollection<any>("weeklyReports", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
   const { mutate: deleteReport } = useDeleteDocument("weeklyReports");
   const { mutate: updateReport } = useUpdateDocument("weeklyReports");
 
