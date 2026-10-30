@@ -3,6 +3,29 @@ import postgres from 'postgres';
 // Client connection pool map cached by connection URL to prevent connection exhaustion
 const clientPool = new Map<string, postgres.Sql>();
 
+// 15 Dedicated Tables mapping
+export const COLLECTION_TABLE_MAP: Record<string, string> = {
+  projects: 'projects',
+  timelineEpics: 'timeline_epics',
+  timelineTasks: 'timeline_tasks',
+  timelinePics: 'timeline_pics',
+  timelineStatuses: 'timeline_statuses',
+  timelineHolidays: 'timeline_holidays',
+  notes: 'notes',
+  bugReports: 'bug_reports',
+  weeklyReports: 'weekly_reports',
+  secretKeys: 'secret_keys',
+  todos: 'todos',
+  users: 'users',
+  roles: 'roles',
+  assignmentLogs: 'assignment_logs',
+  appSettings: 'app_settings',
+};
+
+export function getTableName(collectionName: string): string {
+  return COLLECTION_TABLE_MAP[collectionName] || collectionName.toLowerCase();
+}
+
 // Normalize Supabase & PostgreSQL Connection String:
 // Supabase pooler on port 5432 is "Session Mode" which has a strict limit of 15 connections (EMAXCONNSESSION).
 // Switching to port 6543 activates "Transaction Mode", which is designed for Serverless (Vercel/Next.js)
@@ -40,32 +63,30 @@ export function getPostgresSql(customUrl?: string): postgres.Sql {
   return sql;
 }
 
-// 1. Ensure Table Schema Exists in Target Database (Auto-Migration)
-export async function ensureAppDocumentsTable(sql: postgres.Sql): Promise<void> {
-  await sql`
-    CREATE TABLE IF NOT EXISTS app_documents (
-      id TEXT NOT NULL,
-      collection_name TEXT NOT NULL,
+// 1. Ensure Table Schema Exists for a Specific Table
+export async function ensureTableExists(sql: postgres.Sql, tableName: string): Promise<void> {
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS "${tableName}" (
+      id TEXT PRIMARY KEY,
       project_id TEXT,
       data JSONB NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      PRIMARY KEY (collection_name, id)
+      updated_at TIMESTAMPTZ DEFAULT NOW()
     );
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_app_docs_coll ON app_documents(collection_name);
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_app_docs_project ON app_documents(collection_name, project_id);
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_app_docs_updated ON app_documents(updated_at DESC);
-  `;
+    CREATE INDEX IF NOT EXISTS "idx_${tableName}_project" ON "${tableName}"(project_id);
+    CREATE INDEX IF NOT EXISTS "idx_${tableName}_updated" ON "${tableName}"(updated_at DESC);
+  `);
 }
 
-// 2. Test Connection, Auto-Ensure Table, and Count Rows
+// 2. Ensure All 15 Dedicated Tables Exist in Target Database (Auto-Migration)
+export async function ensureAllTables(sql: postgres.Sql): Promise<void> {
+  const tables = Object.values(COLLECTION_TABLE_MAP);
+  for (const table of tables) {
+    await ensureTableExists(sql, table);
+  }
+}
+
+// 3. Test Connection, Auto-Ensure All Tables, and Count Total Rows Across Tables
 export async function testPostgresConnection(connectionString: string): Promise<{ success: boolean; count?: number; error?: string }> {
   try {
     if (!connectionString || !connectionString.trim()) {
@@ -85,14 +106,22 @@ export async function testPostgresConnection(connectionString: string): Promise<
 
     const sql = getPostgresSql(cleanUrl);
     
-    // Auto-create table if not exists so it's 100% ready immediately
-    await ensureAppDocumentsTable(sql);
+    // Auto-create all 15 tables and indexes if not exist
+    await ensureAllTables(sql);
 
-    // Count existing rows
-    const countRes = await sql`SELECT count(*)::int as total FROM app_documents`;
-    const count = countRes[0]?.total || 0;
+    // Count total rows across all 15 tables
+    let totalCount = 0;
+    const tables = Object.values(COLLECTION_TABLE_MAP);
+    for (const table of tables) {
+      try {
+        const countRes = await sql.unsafe(`SELECT count(*)::int as total FROM "${table}"`);
+        totalCount += countRes[0]?.total || 0;
+      } catch {
+        // Table count fallback
+      }
+    }
 
-    return { success: true, count };
+    return { success: true, count: totalCount };
   } catch (err: any) {
     console.error('PostgreSQL connection test failed:', err);
     return { 

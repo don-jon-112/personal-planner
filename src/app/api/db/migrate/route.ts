@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostgresSql, ensureAppDocumentsTable } from '@/lib/postgres-server';
+import { getPostgresSql, getTableName, ensureTableExists } from '@/lib/postgres-server';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,11 +11,12 @@ export async function POST(req: NextRequest) {
     }
 
     const sql = getPostgresSql(connectionString);
+    const tableName = getTableName(collectionName);
 
-    // 1. Ensure table exists
-    await ensureAppDocumentsTable(sql);
+    // 1. Ensure this specific table exists
+    await ensureTableExists(sql, tableName);
 
-    // 2. Insert items in chunks
+    // 2. Insert items into dedicated table
     if (items.length > 0) {
       for (const item of items) {
         const docId = String(item.id || '').trim();
@@ -24,15 +25,14 @@ export async function POST(req: NextRequest) {
         const projectId = item.projectId || null;
 
         await sql`
-          INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
+          INSERT INTO ${sql(tableName)} (id, project_id, data, updated_at)
           VALUES (
             ${docId},
-            ${collectionName},
             ${projectId},
             ${sql.json(dataPayload)},
             NOW()
           )
-          ON CONFLICT (collection_name, id)
+          ON CONFLICT (id)
           DO UPDATE SET
             project_id = EXCLUDED.project_id,
             data = EXCLUDED.data,
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       collection: collectionName,
+      table: tableName,
       migratedCount: items.length,
     });
   } catch (err: any) {

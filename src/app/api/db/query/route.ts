@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostgresSql, ensureAppDocumentsTable } from '@/lib/postgres-server';
+import { getPostgresSql, getTableName, ensureTableExists } from '@/lib/postgres-server';
 
-// 1. GET: Fetch collection or single document
+// 1. GET: Fetch collection or single document from dedicated table
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -15,12 +15,16 @@ export async function GET(req: NextRequest) {
     }
 
     const sql = getPostgresSql(customDbUrl);
+    const tableName = getTableName(collectionName);
+
+    // Auto-ensure table exists
+    await ensureTableExists(sql, tableName);
 
     // Single document fetch
     if (docId) {
       const rows = await sql`
-        SELECT id, data FROM app_documents
-        WHERE collection_name = ${collectionName} AND id = ${docId}
+        SELECT id, data FROM ${sql(tableName)}
+        WHERE id = ${docId}
         LIMIT 1
       `;
       if (rows.length === 0) {
@@ -33,14 +37,13 @@ export async function GET(req: NextRequest) {
     let rows;
     if (projectId) {
       rows = await sql`
-        SELECT id, data FROM app_documents
-        WHERE collection_name = ${collectionName} AND project_id = ${projectId}
+        SELECT id, data FROM ${sql(tableName)}
+        WHERE project_id = ${projectId}
         ORDER BY updated_at DESC
       `;
     } else {
       rows = await sql`
-        SELECT id, data FROM app_documents
-        WHERE collection_name = ${collectionName}
+        SELECT id, data FROM ${sql(tableName)}
         ORDER BY updated_at DESC
       `;
     }
@@ -53,7 +56,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// 2. POST: Add or Batch Update documents
+// 2. POST: Add or Batch Update documents to dedicated table
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -63,20 +66,23 @@ export async function POST(req: NextRequest) {
     // Batch update mode
     if (body.batch && Array.isArray(body.batch)) {
       const { collection: colName, batch } = body;
+      const tableName = getTableName(colName);
+      await ensureTableExists(sql, tableName);
+
       for (const item of batch) {
         const docId = String(item.id || '').trim();
         if (!docId) continue;
         const existing = await sql`
-          SELECT data FROM app_documents
-          WHERE collection_name = ${colName} AND id = ${docId}
+          SELECT data FROM ${sql(tableName)}
+          WHERE id = ${docId}
           LIMIT 1
         `;
         const mergedData = { ...(existing[0]?.data || {}), ...item.data };
         const projectId = mergedData.projectId || null;
         await sql`
-          INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
-          VALUES (${docId}, ${colName}, ${projectId}, ${sql.json(mergedData)}, NOW())
-          ON CONFLICT (collection_name, id)
+          INSERT INTO ${sql(tableName)} (id, project_id, data, updated_at)
+          VALUES (${docId}, ${projectId}, ${sql.json(mergedData)}, NOW())
+          ON CONFLICT (id)
           DO UPDATE SET
             project_id = EXCLUDED.project_id,
             data = EXCLUDED.data,
@@ -88,13 +94,16 @@ export async function POST(req: NextRequest) {
 
     // Single document insert
     const { collection: colName, id, data } = body;
+    const tableName = getTableName(colName);
+    await ensureTableExists(sql, tableName);
+
     const docId = id || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const projectId = data?.projectId || null;
 
     await sql`
-      INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
-      VALUES (${docId}, ${colName}, ${projectId}, ${sql.json(data)}, NOW())
-      ON CONFLICT (collection_name, id)
+      INSERT INTO ${sql(tableName)} (id, project_id, data, updated_at)
+      VALUES (${docId}, ${projectId}, ${sql.json(data)}, NOW())
+      ON CONFLICT (id)
       DO UPDATE SET
         project_id = EXCLUDED.project_id,
         data = EXCLUDED.data,
@@ -108,7 +117,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// 3. PUT: Update/Merge document
+// 3. PUT: Update/Merge document in dedicated table
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
@@ -120,11 +129,13 @@ export async function PUT(req: NextRequest) {
     }
 
     const sql = getPostgresSql(customDbUrl);
+    const tableName = getTableName(colName);
+    await ensureTableExists(sql, tableName);
 
     // Fetch existing data to merge
     const existing = await sql`
-      SELECT data FROM app_documents
-      WHERE collection_name = ${colName} AND id = ${id}
+      SELECT data FROM ${sql(tableName)}
+      WHERE id = ${id}
       LIMIT 1
     `;
 
@@ -132,9 +143,9 @@ export async function PUT(req: NextRequest) {
     const projectId = mergedData.projectId || null;
 
     await sql`
-      INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
-      VALUES (${id}, ${colName}, ${projectId}, ${sql.json(mergedData)}, NOW())
-      ON CONFLICT (collection_name, id)
+      INSERT INTO ${sql(tableName)} (id, project_id, data, updated_at)
+      VALUES (${id}, ${projectId}, ${sql.json(mergedData)}, NOW())
+      ON CONFLICT (id)
       DO UPDATE SET
         project_id = EXCLUDED.project_id,
         data = EXCLUDED.data,
@@ -148,7 +159,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// 4. DELETE: Remove document
+// 4. DELETE: Remove document from dedicated table
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -161,10 +172,12 @@ export async function DELETE(req: NextRequest) {
     }
 
     const sql = getPostgresSql(customDbUrl);
+    const tableName = getTableName(collectionName);
+    await ensureTableExists(sql, tableName);
 
     await sql`
-      DELETE FROM app_documents
-      WHERE collection_name = ${collectionName} AND id = ${docId}
+      DELETE FROM ${sql(tableName)}
+      WHERE id = ${docId}
     `;
 
     return NextResponse.json({ success: true, id: docId });
