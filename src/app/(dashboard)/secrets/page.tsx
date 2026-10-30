@@ -518,12 +518,6 @@ export default function SecretsPage() {
         <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             <Key className="w-6 h-6 text-primary" /> Secret Key Vault
-            {activeProject && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
-                {activeProject.name}
-              </span>
-            )}
             {!hasEdit && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
                 <Eye className="w-3 h-3" />

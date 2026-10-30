@@ -155,12 +155,6 @@ export default function WeeklyReportPage() {
         <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             Weekly Report
-            {activeProject && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 ml-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeProject.color || "#3b82f6" }} />
-                {activeProject.name}
-              </span>
-            )}
           </PanelTitle>
           <PanelDescription className="mt-1">
             Summarize and track project progress per week for {activeProject?.name || "this project"}.

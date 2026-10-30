@@ -53,7 +53,6 @@ import { SortableTodoRow } from "./sortable-todo-row";
 import { SortableEpicRow } from "./sortable-epic-row";
 import { computeAllTaskOverlaps } from "@/lib/overlap-utils";
 import { useProject } from "@/components/project-context";
-import { ProjectSwitcher } from "@/components/project-switcher";
 import { useTaskStatuses } from "@/hooks/use-task-statuses";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -689,7 +688,6 @@ export default function TodoPage() {
         <div className="w-full sm:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             <CheckSquare className="w-6 h-6 text-primary" /> Task Plan
-            <ProjectSwitcher variant="header" className="h-7 text-xs ml-1" />
             {!hasEdit && (
               <>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">

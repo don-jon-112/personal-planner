@@ -84,7 +84,6 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { DateRangeFilter, DateRangeConfig, computeTimelineDates } from "./date-range-filter";
 import { useProject } from "@/components/project-context";
-import { ProjectSwitcher } from "@/components/project-switcher";
 import { useAuth } from "@/components/auth-context";
 
 // -------------------------------------------------------------
@@ -1812,7 +1811,6 @@ export default function TimelinePage() {
         <div className="w-full xl:w-auto">
           <PanelTitle className="text-2xl font-bold text-secondary-foreground flex items-center gap-2 flex-wrap">
             <CalendarClock className="w-6 h-6 text-primary" /> Timeline
-            <ProjectSwitcher variant="header" className="h-7 text-xs ml-1" />
             {!hasEdit && (
               <>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-2">
