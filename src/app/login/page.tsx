@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { loginWithMaster, setAuthSession, authenticateUser } from './actions'
+import { getActiveDatabaseProvider, getActivePostgresUrl } from '@/lib/db-config'
 import { db } from '@/firebase/config'
 import { collection, getDocsFromCache } from 'firebase/firestore'
 import { Lock, User, KeyRound, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react'
@@ -47,7 +48,10 @@ export default function LoginPage() {
       }
 
       // Mode 2: Primary Server-Side User Authentication against Firestore Cloud
-      const serverAuth = await authenticateUser(trimmedUser, rawPass)
+      const serverAuth = await authenticateUser(trimmedUser, rawPass, {
+        provider: getActiveDatabaseProvider(),
+        customUrl: getActivePostgresUrl(),
+      })
       if (serverAuth.success && serverAuth.session) {
         localStorage.setItem('planner_auth_session', JSON.stringify(serverAuth.session))
         localStorage.setItem('syncMode', 'online')

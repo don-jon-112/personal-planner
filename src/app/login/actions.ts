@@ -1,6 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
+import { getPostgresSql, ensureTableExists } from '@/lib/postgres-server'
 
 export interface SessionData {
   userId: string;
@@ -81,7 +82,11 @@ export async function logout() {
   return { success: true };
 }
 
-export async function authenticateUser(username: string, password: string) {
+export async function authenticateUser(
+  username: string,
+  password: string,
+  dbOptions?: { provider?: string; customUrl?: string }
+) {
   const trimmedUser = (username || '').trim();
   const rawPass = password || '';
   const trimmedPass = (password || '').trim();
@@ -107,88 +112,129 @@ export async function authenticateUser(username: string, password: string) {
     return { success: true, session };
   }
 
-  // 2. Query Firestore Cloud users collection directly on server
-  try {
-    const { initializeApp, getApps, getApp } = await import('firebase/app');
-    const { getFirestore, collection, getDocs } = await import('firebase/firestore');
+  const cookieStore = await cookies();
+  const cookieProvider = cookieStore.get('active_db_provider')?.value;
+  const cookieCustomUrl = cookieStore.get('custom_postgres_url')?.value
+    ? decodeURIComponent(cookieStore.get('custom_postgres_url')!.value)
+    : undefined;
 
-    const firebaseConfig = {
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    };
+  const targetProvider =
+    dbOptions?.provider || cookieProvider || process.env.NEXT_PUBLIC_DB_PROVIDER || 'firebase';
+  const customPostgresUrl =
+    dbOptions?.customUrl || cookieCustomUrl || process.env.DATABASE_URL || undefined;
 
-    const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    const db = getFirestore(app);
+  let matchedUser: any = null;
+  let foundUsernameOnly: any = null;
 
-    const snapshot = await getDocs(collection(db, 'users'));
-    let matchedUser: any = null;
-    let foundUsernameOnly: any = null;
+  // 2. Query PostgreSQL users table if postgres mode is active or custom URL is present
+  if (targetProvider === 'postgres' || customPostgresUrl) {
+    try {
+      const sql = getPostgresSql(customPostgresUrl);
+      await ensureTableExists(sql, 'users');
+      const rows = await sql`
+        SELECT id, project_id, data FROM users
+        ORDER BY updated_at DESC
+      `;
 
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const docUser = (data.username || '').toString().trim();
-      if (docUser.toLowerCase() === trimmedUser.toLowerCase()) {
-        foundUsernameOnly = { id: doc.id, ...data };
-        const storedPass = (data.password || '').toString();
-        if (
-          storedPass === rawPass ||
-          storedPass === trimmedPass ||
-          storedPass.trim() === trimmedPass
-        ) {
-          matchedUser = { id: doc.id, ...data };
+      for (const r of rows) {
+        const data = typeof r.data === 'object' && r.data !== null ? r.data : {};
+        const docUser = (data.username || '').toString().trim();
+        if (docUser.toLowerCase() === trimmedUser.toLowerCase()) {
+          foundUsernameOnly = { id: r.id, ...data };
+          const storedPass = (data.password || '').toString();
+          if (
+            storedPass === rawPass ||
+            storedPass === trimmedPass ||
+            storedPass.trim() === trimmedPass
+          ) {
+            matchedUser = { id: r.id, ...data };
+            break;
+          }
         }
       }
-    });
-
-    // Check default seeded admin if collection doesn't have it
-    if (!matchedUser && trimmedUser.toLowerCase() === 'admin') {
-      if (trimmedPass === 'AdminPassword2026!') {
-        matchedUser = {
-          id: 'admin_default',
-          username: 'admin',
-          name: 'Super Administrator',
-          isSuperAdmin: true,
-        };
-      } else {
-        foundUsernameOnly = { username: 'admin' };
-      }
+    } catch (pgErr) {
+      console.warn('PostgreSQL server auth check encountered error, trying fallback:', pgErr);
     }
+  }
 
-    if (matchedUser) {
-      const session: SessionData = {
-        userId: matchedUser.id || `user_${matchedUser.username}`,
-        username: matchedUser.username,
-        name: matchedUser.name || matchedUser.username,
-        isSuperAdmin: Boolean(matchedUser.isSuperAdmin),
-        projectIds: matchedUser.projectIds || [],
-        projectRoles: matchedUser.projectRoles || {},
+  // 3. Fallback / Query Firestore Cloud users collection
+  if (!matchedUser) {
+    try {
+      const { initializeApp, getApps, getApp } = await import('firebase/app');
+      const { getFirestore, collection, getDocs } = await import('firebase/firestore');
+
+      const firebaseConfig = {
+        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
       };
-      await setAuthSession(session);
-      return { success: true, session };
-    }
 
-    if (foundUsernameOnly) {
-      return {
-        success: false,
-        error: `Incorrect password for user "${foundUsernameOnly.username}". Please verify your password.`,
+      const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+      const db = getFirestore(app);
+
+      const snapshot = await getDocs(collection(db, 'users'));
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const docUser = (data.username || '').toString().trim();
+        if (docUser.toLowerCase() === trimmedUser.toLowerCase()) {
+          foundUsernameOnly = { id: doc.id, ...data };
+          const storedPass = (data.password || '').toString();
+          if (
+            storedPass === rawPass ||
+            storedPass === trimmedPass ||
+            storedPass.trim() === trimmedPass
+          ) {
+            matchedUser = { id: doc.id, ...data };
+          }
+        }
+      });
+    } catch (fbErr) {
+      console.warn('Firebase server auth check encountered error:', fbErr);
+    }
+  }
+
+  // 4. Check default seeded admin if collection doesn't have it
+  if (!matchedUser && trimmedUser.toLowerCase() === 'admin') {
+    if (trimmedPass === 'AdminPassword2026!') {
+      matchedUser = {
+        id: 'admin_default',
+        username: 'admin',
+        name: 'Super Administrator',
+        isSuperAdmin: true,
       };
+    } else {
+      foundUsernameOnly = { username: 'admin' };
     }
+  }
 
-    return {
-      success: false,
-      error: `User "${trimmedUser}" not found. Please verify the username or sign in with Master Password.`,
+  if (matchedUser) {
+    const session: SessionData = {
+      userId: matchedUser.id || `user_${matchedUser.username}`,
+      username: matchedUser.username,
+      name: matchedUser.name || matchedUser.username,
+      isSuperAdmin: Boolean(matchedUser.isSuperAdmin),
+      projectIds: matchedUser.projectIds || [],
+      projectRoles: matchedUser.projectRoles || {},
     };
-  } catch (err: any) {
-    console.error('Server auth error:', err);
+    await setAuthSession(session);
+    return { success: true, session };
+  }
+
+  if (foundUsernameOnly) {
     return {
       success: false,
-      error: err.message || 'Server authentication error.',
+      error: `Incorrect password for user "${foundUsernameOnly.username}". Please verify your password.`,
     };
   }
+
+  return {
+    success: false,
+    error: `User "${trimmedUser}" not found. Please verify the username or sign in with Master Password.`,
+  };
 }
 
 // Keep backward-compatible legacy login function
@@ -200,7 +246,8 @@ export async function updateUserPassword(
   userId: string,
   username: string,
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
+  dbOptions?: { provider?: string; customUrl?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const trimmedUser = (username || '').trim();
@@ -215,6 +262,63 @@ export async function updateUserPassword(
       return { success: false, error: 'Password baru tidak boleh sama dengan password lama.' };
     }
 
+    const cookieStore = await cookies();
+    const cookieProvider = cookieStore.get('active_db_provider')?.value;
+    const cookieCustomUrl = cookieStore.get('custom_postgres_url')?.value
+      ? decodeURIComponent(cookieStore.get('custom_postgres_url')!.value)
+      : undefined;
+
+    const targetProvider =
+      dbOptions?.provider || cookieProvider || process.env.NEXT_PUBLIC_DB_PROVIDER || 'firebase';
+    const customPostgresUrl =
+      dbOptions?.customUrl || cookieCustomUrl || process.env.DATABASE_URL || undefined;
+
+    // 1. If PostgreSQL mode is active, update in PostgreSQL
+    if (targetProvider === 'postgres' || customPostgresUrl) {
+      try {
+        const sql = getPostgresSql(customPostgresUrl);
+        await ensureTableExists(sql, 'users');
+
+        const rows = await sql`
+          SELECT id, project_id, data FROM users
+          ORDER BY updated_at DESC
+        `;
+
+        let targetRow = rows.find((r) => r.id === userId);
+        if (!targetRow) {
+          targetRow = rows.find(
+            (r) => ((r.data as any)?.username || '').toLowerCase() === trimmedUser.toLowerCase()
+          );
+        }
+
+        if (targetRow) {
+          const userData = (targetRow.data || {}) as any;
+          const storedPass = (userData.password || '').toString();
+
+          const masterPassword = process.env.SITE_PASSWORD;
+          const isMasterOverride = masterPassword && curPass === masterPassword;
+          const isPasswordCorrect =
+            storedPass === curPass || storedPass.trim() === curPass || isMasterOverride;
+
+          if (!isPasswordCorrect) {
+            return { success: false, error: 'Password lama (current password) tidak sesuai.' };
+          }
+
+          const updatedData = { ...userData, password: newPass };
+          await sql`
+            UPDATE users
+            SET data = ${sql.json(updatedData)}, updated_at = NOW()
+            WHERE id = ${targetRow.id}
+          `;
+
+          return { success: true };
+        }
+      } catch (pgErr) {
+        console.warn('PostgreSQL password update failed, checking Firebase fallback:', pgErr);
+      }
+    }
+
+    // 2. Firebase Firestore update fallback
     const { initializeApp, getApps, getApp } = await import('firebase/app');
     const { getFirestore, doc, getDoc, updateDoc, collection, getDocs, serverTimestamp } = await import('firebase/firestore');
 
@@ -230,11 +334,9 @@ export async function updateUserPassword(
     const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
 
-    // 1. Try finding doc by userId
     let userDocRef = userId && userId !== 'master_admin' ? doc(db, 'users', userId) : null;
     let userSnap = userDocRef ? await getDoc(userDocRef) : null;
 
-    // 2. If not found by ID, search by username
     if (!userSnap || !userSnap.exists()) {
       const snap = await getDocs(collection(db, 'users'));
       snap.forEach((d) => {
@@ -253,10 +355,10 @@ export async function updateUserPassword(
     const userData = userSnap.data();
     const storedPass = (userData.password || '').toString();
 
-    // Verify current password (support master password as override for master admin)
     const masterPassword = process.env.SITE_PASSWORD;
-    const isMasterOverride = masterPassword && (curPass === masterPassword);
-    const isPasswordCorrect = storedPass === curPass || storedPass.trim() === curPass || isMasterOverride;
+    const isMasterOverride = masterPassword && curPass === masterPassword;
+    const isPasswordCorrect =
+      storedPass === curPass || storedPass.trim() === curPass || isMasterOverride;
 
     if (!isPasswordCorrect) {
       return { success: false, error: 'Password lama (current password) tidak sesuai.' };
@@ -275,4 +377,3 @@ export async function updateUserPassword(
     return { success: false, error: err.message || 'Gagal mengubah password.' };
   }
 }
-

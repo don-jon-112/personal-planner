@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/auth-context";
 import { useAlertModal, useConfirm } from "@/components/confirm-dialog-provider";
 import { updateUserPassword } from "@/app/login/actions";
+import { getActiveDatabaseProvider, getActivePostgresUrl } from "@/lib/db-config";
 import {
   KeyRound,
   ShieldCheck,
@@ -140,7 +141,10 @@ export default function ChangePasswordPage() {
       setIsSubmitting(true);
       const userId = currentUser?.id || "";
 
-      const result = await updateUserPassword(userId, username, currentPassword, newPassword);
+      const result = await updateUserPassword(userId, username, currentPassword, newPassword, {
+        provider: getActiveDatabaseProvider(),
+        customUrl: getActivePostgresUrl(),
+      });
 
       if (!result.success) {
         await alertModal({

@@ -31,6 +31,9 @@ export function getActiveDatabaseProvider(): DatabaseProviderType {
 export function setActiveDatabaseProvider(provider: DatabaseProviderType): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY_PROVIDER, provider);
+  try {
+    document.cookie = `${STORAGE_KEY_PROVIDER}=${provider}; path=/; max-age=31536000; SameSite=Lax`;
+  } catch {}
 }
 
 // 4. Get Custom Postgres URL
@@ -42,7 +45,11 @@ export function getCustomPostgresUrl(): string | null {
 // 5. Save Custom Postgres URL
 export function saveCustomPostgresUrl(url: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY_CUSTOM_POSTGRES, url.trim());
+  const clean = url.trim();
+  localStorage.setItem(STORAGE_KEY_CUSTOM_POSTGRES, clean);
+  try {
+    document.cookie = `${STORAGE_KEY_CUSTOM_POSTGRES}=${encodeURIComponent(clean)}; path=/; max-age=31536000; SameSite=Lax`;
+  } catch {}
 }
 
 // 6. Get Active Postgres URL
@@ -59,4 +66,8 @@ export function resetToDefaultFirebase(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEY_PROVIDER);
   localStorage.removeItem(STORAGE_KEY_CUSTOM_POSTGRES);
+  try {
+    document.cookie = `${STORAGE_KEY_PROVIDER}=; path=/; max-age=0; SameSite=Lax`;
+    document.cookie = `${STORAGE_KEY_CUSTOM_POSTGRES}=; path=/; max-age=0; SameSite=Lax`;
+  } catch {}
 }
