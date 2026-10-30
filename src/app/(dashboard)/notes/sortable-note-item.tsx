@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/components/confirm-dialog-provider";
+import { htmlToCleanPlainText } from "@/lib/html-utils";
 
 export function SortableNoteItem({
   note,
@@ -71,6 +72,21 @@ export function SortableNoteItem({
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onView(note)}>View</DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={async () => {
+                const clean = htmlToCleanPlainText(note.content || "");
+                if (clean) {
+                  try {
+                    await navigator.clipboard.writeText(clean);
+                  } catch (e) {
+                    console.error("Failed to copy note:", e);
+                  }
+                }
+              }}
+            >
+              Copy Content
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onEdit(note)}>Edit</DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive"

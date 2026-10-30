@@ -183,12 +183,50 @@
   border-color: var(--foreground) !important;
 }
 
-/* Note Content Fixes */
+/* Note Content Fixes & Clean Line Spacing */
 .wysiwyg-content, .ql-editor {
   word-break: break-word;
   overflow-wrap: break-word;
+}
+
+/* Eliminate excessive gap between paragraphs in notes while preserving clean line breaks */
+.wysiwyg-content p, 
+.ql-editor p {
+  margin-top: 0 !important;
+  margin-bottom: 0.25em !important;
+  line-height: 1.5;
   white-space: pre-wrap;
 }
+
+/* Ensure empty paragraphs created by Enter key have proper single-line height */
+.wysiwyg-content p:has(> br:only-child),
+.ql-editor p:has(> br:only-child),
+.wysiwyg-content p:empty,
+.ql-editor p:empty {
+  min-height: 1.25em;
+  margin-bottom: 0.25em !important;
+}
+
+/* Lists and code blocks inside notes */
+.wysiwyg-content ul, .ql-editor ul,
+.wysiwyg-content ol, .ql-editor ol {
+  margin-top: 0.25em !important;
+  margin-bottom: 0.25em !important;
+  padding-left: 1.25rem !important;
+}
+
+.wysiwyg-content li, .ql-editor li {
+  margin-top: 0.1em !important;
+  margin-bottom: 0.1em !important;
+}
+
+.wysiwyg-content pre, .ql-editor pre {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  padding: 0.5rem !important;
+  border-radius: 0.375rem;
+}
+
 .wysiwyg-content table, .ql-editor table {
   display: block;
   max-width: 100%;

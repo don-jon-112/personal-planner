@@ -288,19 +288,6 @@ export default function StatusesPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pb-2.5">
-              <label className="flex items-center gap-2 cursor-pointer select-none bg-muted/20 px-3 py-2 rounded-lg border border-border/60 hover:bg-muted/40 transition-colors">
-                <input
-                  type="checkbox"
-                  {...form.register("isCompleted")}
-                  className="w-4 h-4 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
-                />
-                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Kategori &quot;Done&quot; (Progress Epic)
-                </span>
-              </label>
-            </div>
 
             <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-10 shadow-xs">
               <Plus className="w-4 h-4 mr-1.5" />

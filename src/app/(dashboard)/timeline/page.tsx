@@ -1010,6 +1010,7 @@ export default function TimelinePage() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [editingEpic, setEditingEpic] = useState<any>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -1511,6 +1512,19 @@ export default function TimelinePage() {
   }, [orderedEpics, localTasks, selectedPicFilter]);
 
   // Flatten rows for pagination and search
+  const scrollToToday = () => {
+    if (!scrollContainerRef.current) return;
+    const todayStr = new Date().toDateString();
+    const todayIndex = dates.findIndex((d) => d.toDateString() === todayStr);
+    if (todayIndex >= 0) {
+      const targetScroll = Math.max(0, todayIndex * 40 - 120);
+      scrollContainerRef.current.scrollTo({
+        left: targetScroll,
+        behavior: "smooth",
+      });
+    }
+  };
+
   const isSearchActive = searchQuery.trim().length >= 3;
   const searchLower = searchQuery.toLowerCase().trim();
 
@@ -2020,6 +2034,19 @@ export default function TimelinePage() {
             {/* Date Range Filter */}
             <DateRangeFilter rangeConfig={rangeConfig} onChange={setRangeConfig} tasks={localTasks} />
 
+            {/* Jump to Today Button */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={scrollToToday}
+              className="h-8 px-2.5 text-xs font-medium gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs shrink-0"
+              title="Lompat ke tanggal hari ini di timeline"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Hari Ini</span>
+            </Button>
+
             {/* PIC Filter Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline" }), "px-3 h-8 text-xs font-medium")}>
@@ -2061,7 +2088,7 @@ export default function TimelinePage() {
             <p>No Epics found. Create an Epic to get started!</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto bg-card relative custom-scrollbar">
+          <div ref={scrollContainerRef} className="flex-1 overflow-auto bg-card relative custom-scrollbar">
             <div className="min-w-max flex flex-col" ref={timelineContainerRef}>
               
               <div className="flex flex-col sticky top-0 z-30 shadow-sm bg-background">

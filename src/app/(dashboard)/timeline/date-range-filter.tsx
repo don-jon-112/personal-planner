@@ -25,6 +25,7 @@ export type DateRangePreset =
   | "next-2-months" 
   | "next-3-months" 
   | "this-year" 
+  | "all-tasks"
   | "custom";
 
 export interface DateRangeConfig {
@@ -76,6 +77,30 @@ export function computeTimelineDates(rangeConfig: DateRangeConfig, tasks: any[])
     return getDatesInRange(start, end);
   }
 
+  if (rangeConfig.preset === "all-tasks") {
+    let start = new Date(now.getFullYear(), now.getMonth(), 1);
+    let end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+    if (tasks.length > 0) {
+      const taskDates = tasks
+        .map((t) => new Date(t.startDate).getTime())
+        .filter((t) => !isNaN(t));
+
+      if (taskDates.length > 0) {
+        const minDate = new Date(Math.min(...taskDates));
+        minDate.setHours(0, 0, 0, 0);
+        minDate.setDate(minDate.getDate() - 5);
+        if (minDate < start) start = minDate;
+
+        const maxDate = new Date(Math.max(...taskDates));
+        maxDate.setHours(0, 0, 0, 0);
+        maxDate.setDate(maxDate.getDate() + 30);
+        if (maxDate > end) end = maxDate;
+      }
+    }
+    return getDatesInRange(start, end);
+  }
+
   if (rangeConfig.preset === "custom" && rangeConfig.customStartDate && rangeConfig.customEndDate) {
     const start = new Date(rangeConfig.customStartDate);
     start.setHours(0, 0, 0, 0);
@@ -86,7 +111,7 @@ export function computeTimelineDates(rangeConfig: DateRangeConfig, tasks: any[])
     }
   }
 
-  // Default "auto" (based on tasks or current 2 months)
+  // Default "auto": Mulai dari awal bulan bulan ini (agar tidak terlalu jauh dari hari ini)
   let start = new Date(now.getFullYear(), now.getMonth(), 1);
   let end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
@@ -96,11 +121,6 @@ export function computeTimelineDates(rangeConfig: DateRangeConfig, tasks: any[])
       .filter((t) => !isNaN(t));
 
     if (taskDates.length > 0) {
-      const minDate = new Date(Math.min(...taskDates));
-      minDate.setHours(0, 0, 0, 0);
-      minDate.setDate(minDate.getDate() - 5);
-      if (minDate < start) start = minDate;
-
       const maxDate = new Date(Math.max(...taskDates));
       maxDate.setHours(0, 0, 0, 0);
       maxDate.setDate(maxDate.getDate() + 30);
@@ -127,7 +147,9 @@ export function DateRangeFilter({ rangeConfig, onChange, tasks }: DateRangeFilte
   const currentLabel = useMemo(() => {
     switch (rangeConfig.preset) {
       case "auto":
-        return "Auto (Semua)";
+        return "Auto";
+      case "all-tasks":
+        return "Semua Task";
       case "this-month":
         return "Bulan Ini";
       case "next-2-months":
@@ -220,7 +242,17 @@ export function DateRangeFilter({ rangeConfig, onChange, tasks }: DateRangeFilte
               onClick={() => handleApplyPreset("auto")}
             >
               {rangeConfig.preset === "auto" && <Check className="w-3.5 h-3.5 mr-1" />}
-              Auto (Semua)
+              Auto (Mulai Bulan Ini)
+            </Button>
+            <Button
+              type="button"
+              variant={rangeConfig.preset === "all-tasks" ? "default" : "outline"}
+              size="sm"
+              className="text-xs justify-start h-8"
+              onClick={() => handleApplyPreset("all-tasks")}
+            >
+              {rangeConfig.preset === "all-tasks" && <Check className="w-3.5 h-3.5 mr-1" />}
+              Semua Task
             </Button>
             <Button
               type="button"
@@ -256,11 +288,11 @@ export function DateRangeFilter({ rangeConfig, onChange, tasks }: DateRangeFilte
               type="button"
               variant={rangeConfig.preset === "this-year" ? "default" : "outline"}
               size="sm"
-              className="text-xs justify-start h-8 col-span-2"
+              className="text-xs justify-start h-8"
               onClick={() => handleApplyPreset("this-year")}
             >
               {rangeConfig.preset === "this-year" && <Check className="w-3.5 h-3.5 mr-1" />}
-              Sepanjang Tahun Ini
+              Tahun Ini
             </Button>
           </div>
         </div>
