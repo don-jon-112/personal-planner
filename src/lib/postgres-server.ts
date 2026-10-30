@@ -22,6 +22,7 @@ export function getPostgresSql(customUrl?: string): postgres.Sql {
     max: 10,
     idle_timeout: 20,
     connect_timeout: 15,
+    prepare: false, // Disables prepared statements for full compatibility with Supabase Pooler (PgBouncer)
   });
 
   if (!customUrl) {
@@ -69,6 +70,13 @@ export async function testPostgresConnection(connectionString: string): Promise<
       return { success: false, error: 'Format Connection String harus diawali dengan postgresql:// atau postgres://' };
     }
 
+    if (cleanUrl.includes('.supabase.co') && cleanUrl.startsWith('postgresql://postgres:') && cleanUrl.includes('db.')) {
+      return {
+        success: false,
+        error: 'Anda menggunakan Direct Connection Supabase (db.*.supabase.co) yang hanya mendukung IPv6. Silakan gunakan Connection Pooling (pooler.supabase.com) yang mendukung IPv4 di menu Connect Supabase.',
+      };
+    }
+
     sql = getPostgresSql(cleanUrl);
     
     // Quick test query
@@ -90,4 +98,3 @@ export async function testPostgresConnection(connectionString: string): Promise<
     };
   }
 }
-
