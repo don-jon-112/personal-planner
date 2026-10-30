@@ -425,7 +425,7 @@ export function DatabaseProviderSection() {
               PostgreSQL Connection String (DATABASE_URL)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Masukkan URI koneksi database PostgreSQL Anda. Tabel <code>app_documents</code> akan otomatis dibuat di database target.
+              Masukkan URI koneksi database PostgreSQL Anda. 15 tabel koleksi (projects, timeline_tasks, notes, dll.) akan otomatis dibuat di database target.
             </p>
           </div>
 
@@ -441,6 +441,48 @@ export function DatabaseProviderSection() {
             <p className="text-[11px] text-muted-foreground">
               Format: <code className="text-foreground">postgresql://username:password@hostname:port/database</code>
             </p>
+          </div>
+
+          {/* Action Toolbar khusus PostgreSQL: Uji Koneksi, Migrasi, dan Panduan */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-3 border-t border-border/50">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleTestConnection}
+                disabled={isTesting || isMigrating}
+                className="gap-2 text-xs h-8 bg-background shadow-2xs font-medium"
+              >
+                <RefreshCw className={cn("w-3.5 h-3.5", isTesting && "animate-spin")} />
+                {isTesting ? "Menguji..." : "Uji Koneksi"}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleStartMigration}
+                disabled={isMigrating || isTesting || isUpdatingVercel}
+                className="gap-1.5 text-xs h-8 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-background hover:bg-emerald-500/10 font-medium shadow-2xs"
+                title="Unduh backup JSON otomatis dan transfer data Firebase ke 15 tabel PostgreSQL"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                {isMigrating ? "Memindahkan..." : "Migrasikan Data dari Firebase"}
+              </Button>
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsGuideOpen(!isGuideOpen)}
+              className="gap-1.5 text-xs h-8 text-muted-foreground hover:text-foreground self-start sm:self-auto"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Panduan Setup</span>
+              {isGuideOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </Button>
           </div>
         </div>
       )}
@@ -480,76 +522,43 @@ export function DatabaseProviderSection() {
         </div>
       )}
 
-      {/* Action Buttons Row */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {/* Uji Koneksi */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleTestConnection}
-            disabled={isTesting || isMigrating}
-            className="gap-2 text-xs w-full sm:w-auto"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", isTesting && "animate-spin")} />
-            {isTesting ? "Menguji..." : "Uji Koneksi"}
-          </Button>
-
-          {/* Panduan Toggle */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsGuideOpen(!isGuideOpen)}
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>Panduan Langkah</span>
-            {isGuideOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </Button>
+      {/* Footer Simpan & Aktivasi Database */}
+      <div className="p-4 rounded-xl border bg-card/60 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-0.5">
+          <p className="text-xs font-semibold text-foreground flex items-center gap-2">
+            <span>Aktivasi Database:</span>
+            <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+              {selectedProvider === "postgres" ? "PostgreSQL / Supabase" : "Firebase Bawaan"}
+            </span>
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Pilih untuk mengaktifkan di browser lokal ini (testing) atau permanen di server Vercel (produksi).
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
-          {/* Tombol Migrasi Data ke PostgreSQL */}
-          {selectedProvider === "postgres" && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleStartMigration}
-              disabled={isMigrating || isTesting || isUpdatingVercel}
-              className="gap-2 text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium"
-            >
-              <UploadCloud className="w-3.5 h-3.5" />
-              {isMigrating ? "Memindahkan Data..." : "Migrasikan Data dari Firebase"}
-            </Button>
-          )}
-
+        <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap sm:flex-nowrap">
           {/* Tombol 1: Terapkan Sekarang (Instan di Browser) */}
           <Button
             type="button"
             variant="outline"
-            size="sm"
             onClick={handleSaveAndActivate}
             disabled={isMigrating || isTesting || isUpdatingVercel}
-            className="gap-2 text-xs border-primary/40 text-primary hover:bg-primary/10 font-medium"
-            title="Simpan pilihan database ini dan langsung aktifkan di browser detik ini juga"
+            className="gap-2 text-xs h-9 border-primary/40 text-primary hover:bg-primary/10 font-medium shadow-2xs w-full sm:w-auto"
+            title="Simpan pilihan database ini dan langsung aktifkan di browser detik ini juga (untuk testing)"
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
+            <CheckCircle2 className="w-4 h-4" />
             <span>Terapkan Sekarang (Instan)</span>
           </Button>
 
           {/* Tombol 2: Push ke Vercel & Auto-Deploy (Permanen di Server) */}
           <Button
             type="button"
-            size="sm"
             onClick={handleUpdateVercel}
             disabled={isMigrating || isTesting || isUpdatingVercel}
-            className="gap-2 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
-            title="Simpan DATABASE_URL ke Vercel dan redeploy agar aktif permanen untuk semua pengunjung"
+            className="gap-2 text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs w-full sm:w-auto"
+            title="Simpan DATABASE_URL ke Vercel dan redeploy agar aktif permanen untuk semua pengunjung (produksi)"
           >
-            <Zap className={cn("w-3.5 h-3.5", isUpdatingVercel && "animate-spin")} />
+            <Zap className={cn("w-4 h-4", isUpdatingVercel && "animate-spin")} />
             <span>{isUpdatingVercel ? "Mengupdate Vercel..." : "Push ke Vercel & Auto-Deploy"}</span>
           </Button>
         </div>
@@ -680,7 +689,7 @@ export function DatabaseProviderSection() {
                 <li><b>Docker:</b> Gunakan URI container PostgreSQL Anda.</li>
               </ul>
               <p className="text-[11px] italic text-primary">
-                * Catatan: Sistem akan otomatis membuat tabel <code>app_documents</code> dan index di database target saat uji koneksi atau migrasi dijalankan.
+                * Catatan: Sistem akan otomatis membuat 15 tabel koleksi dan index di database target saat uji koneksi atau migrasi dijalankan.
               </p>
             </div>
           )}
