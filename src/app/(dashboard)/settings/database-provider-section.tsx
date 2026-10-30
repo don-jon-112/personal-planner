@@ -487,6 +487,86 @@ export function DatabaseProviderSection() {
         </div>
       )}
 
+      {/* Interactive Guide Panel (Muncul tepat di bawah container PostgreSQL) */}
+      {selectedProvider === "postgres" && isGuideOpen && (
+        <div className="p-4 rounded-xl border bg-muted/30 space-y-4 text-xs animate-in fade-in-50 duration-200">
+          <div className="flex items-center gap-2 border-b pb-2 flex-wrap">
+            <button
+              onClick={() => setActiveGuideTab("supabase")}
+              className={cn(
+                "px-3 py-1 rounded-lg font-medium transition-colors text-xs",
+                activeGuideTab === "supabase" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              1. Ambil URI di Supabase
+            </button>
+            <button
+              onClick={() => setActiveGuideTab("other")}
+              className={cn(
+                "px-3 py-1 rounded-lg font-medium transition-colors text-xs",
+                activeGuideTab === "other" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              2. Neon / Railway / VPS / Docker
+            </button>
+            <button
+              onClick={() => setActiveGuideTab("vercel")}
+              className={cn(
+                "px-3 py-1 rounded-lg font-medium transition-colors text-xs",
+                activeGuideTab === "vercel" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              3. Setup Token Vercel di ENV
+            </button>
+          </div>
+
+          {activeGuideTab === "supabase" && (
+            <div className="space-y-2.5 leading-relaxed text-muted-foreground">
+              <p className="font-semibold text-foreground">Cara Mengambil Connection String di Supabase:</p>
+              <ol className="list-decimal pl-4 space-y-1.5">
+                <li>Buka dashboard proyek Anda di <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-primary underline">supabase.com</a>.</li>
+                <li>Di bagian atas (header), klik tombol <b>Connect</b> (atau buka menu <b>Project Settings &gt; Database</b>).</li>
+                <li>Pilih tab <b>URI</b> (Connection String). Formatnya: <code>postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-0-xxx.pooler.supabase.com:6543/postgres</code>.</li>
+                <li>Ganti <code>[YOUR-PASSWORD]</code> dengan password database yang Anda buat saat pertama kali setup project Supabase.</li>
+                <li>Tempel di form di atas, klik <b>Uji Koneksi</b>, lalu klik <b>Migrasikan Data dari Firebase</b> (15 tabel otomatis terbuat!).</li>
+              </ol>
+            </div>
+          )}
+
+          {activeGuideTab === "other" && (
+            <div className="space-y-2.5 leading-relaxed text-muted-foreground">
+              <p className="font-semibold text-foreground">Cara Menggunakan di Penyedia Lain:</p>
+              <ul className="list-disc pl-4 space-y-1.5">
+                <li><b>Neon Database:</b> Buka dashboard Neon &gt; Dashboard &gt; Connection Details &gt; Salin connection string <code>postgres://...</code>.</li>
+                <li><b>Railway:</b> Buka service PostgreSQL di Railway &gt; Variables &gt; Salin nilai dari <code>DATABASE_URL</code>.</li>
+                <li><b>Self-Hosted VPS (Ubuntu/Debian):</b> Gunakan format <code>postgresql://username:password@IP-VPS-ANDA:5432/nama_database</code>.</li>
+                <li><b>Docker:</b> Gunakan URI container PostgreSQL Anda.</li>
+              </ul>
+              <p className="text-[11px] italic text-primary">
+                * Catatan: Sistem akan otomatis membuat 15 tabel koleksi dan index di database target saat uji koneksi atau migrasi dijalankan.
+              </p>
+            </div>
+          )}
+
+          {activeGuideTab === "vercel" && (
+            <div className="space-y-2.5 leading-relaxed text-muted-foreground">
+              <p className="font-semibold text-foreground">Cara Memasang Token Vercel di Environment Variables:</p>
+              <ol className="list-decimal pl-4 space-y-1.5">
+                <li>Buka <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer" className="text-primary underline">vercel.com/account/tokens</a> lalu klik <b>Create Token</b> (Beri nama bebas, misal "Planner-Auto-Deploy").</li>
+                <li>Salin token tersebut, lalu buka proyek Anda di Vercel &gt; <b>Settings &gt; Environment Variables</b>.</li>
+                <li>Tambahkan variabel baru:
+                  <ul className="list-disc pl-5 mt-1 space-y-0.5 font-mono text-[11px] text-foreground">
+                    <li><code>VERCEL_ACCESS_TOKEN</code> = isi token dari langkah 1</li>
+                    <li><code>VERCEL_PROJECT_ID</code> = isi Project ID (bisa dilihat di menu <i>Settings &gt; General &gt; Project ID</i>)</li>
+                  </ul>
+                </li>
+                <li>Selesai! Sekarang tombol <b>Push ke Vercel & Deploy</b> akan langsung memperbarui <code>DATABASE_URL</code> dan me-redeploy web Anda secara instan.</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Test Connection Banner / Result */}
       {testResult && (
         <div className={cn(
@@ -523,27 +603,32 @@ export function DatabaseProviderSection() {
       )}
 
       {/* Footer Simpan & Aktivasi Database */}
-      <div className="p-4 rounded-xl border bg-card/60 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <p className="text-xs font-semibold text-foreground flex items-center gap-2">
-            <span>Aktivasi Database:</span>
-            <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
-              {selectedProvider === "postgres" ? "PostgreSQL / Supabase" : "Firebase Bawaan"}
-            </span>
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Pilih untuk mengaktifkan di browser lokal ini (testing) atau permanen di server Vercel (produksi).
-          </p>
+      <div className="p-4 rounded-xl border bg-card/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Database className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-foreground whitespace-nowrap">Target Database:</span>
+              <span className="text-xs font-bold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 whitespace-nowrap">
+                {selectedProvider === "postgres" ? "PostgreSQL (Supabase / VPS)" : "Firebase Bawaan"}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Pilih simpan lokal (testing instan) atau push ke Vercel (produksi).
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end flex-wrap sm:flex-nowrap">
           {/* Tombol 1: Terapkan Sekarang (Instan di Browser) */}
           <Button
             type="button"
             variant="outline"
             onClick={handleSaveAndActivate}
             disabled={isMigrating || isTesting || isUpdatingVercel}
-            className="gap-2 text-xs h-9 border-primary/40 text-primary hover:bg-primary/10 font-medium shadow-2xs w-full sm:w-auto"
+            className="gap-2 text-xs h-9 border-primary/40 text-primary hover:bg-primary/10 font-medium shadow-2xs w-full sm:w-auto whitespace-nowrap"
             title="Simpan pilihan database ini dan langsung aktifkan di browser detik ini juga (untuk testing)"
           >
             <CheckCircle2 className="w-4 h-4" />
@@ -555,7 +640,7 @@ export function DatabaseProviderSection() {
             type="button"
             onClick={handleUpdateVercel}
             disabled={isMigrating || isTesting || isUpdatingVercel}
-            className="gap-2 text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs w-full sm:w-auto"
+            className="gap-2 text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs w-full sm:w-auto whitespace-nowrap"
             title="Simpan DATABASE_URL ke Vercel dan redeploy agar aktif permanen untuk semua pengunjung (produksi)"
           >
             <Zap className={cn("w-4 h-4", isUpdatingVercel && "animate-spin")} />
@@ -633,85 +718,7 @@ export function DatabaseProviderSection() {
         )}
       </div>
 
-      {/* Interactive Guide Panel */}
-      {isGuideOpen && (
-        <div className="p-4 rounded-xl border bg-muted/30 space-y-4 text-xs animate-in fade-in-50 duration-200">
-          <div className="flex items-center gap-2 border-b pb-2">
-            <button
-              onClick={() => setActiveGuideTab("supabase")}
-              className={cn(
-                "px-3 py-1 rounded-lg font-medium transition-colors",
-                activeGuideTab === "supabase" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              1. Ambil Connection String di Supabase
-            </button>
-            <button
-              onClick={() => setActiveGuideTab("other")}
-              className={cn(
-                "px-3 py-1 rounded-lg font-medium transition-colors",
-                activeGuideTab === "other" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              2. Neon / Railway / VPS / Docker
-            </button>
-            <button
-              onClick={() => setActiveGuideTab("vercel")}
-              className={cn(
-                "px-3 py-1 rounded-lg font-medium transition-colors",
-                activeGuideTab === "vercel" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              3. Setup Token Vercel di ENV
-            </button>
-          </div>
-
-          {activeGuideTab === "supabase" && (
-            <div className="space-y-2.5 leading-relaxed text-muted-foreground">
-              <p className="font-semibold text-foreground">Cara Mengambil Connection String di Supabase:</p>
-              <ol className="list-decimal pl-4 space-y-1.5">
-                <li>Buka dashboard proyek Anda di <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-primary underline">supabase.com</a>.</li>
-                <li>Di bagian atas (header), klik tombol <b>Connect</b> (atau buka menu <b>Project Settings &gt; Database</b>).</li>
-                <li>Pilih tab <b>URI</b> (Connection String). Formatnya: <code>postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-0-xxx.pooler.supabase.com:6543/postgres</code>.</li>
-                <li>Ganti <code>[YOUR-PASSWORD]</code> dengan password database yang Anda buat saat pertama kali setup project Supabase.</li>
-                <li>Tempel di form di atas, klik <b>Uji Koneksi</b>, lalu klik <b>Migrasikan Data dari Firebase</b> (Tabel dan data otomatis terbuat!).</li>
-              </ol>
-            </div>
-          )}
-
-          {activeGuideTab === "other" && (
-            <div className="space-y-2.5 leading-relaxed text-muted-foreground">
-              <p className="font-semibold text-foreground">Cara Menggunakan di Penyedia Lain:</p>
-              <ul className="list-disc pl-4 space-y-1.5">
-                <li><b>Neon Database:</b> Buka dashboard Neon &gt; Dashboard &gt; Connection Details &gt; Salin connection string <code>postgres://...</code>.</li>
-                <li><b>Railway:</b> Buka service PostgreSQL di Railway &gt; Variables &gt; Salin nilai dari <code>DATABASE_URL</code>.</li>
-                <li><b>Self-Hosted VPS (Ubuntu/Debian):</b> Gunakan format <code>postgresql://username:password@IP-VPS-ANDA:5432/nama_database</code>.</li>
-                <li><b>Docker:</b> Gunakan URI container PostgreSQL Anda.</li>
-              </ul>
-              <p className="text-[11px] italic text-primary">
-                * Catatan: Sistem akan otomatis membuat 15 tabel koleksi dan index di database target saat uji koneksi atau migrasi dijalankan.
-              </p>
-            </div>
-          )}
-
-          {activeGuideTab === "vercel" && (
-            <div className="space-y-2.5 leading-relaxed text-muted-foreground">
-              <p className="font-semibold text-foreground">Cara Memasang Token Vercel di Environment Variables:</p>
-              <ol className="list-decimal pl-4 space-y-1.5">
-                <li>Buka <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer" className="text-primary underline">vercel.com/account/tokens</a> lalu klik <b>Create Token</b> (Beri nama bebas, misal "Planner-Auto-Deploy").</li>
-                <li>Salin token tersebut, lalu buka proyek Anda di Vercel &gt; <b>Settings &gt; Environment Variables</b>.</li>
-                <li>Tambahkan variabel baru:
-                  <ul className="list-disc pl-5 mt-1 space-y-0.5 font-mono text-[11px] text-foreground">
-                    <li><code>VERCEL_ACCESS_TOKEN</code> = isi token dari langkah 1</li>
-                    <li><code>VERCEL_PROJECT_ID</code> = isi Project ID (bisa dilihat di menu <i>Settings &gt; General &gt; Project ID</i>)</li>
-                  </ul>
-                </li>
-                <li>Selesai! Sekarang tombol <b>Push ke Vercel & Auto-Deploy</b> akan langsung memperbarui <code>DATABASE_URL</code> dan me-redeploy web Anda secara instan.</li>
-              </ol>
-            </div>
-          )}
-        </div>
-      )}
+      
     </section>
   );
 }
