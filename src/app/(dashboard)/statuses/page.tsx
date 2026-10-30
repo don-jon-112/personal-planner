@@ -56,7 +56,8 @@ export default function StatusesPage() {
     updateStatus, 
     deleteStatus, 
     initializeDefaultStatuses,
-    isCompletedStatus
+    isCompletedStatus,
+    refetch: refetchStatuses
   } = useTaskStatuses();
 
   const { data: tasks = [] } = useCollection<any>("timelineTasks", {
@@ -203,29 +204,76 @@ export default function StatusesPage() {
   };
 
   const handleDelete = async (status: TaskStatus) => {
-    const taskCount = projectTasks.filter((t: any) => t.status === status.name).length;
+    const affectedTasks = projectTasks.filter(
+      (t: any) => (t.status || "").trim().toUpperCase() === (status.name || "").trim().toUpperCase()
+    );
+    const taskCount = affectedTasks.length;
 
-    // RULE: Cannot delete if any task is related!
+    // Find available fallback status if tasks are linked
+    const fallbackStatuses = statuses.filter(
+      (s) => s.id !== status.id && (s.name || "").trim().toUpperCase() !== (status.name || "").trim().toUpperCase()
+    );
+    const fallbackStatusName = fallbackStatuses[0]?.name || "TODO";
+
     if (taskCount > 0) {
-      await confirm({
-        title: "Cannot Delete Status",
-        description: `Status "${status.name}" cannot be deleted because it is currently used by ${taskCount} task(s). Please reassign or update those tasks to another status before deleting.`,
-        confirmText: "I Understand",
+      const ok = await confirm({
+        title: `Reassign Tasks & Delete Status "${status.name}"?`,
+        description: `Status "${status.name}" currently has ${taskCount} associated task(s). Deleting it will automatically reassign those tasks to "${fallbackStatusName}". Proceed?`,
+        confirmText: `Reassign to "${fallbackStatusName}" & Delete`,
+        cancelText: "Cancel",
         variant: "destructive",
       });
-      return;
+      if (!ok) return;
+
+      try {
+        // Reassign affected tasks in batch
+        const batchUpdates = affectedTasks.map((t: any) => ({
+          id: t.id,
+          data: { status: fallbackStatusName },
+        }));
+        await updateTasksBatch(batchUpdates);
+      } catch (err) {
+        console.error("Failed to reassign tasks before status deletion:", err);
+      }
+    } else {
+      const ok = await confirm({
+        title: "Delete Status?",
+        description: `Are you sure you want to delete status "${status.name}"? This action cannot be undone.`,
+        confirmText: "Delete Status",
+        cancelText: "Cancel",
+        variant: "destructive",
+      });
+      if (!ok) return;
     }
 
-    const ok = await confirm({
-      title: "Delete Status?",
-      description: `Are you sure you want to delete status "${status.name}"? This action cannot be undone.`,
-      confirmText: "Delete Status",
-      cancelText: "Cancel",
-      variant: "destructive",
-    });
-
-    if (ok) {
-      await deleteStatus(status.id);
+    try {
+      if (status.id.startsWith("default-")) {
+        // If it's a virtual status, persist remaining default statuses to DB so this one is officially deleted
+        for (const s of statuses) {
+          if (s.id !== status.id) {
+            await addStatus({
+              name: s.name,
+              color: s.color,
+              order: s.order,
+              isCompleted: Boolean(s.isCompleted),
+              projectId: activeProject?.id,
+            });
+          }
+        }
+      } else {
+        await deleteStatus(status.id);
+      }
+      if (refetchStatuses) {
+        await refetchStatuses();
+      }
+    } catch (err: any) {
+      console.error("Failed to delete status:", err);
+      await confirm({
+        title: "Error Deleting Status",
+        description: err?.message || "Failed to delete status. Please try again.",
+        confirmText: "OK",
+        variant: "destructive",
+      });
     }
   };
 
@@ -468,24 +516,15 @@ export default function StatusesPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            disabled={hasLinkedTasks}
                             onClick={() => handleDelete(status)}
-                            className={
-                              hasLinkedTasks
-                                ? "h-8 w-8 text-muted-foreground/30 cursor-not-allowed"
-                                : "h-8 w-8 text-destructive hover:bg-destructive/10"
-                            }
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
                             title={
                               hasLinkedTasks
-                                ? `Cannot delete: ${taskCount} task(s) are using this status`
+                                ? `Delete status (will reassign ${taskCount} task(s))`
                                 : "Delete Status"
                             }
                           >
-                            {hasLinkedTasks ? (
-                              <ShieldAlert className="w-4 h-4 opacity-40" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </TableCell>
                       </TableRow>

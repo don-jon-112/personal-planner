@@ -22,9 +22,18 @@ export default function Home() {
   const { canView } = usePermissions();
   const { isSuperAdmin } = useAuth();
 
-  const { data: allTasks } = useCollection<any>("timelineTasks");
-  const { data: allEpics } = useCollection<any>("timelineEpics");
-  const { data: allBugs } = useCollection<any>("bugReports");
+  const { data: allTasks } = useCollection<any>("timelineTasks", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
+  const { data: allEpics } = useCollection<any>("timelineEpics", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
+  const { data: allBugs } = useCollection<any>("bugReports", {
+    projectId: activeProject?.id,
+    enabled: Boolean(activeProject?.id),
+  });
 
   // Show loading state while project data is loading
   if (isLoading) {
@@ -94,7 +103,17 @@ export default function Home() {
   const getTime = (doc: any) => {
     if (doc.createdAt?.toMillis) return doc.createdAt.toMillis();
     if (doc.createdAt?.seconds) return doc.createdAt.seconds * 1000;
-    return Date.now();
+    if (doc.createdAt) {
+      const parsed = new Date(doc.createdAt).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
+    if (doc.updatedAt?.toMillis) return doc.updatedAt.toMillis();
+    if (doc.updatedAt?.seconds) return doc.updatedAt.seconds * 1000;
+    if (doc.updatedAt) {
+      const parsed = new Date(doc.updatedAt).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
+    return 0;
   };
 
   const activities = [

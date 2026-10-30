@@ -52,6 +52,7 @@ export function useCollection<T>(collectionName: string, options?: UseCollection
         }
         const res = await fetch(url, {
           headers: getPostgresHeaders(),
+          cache: 'no-store',
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
@@ -230,6 +231,7 @@ export function useDeleteDocument(collectionName: string) {
         const res = await fetch(`/api/db/query?collection=${encodeURIComponent(collectionName)}&id=${encodeURIComponent(cleanId)}`, {
           method: 'DELETE',
           headers: getPostgresHeaders(),
+          cache: 'no-store',
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
@@ -337,6 +339,7 @@ export function useDocument<T>(collectionName: string, docId: string) {
       if (getActiveDatabaseProvider() === 'postgres') {
         const res = await fetch(`/api/db/query?collection=${encodeURIComponent(collectionName)}&id=${encodeURIComponent(cleanId)}`, {
           headers: getPostgresHeaders(),
+          cache: 'no-store',
         });
         if (!res.ok) return null;
         const json = await res.json();
