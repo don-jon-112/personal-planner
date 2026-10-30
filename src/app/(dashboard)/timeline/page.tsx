@@ -44,7 +44,7 @@ import { ProjectShareDialog } from "@/components/project-share-dialog";
 import { cn } from "@/lib/utils";
 import { computeAllTaskOverlaps, OverlapResult } from "@/lib/overlap-utils";
 import { useConfirm, useAlertModal } from "@/components/confirm-dialog-provider";
-import { useTaskStatuses } from "@/hooks/use-task-statuses";
+import { useTaskStatuses, isStatusDone } from "@/hooks/use-task-statuses";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
   DropdownMenu,
@@ -846,7 +846,7 @@ function EpicSegmentGroup({
   };
 
   const totalTasks = allEpicTasks.length;
-  const doneTasks = allEpicTasks.filter((t: any) => t.status === "DONE").length;
+  const doneTasks = allEpicTasks.filter((t: any) => isStatusDone(t.status, taskStatuses)).length;
   const activeTasks = allEpicTasks.filter((t: any) => t.status !== "WON'T DO" && t.status !== "WONT DO").length;
   const percentage = activeTasks === 0 ? (totalTasks > 0 ? 100 : 0) : Math.round((doneTasks / activeTasks) * 100);
 

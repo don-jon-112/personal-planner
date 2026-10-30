@@ -23,7 +23,9 @@ import {
   Check, 
   X,
   Palette,
-  ShieldAlert
+  ShieldAlert,
+  CheckCircle2,
+  Circle
 } from "lucide-react";
 import { useCollection, useUpdateBatch } from "@/hooks/use-firestore";
 import { useConfirm } from "@/components/confirm-dialog-provider";
@@ -32,10 +34,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useProject } from "@/components/project-context";
 import { useTaskStatuses, TaskStatus } from "@/hooks/use-task-statuses";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(1, "Status Name is required"),
   color: z.string().min(1, "Color is required"),
+  isCompleted: z.boolean(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -51,7 +55,8 @@ export default function StatusesPage() {
     addStatus, 
     updateStatus, 
     deleteStatus, 
-    initializeDefaultStatuses 
+    initializeDefaultStatuses,
+    isCompletedStatus
   } = useTaskStatuses();
 
   const { data: tasks = [] } = useCollection<any>("timelineTasks");
@@ -78,6 +83,7 @@ export default function StatusesPage() {
     defaultValues: {
       name: "",
       color: "#3b82f6",
+      isCompleted: false,
     },
   });
 
@@ -111,16 +117,30 @@ export default function StatusesPage() {
         color: data.color,
         order: statuses.length + 1,
         projectId: activeProject.id,
+        isCompleted: Boolean(data.isCompleted),
       });
 
       form.reset({
         name: "",
         color: "#3b82f6",
+        isCompleted: false,
       });
     } catch (error) {
       console.error(error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleCompleted = async (status: TaskStatus) => {
+    const currentlyDone = isCompletedStatus(status.name);
+    try {
+      await updateStatus({
+        id: status.id,
+        data: { isCompleted: !currentlyDone },
+      });
+    } catch (error) {
+      console.error("Failed to toggle status completion:", error);
     }
   };
 
@@ -268,6 +288,20 @@ export default function StatusesPage() {
               </div>
             </div>
 
+            <div className="flex items-center gap-2 pb-2.5">
+              <label className="flex items-center gap-2 cursor-pointer select-none bg-muted/20 px-3 py-2 rounded-lg border border-border/60 hover:bg-muted/40 transition-colors">
+                <input
+                  type="checkbox"
+                  {...form.register("isCompleted")}
+                  className="w-4 h-4 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                />
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Kategori &quot;Done&quot; (Progress Epic)
+                </span>
+              </label>
+            </div>
+
             <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-10 shadow-xs">
               <Plus className="w-4 h-4 mr-1.5" />
               {isSubmitting ? "Adding..." : "Add Status"}
@@ -299,6 +333,7 @@ export default function StatusesPage() {
                 <TableRow>
                   <TableHead className="w-[80px]">Color</TableHead>
                   <TableHead>Status Name</TableHead>
+                  <TableHead className="w-[160px] text-center">Done Category</TableHead>
                   <TableHead>Associated Tasks</TableHead>
                   <TableHead className="w-[120px] text-center">% of Tasks</TableHead>
                   <TableHead className="w-[100px] text-right pr-4">Actions</TableHead>
@@ -307,13 +342,13 @@ export default function StatusesPage() {
               <TableBody>
                 {isStatusesLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                       Loading Statuses...
                     </TableCell>
                   </TableRow>
                 ) : filteredStatuses.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                       <p className="text-base font-medium">No status found.</p>
                       <p className="text-xs text-muted-foreground/70 mt-1">
                         Add a status above to customize your workflow.
@@ -396,6 +431,37 @@ export default function StatusesPage() {
                               </button>
                             </div>
                           )}
+                        </TableCell>
+
+                        {/* Done Category Toggle */}
+                        <TableCell className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCompleted(status)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all border shadow-2xs cursor-pointer select-none",
+                              isCompletedStatus(status.name)
+                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/25"
+                                : "bg-muted/70 text-muted-foreground border-border/80 hover:bg-muted hover:text-foreground"
+                            )}
+                            title={
+                              isCompletedStatus(status.name)
+                                ? "Status ini dihitung sebagai 'Done' di progress Epic. Klik untuk menonaktifkan."
+                                : "Klik untuk menjadikan status ini dihitung sebagai 'Done' di progress Epic."
+                            }
+                          >
+                            {isCompletedStatus(status.name) ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>Counts as Done</span>
+                              </>
+                            ) : (
+                              <>
+                                <Circle className="w-3.5 h-3.5 opacity-40" />
+                                <span>Not Done</span>
+                              </>
+                            )}
+                          </button>
                         </TableCell>
 
                         {/* Associated Tasks */}

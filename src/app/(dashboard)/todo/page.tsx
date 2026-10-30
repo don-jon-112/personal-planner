@@ -75,7 +75,7 @@ export default function TodoPage() {
   const { data: epics = [], isLoading: isEpicsLoading } = useCollection<any>("timelineEpics");
   const { data: pics = [] } = useCollection<any>("timelinePics");
   const { data: holidays = [] } = useCollection<any>("timelineHolidays");
-  const { statuses: taskStatuses } = useTaskStatuses();
+  const { statuses: taskStatuses, isCompletedStatus } = useTaskStatuses();
 
   const activeTasks = useMemo(() => {
     return tasks.filter((t: any) => isItemInActiveProject(t.projectId));
@@ -551,15 +551,15 @@ export default function TodoPage() {
         } else if (epicSortConfig.key === "progress") {
           const aTasks = currentTasks.filter((t) => t.epicId === a.id);
           const bTasks = currentTasks.filter((t) => t.epicId === b.id);
-          const aDone = aTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length;
-          const bDone = bTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length;
+          const aDone = aTasks.filter((t) => isCompletedStatus(t.status)).length;
+          const bDone = bTasks.filter((t) => isCompletedStatus(t.status)).length;
           aVal = aTasks.length > 0 ? aDone / aTasks.length : 0;
           bVal = bTasks.length > 0 ? bDone / bTasks.length : 0;
         } else if (epicSortConfig.key === "status") {
           const aTasks = currentTasks.filter((t) => t.epicId === a.id);
           const bTasks = currentTasks.filter((t) => t.epicId === b.id);
-          const aDone = aTasks.length > 0 && aTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length === aTasks.length;
-          const bDone = bTasks.length > 0 && bTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length === bTasks.length;
+          const aDone = aTasks.length > 0 && aTasks.filter((t) => isCompletedStatus(t.status)).length === aTasks.length;
+          const bDone = bTasks.length > 0 && bTasks.filter((t) => isCompletedStatus(t.status)).length === bTasks.length;
           aVal = aDone ? "DONE" : aTasks.length > 0 ? "ON PROGRESS" : "NO TASKS";
           bVal = bDone ? "DONE" : bTasks.length > 0 ? "ON PROGRESS" : "NO TASKS";
         }

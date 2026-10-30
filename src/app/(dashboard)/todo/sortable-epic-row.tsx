@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/components/confirm-dialog-provider";
+import { useTaskStatuses } from "@/hooks/use-task-statuses";
 
 interface SortableEpicRowProps {
   epic: any;
@@ -34,6 +35,7 @@ export function SortableEpicRow({
   canDelete,
 }: SortableEpicRowProps) {
   const confirm = useConfirm();
+  const { isCompletedStatus } = useTaskStatuses();
   const {
     attributes,
     listeners,
@@ -53,7 +55,7 @@ export function SortableEpicRow({
   const epicTasks = tasks.filter((t) => t.epicId === epic.id);
   const totalTasks = epicTasks.length;
   const totalMd = Number(epicTasks.reduce((sum, t) => sum + (parseFloat(t.md) || 0), 0).toFixed(3));
-  const doneTasks = epicTasks.filter((t) => (t.status || "").trim().toUpperCase() === "DONE").length;
+  const doneTasks = epicTasks.filter((t) => isCompletedStatus(t.status)).length;
   const activeTasks = epicTasks.filter((t) => {
     const s = (t.status || "").trim().toUpperCase();
     return s !== "WON'T DO" && s !== "WONT DO";

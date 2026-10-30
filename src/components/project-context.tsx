@@ -91,6 +91,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 name: def.name,
                 color: def.color,
                 order: def.order,
+                isCompleted: Boolean(def.isCompleted),
                 projectId: res.id,
               });
             }
@@ -141,6 +142,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
           name: def.name,
           color: def.color,
           order: def.order,
+          isCompleted: Boolean(def.isCompleted),
           projectId: res.id,
         });
       }

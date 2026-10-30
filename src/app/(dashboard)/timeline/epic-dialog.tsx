@@ -24,7 +24,22 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Layers, CheckSquare, Clock, ArrowRight, FileText, User, Search, X } from "lucide-react";
+import { 
+  Layers, 
+  CheckSquare, 
+  Clock, 
+  ArrowRight, 
+  FileText, 
+  User, 
+  Search, 
+  X,
+  CheckCircle2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
@@ -65,13 +80,15 @@ export function EpicDialog({
 
   const { data: allTasks = [], isLoading: isTasksLoading } = useCollection<any>("timelineTasks");
   const { data: pics = [] } = useCollection<any>("timelinePics");
-  const { getStatusBadgeStyle } = useTaskStatuses();
+  const { statuses = [], getStatusBadgeStyle, getStatusColor, isCompletedStatus } = useTaskStatuses();
 
   const { mutateAsync: addEpic, isPending: isAdding } = useAddDocument("timelineEpics");
   const { mutateAsync: updateEpic, isPending: isUpdating } = useUpdateDocument("timelineEpics");
 
   const [taskSearchQuery, setTaskSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const isEditing = Boolean(epicToEdit && epicToEdit.id);
 
@@ -84,9 +101,42 @@ export function EpicDialog({
   }, [allTasks, epicToEdit, isItemInActiveProject]);
 
   const totalTasks = epicTasks.length;
-  const doneTasks = epicTasks.filter((t) => t.status === "DONE" || t.status === "COMPLETED").length;
-  const totalMd = epicTasks.reduce((sum, t) => sum + (Number(t.md) || 0), 0);
+  const doneTasks = epicTasks.filter((t) => isCompletedStatus(t.status)).length;
+  const totalMd = Number(epicTasks.reduce((sum, t) => sum + (Number(t.md) || 0), 0).toFixed(2));
   const completionPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  // Full status breakdown calculation
+  const statusBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    epicTasks.forEach((t) => {
+      const st = (t.status || "TODO").trim().toUpperCase();
+      counts[st] = (counts[st] || 0) + 1;
+    });
+
+    const allNames = new Set<string>();
+    statuses.forEach((s) => allNames.add(s.name.trim().toUpperCase()));
+    Object.keys(counts).forEach((st) => allNames.add(st));
+
+    const list = Array.from(allNames).map((stName) => {
+      const count = counts[stName] || 0;
+      const pct = totalTasks > 0 ? Math.round((count / totalTasks) * 100) : 0;
+      const color = getStatusColor(stName);
+      const isDone = isCompletedStatus(stName);
+      const statusObj = statuses.find((s) => s.name.trim().toUpperCase() === stName);
+      return {
+        name: stName,
+        count,
+        pct,
+        color,
+        isDone,
+        order: statusObj?.order ?? (isDone ? 99 : 50),
+      };
+    });
+
+    return list
+      .filter((item) => item.count > 0 || statuses.some((s) => s.name.trim().toUpperCase() === item.name))
+      .sort((a, b) => a.order - b.order);
+  }, [epicTasks, statuses, totalTasks, getStatusColor, isCompletedStatus]);
 
   // Filtered tasks by search and status inside dialog
   const filteredTasks = useMemo(() => {
@@ -105,6 +155,23 @@ export function EpicDialog({
     });
   }, [epicTasks, statusFilter, taskSearchQuery]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [taskSearchQuery, statusFilter]);
+
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTasks.slice(start, start + pageSize);
+  }, [filteredTasks, currentPage, pageSize]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: epicToEdit ? { name: epicToEdit.name || "" } : { name: "" },
@@ -115,6 +182,7 @@ export function EpicDialog({
       form.reset(epicToEdit ? { name: epicToEdit.name || "" } : { name: "" });
       setTaskSearchQuery("");
       setStatusFilter("ALL");
+      setCurrentPage(1);
     }
   }, [epicToEdit, open, form]);
 
@@ -199,58 +267,134 @@ export function EpicDialog({
         {/* Epic Stats & Tasks Section (shown only when editing an existing epic) */}
         {isEditing && (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {/* Toolbar: Stats & Search & Status Filter */}
-            <div className="px-5 py-2.5 bg-muted/20 border-b border-border/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              {/* Left: Search & Filter */}
-              <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={taskSearchQuery}
-                    onChange={(e) => setTaskSearchQuery(e.target.value)}
-                    placeholder="Cari task atau PIC di epic ini..."
-                    className="h-8 pl-8 pr-7 text-xs bg-background"
-                  />
-                  {taskSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setTaskSearchQuery("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+            {/* Full Status Breakdown & Progress Header */}
+            <div className="px-5 py-3 bg-muted/15 border-b border-border/50 space-y-2.5 shrink-0">
+              {/* Row 1: Title & Key Stats */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                <div>
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Distribusi Status & Progres Epic
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Klik salah satu status di bawah untuk memfilter daftar task secara cepat.
+                  </p>
                 </div>
 
-                {/* Quick Status Filters */}
-                <div className="flex items-center gap-1 overflow-x-auto py-0.5">
-                  {["ALL", "TODO", "ON PROGRESS", "IN REVIEW", "DONE"].map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setStatusFilter(st)}
-                      className={cn(
-                        "px-2 py-1 rounded text-[11px] font-semibold transition-all whitespace-nowrap",
-                        statusFilter === st
-                          ? "bg-primary text-primary-foreground shadow-2xs"
-                          : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      {st}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2.5 text-xs">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/20 shadow-2xs">
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    {doneTasks} / {totalTasks} Selesai ({completionPct}%)
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-muted text-muted-foreground font-semibold border border-border/60">
+                    <Clock className="w-3.5 h-3.5 opacity-70" />
+                    {totalMd} Total MD
+                  </span>
                 </div>
               </div>
 
-              {/* Right: Stats Summary */}
-              <div className="flex items-center gap-3 shrink-0 text-xs">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary font-semibold border border-primary/20">
-                  <CheckSquare className="w-3.5 h-3.5" />
-                  {doneTasks} / {totalTasks} Done ({completionPct}%)
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted text-muted-foreground font-semibold border border-border/60">
-                  <Clock className="w-3.5 h-3.5 opacity-70" />
-                  {totalMd} Total MD
+              {/* Row 2: Multi-Segment Progress Bar */}
+              {totalTasks > 0 && (
+                <div className="w-full h-2.5 bg-muted/60 rounded-full overflow-hidden flex shadow-inner border border-border/40">
+                  {statusBreakdown.map((item) => {
+                    if (item.count === 0) return null;
+                    const widthPct = (item.count / totalTasks) * 100;
+                    return (
+                      <div
+                        key={item.name}
+                        style={{ width: `${widthPct}%`, backgroundColor: item.color }}
+                        className="h-full transition-all duration-300 relative group/seg"
+                        title={`${item.name}: ${item.count} task (${item.pct}%)`}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Row 3: Interactive Status Pills with counts and percentages */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("ALL")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all border cursor-pointer select-none",
+                    statusFilter === "ALL"
+                      ? "bg-foreground text-background border-foreground shadow-2xs font-bold"
+                      : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <span>ALL</span>
+                  <span className="text-[10px] opacity-80 font-mono">({totalTasks})</span>
+                </button>
+
+                {statusBreakdown.map((item) => {
+                  const isActive = statusFilter === item.name;
+                  return (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() => setStatusFilter(isActive ? "ALL" : item.name)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all border cursor-pointer select-none",
+                        isActive
+                          ? "ring-2 ring-primary ring-offset-1 shadow-2xs font-bold"
+                          : "hover:bg-muted/60 opacity-90 hover:opacity-100"
+                      )}
+                      style={{
+                        backgroundColor: `${item.color}15`,
+                        color: item.color,
+                        borderColor: `${item.color}40`,
+                      }}
+                      title={`Filter task: ${item.name} (${item.count} task, ${item.pct}%)`}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span>{item.name}</span>
+                      <span className="text-[10px] font-mono font-bold">
+                        {item.count} ({item.pct}%)
+                      </span>
+                      {item.isDone && (
+                        <span title="Status ini terhitung Done" className="inline-flex items-center">
+                          <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Toolbar: Search input & Active Filter info */}
+            <div className="px-5 py-2.5 bg-background border-b border-border/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={taskSearchQuery}
+                  onChange={(e) => setTaskSearchQuery(e.target.value)}
+                  placeholder="Cari task atau PIC di epic ini..."
+                  className="h-8 pl-8 pr-7 text-xs bg-muted/20"
+                />
+                {taskSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setTaskSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {statusFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-primary/10 text-primary font-medium">
+                    Filter: <strong>{statusFilter}</strong>
+                    <button type="button" onClick={() => setStatusFilter("ALL")} className="hover:text-destructive">
+                      <X className="w-3 h-3 ml-0.5" />
+                    </button>
+                  </span>
+                )}
+                <span>
+                  Total difilter: <strong className="text-foreground">{filteredTasks.length}</strong> task
                 </span>
               </div>
             </div>
@@ -289,7 +433,8 @@ export function EpicDialog({
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredTasks.map((task, idx) => {
+                      paginatedTasks.map((task, idx) => {
+                        const rowNum = (currentPage - 1) * pageSize + idx + 1;
                         const picColor = getPicColor(task.pic, pics);
                         const statusStyle = getStatusBadgeStyle(task.status);
                         const hasNotes = Array.isArray(task.notes) && task.notes.length > 0;
@@ -312,7 +457,7 @@ export function EpicDialog({
                             }}
                           >
                             <TableCell className="text-center text-xs text-muted-foreground py-1.5">
-                              {idx + 1}
+                              {rowNum}
                             </TableCell>
                             <TableCell className="py-1.5">
                               <div className="flex items-center gap-1.5 min-w-0">
@@ -380,20 +525,105 @@ export function EpicDialog({
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-2.5 border-t border-border/60 bg-muted/20 flex items-center justify-between text-xs text-muted-foreground shrink-0">
-              <span>
-                Menampilkan <strong>{filteredTasks.length}</strong> dari <strong>{totalTasks}</strong> task
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 px-3 text-xs"
-                onClick={() => setOpen(false)}
-              >
-                Tutup
-              </Button>
+            {/* Footer with Pagination Controls */}
+            <div className="px-5 py-2.5 border-t border-border/60 bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground shrink-0">
+              {/* Left: Summary text & Page Size Selector */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span>
+                  Menampilkan <strong>{filteredTasks.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}</strong> -{" "}
+                  <strong>{Math.min(currentPage * pageSize, filteredTasks.length)}</strong> dari{" "}
+                  <strong>{filteredTasks.length}</strong> task
+                  {filteredTasks.length !== totalTasks && (
+                    <span className="text-muted-foreground/80 ml-1">
+                      (difilter dari {totalTasks} total)
+                    </span>
+                  )}
+                </span>
+
+                <div className="flex items-center gap-1.5 pl-3 border-l border-border/60">
+                  <span>Per hal:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="h-7 text-xs rounded border border-border bg-background px-1.5 py-0.5 text-foreground focus:ring-1 focus:ring-primary outline-none cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Right: Pagination Navigation & Close Button */}
+              <div className="flex items-center gap-2">
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1 mr-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      title="Halaman Pertama"
+                    >
+                      <ChevronsLeft className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      title="Halaman Sebelumnya"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </Button>
+
+                    <span className="text-xs px-2 font-medium text-foreground whitespace-nowrap">
+                      {currentPage} / {totalPages}
+                    </span>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      title="Halaman Berikutnya"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      title="Halaman Terakhir"
+                    >
+                      <ChevronsRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setOpen(false)}
+                >
+                  Tutup
+                </Button>
+              </div>
             </div>
           </div>
         )}

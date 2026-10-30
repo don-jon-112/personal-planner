@@ -11,14 +11,25 @@ export interface TaskStatus {
   projectId?: string;
   order?: number;
   isDefault?: boolean;
+  isCompleted?: boolean;
+}
+
+export function isStatusDone(statusName?: string, statuses: TaskStatus[] = []): boolean {
+  if (!statusName) return false;
+  const normalized = statusName.trim().toUpperCase();
+  const found = statuses.find((s) => (s.name || "").trim().toUpperCase() === normalized);
+  if (found && typeof found.isCompleted === "boolean") {
+    return found.isCompleted;
+  }
+  return normalized === "DONE" || normalized === "COMPLETED";
 }
 
 export const DEFAULT_TASK_STATUSES: Omit<TaskStatus, "id">[] = [
-  { name: "TODO", color: "#94a3b8", order: 1 },
-  { name: "ON PROGRESS", color: "#3b82f6", order: 2 },
-  { name: "IN REVIEW", color: "#a855f7", order: 3 },
-  { name: "DONE", color: "#22c55e", order: 4 },
-  { name: "WON'T DO", color: "#ef4444", order: 5 },
+  { name: "TODO", color: "#94a3b8", order: 1, isCompleted: false },
+  { name: "ON PROGRESS", color: "#3b82f6", order: 2, isCompleted: false },
+  { name: "IN REVIEW", color: "#a855f7", order: 3, isCompleted: false },
+  { name: "DONE", color: "#22c55e", order: 4, isCompleted: true },
+  { name: "WON'T DO", color: "#ef4444", order: 5, isCompleted: false },
 ];
 
 export const DEFAULT_STATUS_COLORS: Record<string, string> = {
@@ -138,6 +149,10 @@ export function useTaskStatuses(explicitProjectId?: string) {
     };
   };
 
+  const isCompletedStatus = useCallback((statusName?: string): boolean => {
+    return isStatusDone(statusName, projectStatuses);
+  }, [projectStatuses]);
+
   const initializeDefaultStatuses = useCallback(async (targetProjectId?: string) => {
     const pid = targetProjectId || currentProjectId;
     if (!pid) return;
@@ -162,6 +177,7 @@ export function useTaskStatuses(explicitProjectId?: string) {
             name: s.name,
             color: s.color,
             order: s.order,
+            isCompleted: Boolean(s.isCompleted),
             projectId: pid,
           });
         }
@@ -197,6 +213,7 @@ export function useTaskStatuses(explicitProjectId?: string) {
     isDeleting,
     getStatusColor,
     getStatusBadgeStyle,
+    isCompletedStatus,
     addStatus: addStatusDoc,
     updateStatus: updateStatusDoc,
     deleteStatus: deleteStatusDoc,
