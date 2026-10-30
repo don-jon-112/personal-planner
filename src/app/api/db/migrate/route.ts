@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPostgresSql, ensureAppDocumentsTable } from '@/lib/postgres-server';
 
 export async function POST(req: NextRequest) {
-  let sql: any = null;
   try {
     const body = await req.json();
     const { connectionString, collectionName, items } = body;
@@ -11,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Parameter tidak lengkap.' }, { status: 400 });
     }
 
-    sql = getPostgresSql(connectionString);
+    const sql = getPostgresSql(connectionString);
 
     // 1. Ensure table exists
     await ensureAppDocumentsTable(sql);
@@ -50,9 +49,5 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('Migration chunk error:', err);
     return NextResponse.json({ success: false, error: err?.message || 'Gagal memigrasikan batch.' }, { status: 500 });
-  } finally {
-    if (sql) {
-      await sql.end({ timeout: 5 }).catch(() => {});
-    }
   }
 }

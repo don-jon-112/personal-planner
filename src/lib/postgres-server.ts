@@ -1,35 +1,42 @@
 import postgres from 'postgres';
 
-// Global cache for serverless environments to prevent connection exhaustion
-let globalSql: postgres.Sql | null = null;
-let currentDbUrl = '';
+// Client connection pool map cached by connection URL to prevent connection exhaustion
+const clientPool = new Map<string, postgres.Sql>();
+
+// Normalize Supabase & PostgreSQL Connection String:
+// Supabase pooler on port 5432 is "Session Mode" which has a strict limit of 15 connections (EMAXCONNSESSION).
+// Switching to port 6543 activates "Transaction Mode", which is designed for Serverless (Vercel/Next.js)
+// and supports thousands of pooled connections without connection exhaustion.
+export function normalizePostgresUrl(url: string): string {
+  let clean = url.trim();
+  if (clean.includes('.pooler.supabase.com:5432')) {
+    clean = clean.replace('.pooler.supabase.com:5432', '.pooler.supabase.com:6543');
+  }
+  return clean;
+}
 
 export function getPostgresSql(customUrl?: string): postgres.Sql {
-  const url = customUrl || process.env.DATABASE_URL;
-  if (!url) {
+  const rawUrl = customUrl || process.env.DATABASE_URL;
+  if (!rawUrl) {
     throw new Error('DATABASE_URL is not configured.');
   }
 
-  // Use cached client if URL hasn't changed and no customUrl is provided
-  if (!customUrl && globalSql && currentDbUrl === url) {
-    return globalSql;
+  const url = normalizePostgresUrl(rawUrl);
+
+  if (clientPool.has(url)) {
+    return clientPool.get(url)!;
   }
 
-  // Determine SSL: cloud Postgres (Supabase, Neon, Railway, AWS) requires SSL
   const isLocal = url.includes('localhost') || url.includes('127.0.0.1');
   const sql = postgres(url, {
     ssl: isLocal ? false : 'require',
-    max: 10,
-    idle_timeout: 20,
+    max: 1, // Single connection per serverless function to prevent pool exhaustion in Supabase / PgBouncer
+    idle_timeout: 5,
     connect_timeout: 15,
-    prepare: false, // Disables prepared statements for full compatibility with Supabase Pooler (PgBouncer)
+    prepare: false, // Critical for Supabase Transaction Pooler (port 6543 / PgBouncer)
   });
 
-  if (!customUrl) {
-    globalSql = sql;
-    currentDbUrl = url;
-  }
-
+  clientPool.set(url, sql);
   return sql;
 }
 
@@ -60,7 +67,6 @@ export async function ensureAppDocumentsTable(sql: postgres.Sql): Promise<void> 
 
 // 2. Test Connection, Auto-Ensure Table, and Count Rows
 export async function testPostgresConnection(connectionString: string): Promise<{ success: boolean; count?: number; error?: string }> {
-  let sql: postgres.Sql | null = null;
   try {
     if (!connectionString || !connectionString.trim()) {
       return { success: false, error: 'Connection string PostgreSQL wajib diisi.' };
@@ -77,7 +83,7 @@ export async function testPostgresConnection(connectionString: string): Promise<
       };
     }
 
-    sql = getPostgresSql(cleanUrl);
+    const sql = getPostgresSql(cleanUrl);
     
     // Auto-create table if not exists so it's 100% ready immediately
     await ensureAppDocumentsTable(sql);
@@ -86,12 +92,8 @@ export async function testPostgresConnection(connectionString: string): Promise<
     const countRes = await sql`SELECT count(*)::int as total FROM app_documents`;
     const count = countRes[0]?.total || 0;
 
-    await sql.end({ timeout: 5 });
     return { success: true, count };
   } catch (err: any) {
-    if (sql) {
-      await sql.end({ timeout: 2 }).catch(() => {});
-    }
     console.error('PostgreSQL connection test failed:', err);
     return { 
       success: false, 
