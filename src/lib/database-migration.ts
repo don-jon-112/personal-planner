@@ -29,6 +29,27 @@ export interface MigrationProgress {
   statusText: string;
 }
 
+// Helper to convert Firestore Timestamps & strip undefined for clean JSON serialization
+function sanitizeFirestoreData(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (typeof obj.toDate === 'function') {
+    return obj.toDate().toISOString();
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeFirestoreData);
+  }
+  if (obj.constructor && obj.constructor.name !== 'Object') {
+    return obj;
+  }
+  const clean: any = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined && typeof val !== 'function') {
+      clean[key] = sanitizeFirestoreData(val);
+    }
+  }
+  return clean;
+}
+
 // 1. Test PostgreSQL Connection via API
 export async function testPostgresConnection(connectionString: string): Promise<{ success: boolean; error?: string }> {
   try {
@@ -62,7 +83,8 @@ export async function fetchAllActiveFirestoreData(): Promise<Record<string, any[
       const snap = await getDocs(collection(db, col));
       const items: any[] = [];
       snap.forEach((d) => {
-        items.push({ id: d.id, ...d.data() });
+        const sanitized = sanitizeFirestoreData(d.data());
+        items.push({ id: d.id, ...sanitized });
       });
       result[col] = items;
     } catch (err) {
@@ -136,7 +158,11 @@ export async function migrateToPostgres(
       statusText: `Menulis ke PostgreSQL: "${colName}" (${items.length} baris)...`
     });
 
-    const CHUNK_SIZE = 100;
+    if (items.length === 0) {
+      continue;
+    }
+
+    const CHUNK_SIZE = 50;
     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
       const chunk = items.slice(i, i + CHUNK_SIZE);
 
@@ -177,7 +203,7 @@ export async function migrateToPostgres(
     currentItems: totalMigrated,
     totalItems: totalMigrated,
     percentage: 100,
-    statusText: "Migrasi ke PostgreSQL selesai 100%!"
+    statusText: `Migrasi selesai! ${totalMigrated} dokumen berhasil disalin.`
   });
 
   return { success: true, totalMigrated, summary };

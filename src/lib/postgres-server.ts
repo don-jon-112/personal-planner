@@ -58,8 +58,8 @@ export async function ensureAppDocumentsTable(sql: postgres.Sql): Promise<void> 
   `;
 }
 
-// 2. Test Connection and Auto-Ensure Table
-export async function testPostgresConnection(connectionString: string): Promise<{ success: boolean; error?: string }> {
+// 2. Test Connection, Auto-Ensure Table, and Count Rows
+export async function testPostgresConnection(connectionString: string): Promise<{ success: boolean; count?: number; error?: string }> {
   let sql: postgres.Sql | null = null;
   try {
     if (!connectionString || !connectionString.trim()) {
@@ -79,14 +79,15 @@ export async function testPostgresConnection(connectionString: string): Promise<
 
     sql = getPostgresSql(cleanUrl);
     
-    // Quick test query
-    await sql`SELECT 1 as test_conn`;
-
     // Auto-create table if not exists so it's 100% ready immediately
     await ensureAppDocumentsTable(sql);
 
+    // Count existing rows
+    const countRes = await sql`SELECT count(*)::int as total FROM app_documents`;
+    const count = countRes[0]?.total || 0;
+
     await sql.end({ timeout: 5 });
-    return { success: true };
+    return { success: true, count };
   } catch (err: any) {
     if (sql) {
       await sql.end({ timeout: 2 }).catch(() => {});

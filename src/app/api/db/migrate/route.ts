@@ -18,32 +18,27 @@ export async function POST(req: NextRequest) {
 
     // 2. Insert items in chunks
     if (items.length > 0) {
-      const rows = items.map((item: any) => {
+      for (const item of items) {
         const docId = String(item.id || '').trim();
+        if (!docId) continue;
         const { id, ...dataPayload } = item;
         const projectId = item.projectId || null;
-        return {
-          id: docId,
-          collection_name: collectionName,
-          project_id: projectId,
-          data: JSON.stringify(dataPayload),
-          updated_at: new Date().toISOString(),
-        };
-      }).filter((r: any) => Boolean(r.id));
 
-      if (rows.length > 0) {
-        // Multi-row upsert
-        for (const row of rows) {
-          await sql`
-            INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
-            VALUES (${row.id}, ${row.collection_name}, ${row.project_id}, ${row.data}::jsonb, ${row.updated_at})
-            ON CONFLICT (collection_name, id)
-            DO UPDATE SET
-              project_id = EXCLUDED.project_id,
-              data = EXCLUDED.data,
-              updated_at = EXCLUDED.updated_at;
-          `;
-        }
+        await sql`
+          INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
+          VALUES (
+            ${docId},
+            ${collectionName},
+            ${projectId},
+            ${sql.json(dataPayload)},
+            NOW()
+          )
+          ON CONFLICT (collection_name, id)
+          DO UPDATE SET
+            project_id = EXCLUDED.project_id,
+            data = EXCLUDED.data,
+            updated_at = NOW();
+        `;
       }
     }
 
@@ -61,4 +56,3 @@ export async function POST(req: NextRequest) {
     }
   }
 }
-

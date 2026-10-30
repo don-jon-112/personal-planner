@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         const projectId = mergedData.projectId || null;
         await sql`
           INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
-          VALUES (${docId}, ${colName}, ${projectId}, ${JSON.stringify(mergedData)}::jsonb, NOW())
+          VALUES (${docId}, ${colName}, ${projectId}, ${sql.json(mergedData)}, NOW())
           ON CONFLICT (collection_name, id)
           DO UPDATE SET
             project_id = EXCLUDED.project_id,
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
     await sql`
       INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
-      VALUES (${docId}, ${colName}, ${projectId}, ${JSON.stringify(data)}::jsonb, NOW())
+      VALUES (${docId}, ${colName}, ${projectId}, ${sql.json(data)}, NOW())
       ON CONFLICT (collection_name, id)
       DO UPDATE SET
         project_id = EXCLUDED.project_id,
@@ -133,7 +133,7 @@ export async function PUT(req: NextRequest) {
 
     await sql`
       INSERT INTO app_documents (id, collection_name, project_id, data, updated_at)
-      VALUES (${id}, ${colName}, ${projectId}, ${JSON.stringify(mergedData)}::jsonb, NOW())
+      VALUES (${id}, ${colName}, ${projectId}, ${sql.json(mergedData)}, NOW())
       ON CONFLICT (collection_name, id)
       DO UPDATE SET
         project_id = EXCLUDED.project_id,
@@ -173,4 +173,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Database delete error' }, { status: 500 });
   }
 }
-

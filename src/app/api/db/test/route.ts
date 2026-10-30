@@ -13,10 +13,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Koneksi ke database PostgreSQL berhasil! Tabel app_documents dan index otomatis dibuat & siap digunakan.',
+      count: res.count ?? 0,
+      message: `Koneksi berhasil! Ditemukan ${res.count ?? 0} dokumen tersimpan di tabel app_documents.`,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err?.message || 'Internal server error' }, { status: 500 });
   }
 }
-
