@@ -702,109 +702,105 @@ export default function SettingsPage() {
         </div>
       </PanelHeader>
 
-      <PanelContent className="flex-1 overflow-auto p-6">
-        <div className="max-w-2xl space-y-8">
-          
-          <section className="bg-card border rounded-xl p-6 shadow-sm">
-            <div className="mb-6">
+            <PanelContent className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-[1600px] mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            
+            {/* ==================== KOLOM KIRI ==================== */}
+            <div className="space-y-6">
+              <DatabaseProviderSection />
+
+              {/* Local File Backup & Restore Section */}
+          <section className="bg-card border rounded-xl p-6 shadow-sm space-y-6">
+            <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
-                Menu Visibility
+                <Database className="w-5 h-5 text-primary" />
+                Local Backup & Restore (.JSON)
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Choose which menus you want to display in the sidebar and mobile navigation.
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Simpan salinan database lengkap ke file JSON di komputer Anda (offline backup), atau pulihkan data dari file backup ke Firebase kapan saja.
               </p>
             </div>
 
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading settings...</p>
-            ) : (
-              <div className="space-y-4">
-                {menuItems.map((item) => {
-                  if (item.children) {
-                    return (
-                      <div key={item.name} className="space-y-2">
-                        <div className="flex items-center gap-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          <item.icon className="w-3.5 h-3.5" />
-                          <span>{item.name}</span>
-                        </div>
-                        <div className="space-y-2 pl-3 border-l-2 border-primary/30">
-                          {item.children.map((subItem) => {
-                            const isHidden = hiddenMenus.includes(subItem.href);
-                            const SubIcon = subItem.icon || item.icon;
-
-                            return (
-                              <div key={subItem.href} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 rounded bg-background shadow-sm border">
-                                    <SubIcon className="w-4 h-4 text-primary" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-sm">{subItem.name}</p>
-                                    <p className="text-xs text-muted-foreground">{subItem.href}</p>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-4">
-                                  <span className="text-xs font-medium flex items-center gap-1 sm:min-w-[60px] justify-end">
-                                    {isHidden ? (
-                                      <><EyeOff className="w-4 h-4 sm:w-3 sm:h-3 text-muted-foreground" /> <span className="text-muted-foreground hidden sm:inline">Hidden</span></>
-                                    ) : (
-                                      <><Eye className="w-4 h-4 sm:w-3 sm:h-3 text-primary" /> <span className="text-primary hidden sm:inline">Visible</span></>
-                                    )}
-                                  </span>
-                                  <Switch 
-                                    checked={!isHidden} 
-                                    onCheckedChange={() => toggleMenu(subItem.href)}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  const isHidden = hiddenMenus.includes(item.href || "");
-                  // Cannot hide dashboard
-                  const isDisabled = item.href === "/";
-                  
-                  return (
-                    <div key={item.href || item.name} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded bg-background shadow-sm border">
-                          <item.icon className="w-4 h-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{item.href}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <span className="text-xs font-medium flex items-center gap-1 sm:min-w-[60px] justify-end">
-                          {isHidden ? (
-                            <><EyeOff className="w-4 h-4 sm:w-3 sm:h-3 text-muted-foreground" /> <span className="text-muted-foreground hidden sm:inline">Hidden</span></>
-                          ) : (
-                            <><Eye className="w-4 h-4 sm:w-3 sm:h-3 text-primary" /> <span className="text-primary hidden sm:inline">Visible</span></>
-                          )}
-                        </span>
-                        <Switch 
-                          checked={!isHidden} 
-                          onCheckedChange={() => toggleMenu(item.href || "")}
-                          disabled={isDisabled}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+            <div className="space-y-4">
+              {/* Backup to File */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition-colors gap-4">
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                    <FileDown className="w-4 h-4 text-primary" />
+                    Backup Database ke File JSON
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Unduh file JSON yang memuat seluruh project, task, timeline, PIC, catatan, dan bug Anda.
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleBackupToFile} 
+                  disabled={isBackingUp || isRestoring}
+                  size="sm"
+                  className="w-full sm:w-auto shrink-0 gap-2"
+                >
+                  {isBackingUp ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Mengekspor...
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-4 h-4" />
+                      Backup ke File (.json)
+                    </>
+                  )}
+                </Button>
               </div>
-            )}
+
+              {/* Restore from File */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition-colors gap-4">
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                    <FileUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Restore dari File JSON ke Firebase
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Pilih file backup JSON dari komputer untuk mengunggah dan memulihkan seluruh data langsung ke Cloud Firebase.
+                  </p>
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".json,application/json"
+                    onChange={handleFileSelected}
+                    className="hidden"
+                  />
+                  <Button 
+                    onClick={() => fileInputRef.current?.click()} 
+                    disabled={isBackingUp || isRestoring}
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto shrink-0 gap-2 border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium"
+                  >
+                    {isRestoring ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Memulihkan...
+                      </>
+                    ) : (
+                      <>
+                        <FileUp className="w-4 h-4" />
+                        Pilih File & Restore
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </section>
+            </div>
 
-          <DatabaseProviderSection />
-
-          <section className="bg-card border rounded-xl p-6 shadow-sm">
+            {/* ==================== KOLOM KANAN ==================== */}
+            <div className="space-y-6">
+              <section className="bg-card border rounded-xl p-6 shadow-sm">
             <div className="mb-6">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 Data Synchronization
@@ -1044,94 +1040,104 @@ export default function SettingsPage() {
             </div>
           </section>
 
-          {/* Local File Backup & Restore Section */}
-          <section className="bg-card border rounded-xl p-6 shadow-sm space-y-6">
-            <div>
+              <section className="bg-card border rounded-xl p-6 shadow-sm">
+            <div className="mb-6">
               <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Database className="w-5 h-5 text-primary" />
-                Local Backup & Restore (.JSON)
+                Menu Visibility
               </h2>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Simpan salinan database lengkap ke file JSON di komputer Anda (offline backup), atau pulihkan data dari file backup ke Firebase kapan saja.
+              <p className="text-sm text-muted-foreground mt-1">
+                Choose which menus you want to display in the sidebar and mobile navigation.
               </p>
             </div>
 
-            <div className="space-y-4">
-              {/* Backup to File */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition-colors gap-4">
-                <div className="space-y-1">
-                  <p className="font-semibold text-sm flex items-center gap-2 text-foreground">
-                    <FileDown className="w-4 h-4 text-primary" />
-                    Backup Database ke File JSON
-                  </p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Unduh file JSON yang memuat seluruh project, task, timeline, PIC, catatan, dan bug Anda.
-                  </p>
-                </div>
-                <Button 
-                  onClick={handleBackupToFile} 
-                  disabled={isBackingUp || isRestoring}
-                  size="sm"
-                  className="w-full sm:w-auto shrink-0 gap-2"
-                >
-                  {isBackingUp ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Mengekspor...
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="w-4 h-4" />
-                      Backup ke File (.json)
-                    </>
-                  )}
-                </Button>
-              </div>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading settings...</p>
+            ) : (
+              <div className="space-y-4">
+                {menuItems.map((item) => {
+                  if (item.children) {
+                    return (
+                      <div key={item.name} className="space-y-2">
+                        <div className="flex items-center gap-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          <item.icon className="w-3.5 h-3.5" />
+                          <span>{item.name}</span>
+                        </div>
+                        <div className="space-y-2 pl-3 border-l-2 border-primary/30">
+                          {item.children.map((subItem) => {
+                            const isHidden = hiddenMenus.includes(subItem.href);
+                            const SubIcon = subItem.icon || item.icon;
 
-              {/* Restore from File */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition-colors gap-4">
-                <div className="space-y-1">
-                  <p className="font-semibold text-sm flex items-center gap-2 text-foreground">
-                    <FileUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    Restore dari File JSON ke Firebase
-                  </p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Pilih file backup JSON dari komputer untuk mengunggah dan memulihkan seluruh data langsung ke Cloud Firebase.
-                  </p>
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept=".json,application/json"
-                    onChange={handleFileSelected}
-                    className="hidden"
-                  />
-                  <Button 
-                    onClick={() => fileInputRef.current?.click()} 
-                    disabled={isBackingUp || isRestoring}
-                    variant="outline"
-                    size="sm"
-                    className="w-full sm:w-auto shrink-0 gap-2 border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium"
-                  >
-                    {isRestoring ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Memulihkan...
-                      </>
-                    ) : (
-                      <>
-                        <FileUp className="w-4 h-4" />
-                        Pilih File & Restore
-                      </>
-                    )}
-                  </Button>
-                </div>
+                            return (
+                              <div key={subItem.href} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 rounded bg-background shadow-sm border">
+                                    <SubIcon className="w-4 h-4 text-primary" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-sm">{subItem.name}</p>
+                                    <p className="text-xs text-muted-foreground">{subItem.href}</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-4">
+                                  <span className="text-xs font-medium flex items-center gap-1 sm:min-w-[60px] justify-end">
+                                    {isHidden ? (
+                                      <><EyeOff className="w-4 h-4 sm:w-3 sm:h-3 text-muted-foreground" /> <span className="text-muted-foreground hidden sm:inline">Hidden</span></>
+                                    ) : (
+                                      <><Eye className="w-4 h-4 sm:w-3 sm:h-3 text-primary" /> <span className="text-primary hidden sm:inline">Visible</span></>
+                                    )}
+                                  </span>
+                                  <Switch 
+                                    checked={!isHidden} 
+                                    onCheckedChange={() => toggleMenu(subItem.href)}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const isHidden = hiddenMenus.includes(item.href || "");
+                  // Cannot hide dashboard
+                  const isDisabled = item.href === "/";
+                  
+                  return (
+                    <div key={item.href || item.name} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded bg-background shadow-sm border">
+                          <item.icon className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{item.href}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-medium flex items-center gap-1 sm:min-w-[60px] justify-end">
+                          {isHidden ? (
+                            <><EyeOff className="w-4 h-4 sm:w-3 sm:h-3 text-muted-foreground" /> <span className="text-muted-foreground hidden sm:inline">Hidden</span></>
+                          ) : (
+                            <><Eye className="w-4 h-4 sm:w-3 sm:h-3 text-primary" /> <span className="text-primary hidden sm:inline">Visible</span></>
+                          )}
+                        </span>
+                        <Switch 
+                          checked={!isHidden} 
+                          onCheckedChange={() => toggleMenu(item.href || "")}
+                          disabled={isDisabled}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </section>
 
-          {/* Application Credit Section */}
+              {/* Application Credit Section */}
           <section className="bg-card border rounded-xl p-6 shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-extrabold text-base shrink-0">
@@ -1151,7 +1157,9 @@ export default function SettingsPage() {
               </div>
             </div>
           </section>
+            </div>
 
+          </div>
         </div>
       </PanelContent>
     </Panel>

@@ -603,7 +603,7 @@ export function DatabaseProviderSection() {
       )}
 
       {/* Footer Simpan & Aktivasi Database */}
-      <div className="p-4 rounded-xl border bg-card/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-4 rounded-xl border bg-card/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <Database className="w-4 h-4" />
@@ -621,14 +621,15 @@ export function DatabaseProviderSection() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end flex-wrap sm:flex-nowrap">
+        {/* Action Buttons: 2 baris vertikal di sebelah kanan agar rapi dan tidak overflow */}
+        <div className="flex flex-col gap-2 w-full md:w-auto shrink-0 items-stretch md:items-end">
           {/* Tombol 1: Terapkan Sekarang (Instan di Browser) */}
           <Button
             type="button"
             variant="outline"
             onClick={handleSaveAndActivate}
             disabled={isMigrating || isTesting || isUpdatingVercel}
-            className="gap-2 text-xs h-9 border-primary/40 text-primary hover:bg-primary/10 font-medium shadow-2xs w-full sm:w-auto whitespace-nowrap"
+            className="gap-2 text-xs h-8.5 border-primary/40 text-primary hover:bg-primary/10 font-medium shadow-2xs w-full md:w-56 justify-center"
             title="Simpan pilihan database ini dan langsung aktifkan di browser detik ini juga (untuk testing)"
           >
             <CheckCircle2 className="w-4 h-4" />
@@ -640,7 +641,7 @@ export function DatabaseProviderSection() {
             type="button"
             onClick={handleUpdateVercel}
             disabled={isMigrating || isTesting || isUpdatingVercel}
-            className="gap-2 text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs w-full sm:w-auto whitespace-nowrap"
+            className="gap-2 text-xs h-8.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs w-full md:w-56 justify-center"
             title="Simpan DATABASE_URL ke Vercel dan redeploy agar aktif permanen untuk semua pengunjung (produksi)"
           >
             <Zap className={cn("w-4 h-4", isUpdatingVercel && "animate-spin")} />
