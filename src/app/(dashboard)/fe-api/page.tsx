@@ -34,6 +34,8 @@ interface FeEndpoint {
   calls: EndpointCall[];
   usedBy: EndpointUsage[];
   apps: string[];
+  /** Only for Next.js /api routes: the backend calls the route handler makes. */
+  backendCalls?: { key: string; depth: number; when?: string[] }[];
 }
 interface FeApiMap {
   generatedAt: string;
@@ -44,6 +46,7 @@ interface FeApiMap {
 }
 
 const METHOD_STYLE: Record<string, string> = {
+  ANY: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
   GET: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
   POST: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
   PUT: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
@@ -64,6 +67,7 @@ export default function FeApiPage() {
   const [method, setMethod] = useState("all");
   const [app, setApp] = useState("all");
   const [target, setTarget] = useState("backend");
+  const [targetTouched, setTargetTouched] = useState(false);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [open, setOpen] = useState<Set<string>>(new Set());
 
@@ -88,22 +92,41 @@ export default function FeApiPage() {
   const services = useMemo(() => [...new Set(endpoints.filter((e) => e.target === "backend").map((e) => e.service))].sort(), [endpoints]);
   const apps = useMemo(() => [...new Set(endpoints.flatMap((e) => e.apps))].sort(), [endpoints]);
 
+  // Accepts plain text or a pasted URL such as https://host/api/get-singleid?type=profile
+  const query = useMemo(() => {
+    const raw = search.trim();
+    if (/^https?:\/\//i.test(raw)) {
+      try {
+        const u = new URL(raw);
+        return { text: u.pathname.toLowerCase(), values: [...u.searchParams.values()].map((v) => v.toLowerCase()), isUrl: true };
+      } catch {
+        /* fall through */
+      }
+    }
+    return { text: raw.toLowerCase().split("?")[0], values: [] as string[], isUrl: false };
+  }, [search]);
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = query.text;
+    const searching = q.length >= 2;
     return endpoints.filter((e) => {
-      if (target !== "all" && e.target !== target) return false;
+      // while searching, look through every kind of endpoint (e.g. a Next.js /api route) unless the type filter was chosen on purpose
+      if (target !== "all" && e.target !== target && !(searching && !targetTouched)) return false;
       if (service !== "all" && e.service !== service) return false;
       if (method !== "all" && e.method !== method) return false;
       if (app !== "all" && !e.apps.includes(app)) return false;
-      if (q.length >= 2) {
+      if (searching) {
         const hay = `${e.key} ${e.usedBy.join(" ")} ${e.calls.map((c) => c.file).join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [endpoints, search, service, method, app, target]);
+  }, [endpoints, query, service, method, app, target, targetTouched]);
 
   useEffect(() => setLimit(PAGE_SIZE), [search, service, method, app, target]);
+
+  // a search that narrows down to a few endpoints opens them automatically
+  const autoOpen = query.text.length >= 2 && filtered.length <= 3;
 
   const toggle = (key: string) =>
     setOpen((prev) => {
@@ -192,7 +215,7 @@ export default function FeApiPage() {
       <div className="flex flex-wrap gap-2">
         <div className="relative">
           <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-          <Input className="pl-8 w-64" placeholder="Search path, page, or file…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="pl-8 w-64" placeholder="Search path, page, file — or paste a full URL…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className={selectCls} value={service} onChange={(e) => setService(e.target.value)}>
           <option value="all">All services</option>
@@ -206,7 +229,7 @@ export default function FeApiPage() {
           <option value="all">All FE apps</option>
           {apps.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
-        <select className={selectCls} value={target} onChange={(e) => setTarget(e.target.value)}>
+        <select className={selectCls} value={target} onChange={(e) => { setTarget(e.target.value); setTargetTouched(true); }}>
           <option value="backend">Backend APIs</option>
           <option value="next-bff">Next.js BFF (/api)</option>
           <option value="external">External</option>
@@ -223,7 +246,7 @@ export default function FeApiPage() {
             <div className="px-4 py-2 text-xs text-muted-foreground border-b">{filtered.length} endpoints</div>
             <ul className="divide-y">
               {filtered.slice(0, limit).map((e) => {
-                const isOpen = open.has(e.key);
+                const isOpen = open.has(e.key) || autoOpen;
                 return (
                   <li key={e.key}>
                     <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40" onClick={() => toggle(e.key)}>
@@ -234,6 +257,37 @@ export default function FeApiPage() {
                     </button>
                     {isOpen && (
                       <div className="px-4 pb-4 pl-11 grid md:grid-cols-2 gap-4 text-sm">
+                        {e.target === "next-bff" && (
+                          <div className="md:col-span-2 rounded-md border bg-muted/30 p-3">
+                            <div className="font-semibold mb-1">Backend APIs called by this route</div>
+                            {!e.backendCalls || e.backendCalls.length === 0 ? (
+                              <p className="text-muted-foreground">No backend call found inside this route handler.</p>
+                            ) : (
+                              <>
+                                <ul className="space-y-1">
+                                  {e.backendCalls.filter((b) => b.depth <= 2).map((b) => {
+                                    const hit = query.values.length > 0 && (b.when || []).some((w) => query.values.some((v) => w.toLowerCase().includes(v)));
+                                    return (
+                                      <li key={b.key} className={cn("flex flex-wrap items-center gap-x-2", hit && "bg-amber-500/15 rounded px-1 -mx-1")}>
+                                        <code>{b.key}</code>
+                                        {b.when?.map((w) => <span key={w} className="text-[11px] px-1.5 py-0.5 rounded bg-background border">when {w}</span>)}
+                                        {hit && <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">matches your URL</span>}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                                {e.backendCalls.some((b) => b.depth > 2) && (
+                                  <p className="mt-2 text-xs text-muted-foreground">
+                                    Also reachable through shared helpers (e.g. token refresh): {e.backendCalls.filter((b) => b.depth > 2).map((b) => b.key).join(", ")}
+                                  </p>
+                                )}
+                              </>
+                            )}
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              <code>ANY</code> = the route forwards the method of the incoming request.
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <div className="font-semibold mb-1">Used by pages</div>
                           {e.usedBy.length === 0 ? (

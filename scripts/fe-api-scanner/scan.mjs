@@ -111,9 +111,35 @@ function analyse(file) {
     constCounts: new Map(),
   };
 
-  const addSymbol = (name, node) => {
-    if (!info.symbols.has(name)) info.symbols.set(name, { node: null, nodes: [], refs: new Set(), nsRefs: [], dynamicImports: [], calls: [] });
-    info.symbols.get(name).nodes.push(node);
+  const ensureSymbol = (name) => {
+    if (!info.symbols.has(name)) info.symbols.set(name, { nodes: [], refs: new Set(), nsRefs: [], memberRefs: [], dynamicImports: [], calls: [], members: null });
+    return info.symbols.get(name);
+  };
+  const addSymbol = (name, node) => ensureSymbol(name).nodes.push(node);
+  // `const svc = { a, b: fn, c() {} }` / `export default { ... }`: keep the members apart so that
+  // `svc.a(...)` only links to `a` instead of to everything in the object.
+  const registerObject = (name, obj) => {
+    const sym = ensureSymbol(name);
+    sym.members = new Map();
+    for (const prop of obj.properties) {
+      if (ts.isShorthandPropertyAssignment(prop)) {
+        sym.members.set(prop.name.text, { ref: prop.name.text });
+        continue;
+      }
+      const key = (ts.isPropertyAssignment(prop) || ts.isMethodDeclaration(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : null;
+      if (!key) {
+        sym.nodes.push(prop); // spread / computed key: treat as part of the object itself
+        continue;
+      }
+      const val = ts.isPropertyAssignment(prop) ? unwrap(prop.initializer) : null;
+      if (val && ts.isIdentifier(val)) {
+        sym.members.set(key, { ref: val.text });
+        continue;
+      }
+      const virtual = `${name}.${key}`;
+      addSymbol(virtual, prop);
+      sym.members.set(key, { sym: virtual });
+    }
   };
   const hasMod = (node, kind) => Boolean(node.modifiers?.some((m) => m.kind === kind));
 
@@ -139,8 +165,16 @@ function analyse(file) {
         }
       }
     } else if (ts.isExportAssignment(st)) {
-      addSymbol("default", st);
-      info.exports.set("default", { local: "default" });
+      const ex = unwrap(st.expression);
+      if (ts.isIdentifier(ex)) {
+        info.exports.set("default", { local: ex.text });
+      } else if (ts.isObjectLiteralExpression(ex)) {
+        registerObject("default", ex);
+        info.exports.set("default", { local: "default" });
+      } else {
+        addSymbol("default", st);
+        info.exports.set("default", { local: "default" });
+      }
     } else if (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) {
       const isDefault = hasMod(st, ts.SyntaxKind.DefaultKeyword);
       const name = st.name?.text || (isDefault ? "default" : "<anon>");
@@ -155,8 +189,10 @@ function analyse(file) {
           else for (const el of b.elements) if (!ts.isOmittedExpression(el)) collect(el.name);
         };
         collect(decl.name);
+        const init = decl.initializer ? unwrap(decl.initializer) : null;
         for (const n of names) {
-          addSymbol(n, decl);
+          if (names.length === 1 && init && ts.isObjectLiteralExpression(init)) registerObject(n, init);
+          else addSymbol(n, decl);
           if (exported) info.exports.set(n, { local: n });
         }
       }
@@ -191,6 +227,8 @@ function analyse(file) {
             const imp = info.imports.get(node.text);
             if (imp?.imported === "*" && p && ts.isPropertyAccessExpression(p) && p.expression === node) {
               sym.nsRefs.push({ ns: node.text, prop: p.name.text });
+            } else if (p && ts.isPropertyAccessExpression(p) && p.expression === node) {
+              sym.memberRefs.push({ name: node.text, prop: p.name.text });
             } else {
               sym.refs.add(node.text);
             }
@@ -205,7 +243,7 @@ function analyse(file) {
             if (m) sym.dynamicImports.push(m);
           }
           const call = detectApiCall(node, info);
-          if (call) sym.calls.push({ ...call, symbol: symName });
+          if (call) sym.calls.push({ ...call, symbol: symName, condition: enclosingCondition(node, info) });
         }
         ts.forEachChild(node, visit);
       };
@@ -215,7 +253,37 @@ function analyse(file) {
   return info;
 }
 
+const unwrap = (n) => {
+  while (n && (ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isSatisfiesExpression?.(n) || ts.isNonNullExpression(n))) n = n.expression;
+  return n;
+};
+
 // ---------------------------------------------------------------- endpoint detection
+function propText(sf, obj, key) {
+  for (const p of obj.properties) {
+    if (ts.isShorthandPropertyAssignment(p) && p.name.text === key) return { node: p.name };
+    if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === key) return { node: p.initializer };
+  }
+  return null;
+}
+
+/** Conditions of the nearest enclosing `case 'x':` / `if (x === 'y')`, e.g. "type = 'profile'". */
+function enclosingCondition(node, info) {
+  const sf = info.sf;
+  const parts = [];
+  for (let n = node.parent; n && !ts.isFunctionLike(n) && parts.length < 2; n = n.parent) {
+    if (ts.isCaseClause(n)) {
+      const sw = n.parent?.parent;
+      if (sw && ts.isSwitchStatement(sw)) parts.unshift(`${textOf(sf, sw.expression)} = ${textOf(sf, n.expression)}`);
+      else parts.unshift(`case ${textOf(sf, n.expression)}`);
+    } else if (ts.isDefaultClause(n)) {
+      const sw = n.parent?.parent;
+      if (sw && ts.isSwitchStatement(sw)) parts.unshift(`${textOf(sf, sw.expression)} = (default)`);
+    }
+  }
+  return parts.length ? parts.join(" & ") : null;
+}
+
 function detectApiCall(node, info) {
   const sf = info.sf;
   const callee = node.expression;
@@ -223,6 +291,25 @@ function detectApiCall(node, info) {
   if (!a0) return null;
   let client = null;
   let method = null;
+
+  // APIProxy / axios style: x.makeRequest({ method, url, ... }) and x.request({ ... })
+  if (ts.isPropertyAccessExpression(callee) && /^(makeRequest|request)$/.test(callee.name.text) && ts.isObjectLiteralExpression(unwrap(a0))) {
+    const obj = unwrap(a0);
+    const urlProp = propText(sf, obj, "url");
+    if (!urlProp) return null;
+    const m = propText(sf, obj, "method");
+    let method = "ANY"; // method comes from the incoming request (req.method) or is not literal
+    if (m && (ts.isStringLiteral(m.node) || ts.isNoSubstitutionTemplateLiteral(m.node))) method = m.node.text.toUpperCase();
+    const r = resolveString(urlProp.node, info, 0);
+    const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+    return { client: callee.name.text, method, raw: r.value, resolved: r.resolved, line: pos.line + 1 };
+  }
+  // serverGet(ctx, url, config)
+  if (ts.isIdentifier(callee) && /^server(Get|Post|Put|Patch|Delete)$/.test(callee.text) && node.arguments[1]) {
+    const r = resolveString(node.arguments[1], info, 0);
+    const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+    return { client: callee.text, method: callee.text.slice(6).toUpperCase(), raw: r.value, resolved: r.resolved, line: pos.line + 1 };
+  }
 
   if (ts.isIdentifier(callee) && WRAPPER_FN.test(callee.text)) {
     client = callee.text;
@@ -325,10 +412,39 @@ function resolveExport(absFile, name, depth = 0, seen = new Set()) {
   return null;
 }
 
+/** Graph nodes an identifier refers to inside `info` (local top-level symbol and/or import). */
+function targetsOf(info, name) {
+  const out = [];
+  if (info.symbols.has(name)) out.push(`${info.file.abs}#${name}`);
+  const imp = info.imports.get(name);
+  if (imp?.module && imp.imported !== "*") {
+    const r = resolveExport(imp.module, imp.imported);
+    if (r) out.push(r);
+  }
+  return out;
+}
+
+function memberTargets(tinfo, member) {
+  if (member.sym) return [`${tinfo.file.abs}#${member.sym}`];
+  return member.ref ? targetsOf(tinfo, member.ref) : [];
+}
+
 function buildEdges(info, symName) {
   const sym = info.symbols.get(symName);
   const out = new Set();
   const abs = info.file.abs;
+  // the object itself is referenced as a whole -> all of its members
+  if (sym.members) for (const m of sym.members.values()) for (const t of memberTargets(info, m)) out.add(t);
+  // `obj.member` -> only that member when obj is an object literal we know, else the symbol itself
+  for (const { name, prop } of sym.memberRefs) {
+    for (const t of targetsOf(info, name)) {
+      const i = t.lastIndexOf("#");
+      const tinfo = infos.get(t.slice(0, i));
+      const member = tinfo?.symbols.get(t.slice(i + 1))?.members?.get(prop);
+      if (member) for (const mt of memberTargets(tinfo, member)) out.add(mt);
+      else out.add(t);
+    }
+  }
   for (const ref of sym.refs) {
     if (info.symbols.has(ref) && ref !== symName) out.add(`${abs}#${ref}`);
     const imp = info.imports.get(ref);
@@ -432,7 +548,14 @@ for (const info of infos.values()) {
         endpoints.set(key, ep);
       }
       if (query && !ep.query.includes(query)) ep.query.push(query);
-      ep.calls.push({ app: info.file.app, file: rel(info.file.abs), line: c.line, symbol: symName === "<module>" ? null : symName, client: c.client });
+      ep.calls.push({
+        app: info.file.app,
+        file: rel(info.file.abs),
+        line: c.line,
+        symbol: symName === "<module>" ? null : symName,
+        client: c.client,
+        ...(c.condition ? { when: c.condition } : {}),
+      });
       const node = `${info.file.abs}#${symName}`;
       if (!callSites.has(node)) callSites.set(node, []);
       callSites.get(node).push(key);
@@ -441,7 +564,8 @@ for (const info of infos.values()) {
 }
 
 // ---- reachability from each page
-const usedBySet = new Map(); // key -> Map(app|route -> entry)
+const usedBySet = new Map(); // key -> Set("<app>:<route>")
+const routeDepth = new Map(); // "<normalized route>" -> Map(endpointKey -> min call depth from the route handler)
 let pageCount = 0;
 for (const f of files) {
   const pi = pageInfo(f);
@@ -450,15 +574,21 @@ for (const f of files) {
   if (!info) continue;
   pageCount++;
   const start = [...info.symbols.keys()].map((s) => `${f.abs}#${s}`);
-  const seen = new Set(start);
+  const dist = new Map(start.map((n) => [n, 0]));
   const queue = [...start];
-  while (queue.length) {
-    const n = queue.pop();
+  const routeKey = pi.kind === "api-route" ? pi.route.replace(/\[\.{0,3}(\w+)\]/g, "{$1}") : null;
+  for (let qi = 0; qi < queue.length; qi++) {
+    const n = queue[qi];
     for (const k of callSites.get(n) || []) {
       if (!usedBySet.has(k)) usedBySet.set(k, new Set());
       usedBySet.get(k).add(`${f.app}:${pi.route}`);
+      if (routeKey) {
+        if (!routeDepth.has(routeKey)) routeDepth.set(routeKey, new Map());
+        const m = routeDepth.get(routeKey);
+        m.set(k, Math.min(m.get(k) ?? Infinity, dist.get(n)));
+      }
     }
-    for (const nx of graph.get(n) || []) if (!seen.has(nx)) { seen.add(nx); queue.push(nx); }
+    for (const nx of graph.get(n) || []) if (!dist.has(nx)) { dist.set(nx, dist.get(n) + 1); queue.push(nx); }
   }
 }
 
@@ -468,6 +598,22 @@ const list = [...endpoints.values()].map((ep) => {
   ep.calls.sort((a, b) => (a.file + a.line).localeCompare(b.file + b.line));
   return { ...ep, usedBy, apps: [...new Set(usedBy.map((u) => u.slice(0, u.indexOf(":"))))].sort() };
 }).sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+
+// For a Next.js /api route: which backend calls its handler makes (depth 0-2 = written in the
+// handler or the helper it calls; deeper = shared infrastructure such as token refresh).
+const byKey = new Map(list.map((e) => [e.key, e]));
+for (const ep of list) {
+  if (ep.target !== "next-bff") continue;
+  const depths = routeDepth.get(ep.path.replace(/\?.*$/, ""));
+  if (!depths) continue;
+  ep.backendCalls = [...depths.entries()]
+    .filter(([k]) => byKey.get(k) && byKey.get(k).target !== "next-bff")
+    .map(([k, depth]) => {
+      const when = [...new Set(byKey.get(k).calls.map((c) => c.when).filter(Boolean))];
+      return { key: k, depth, ...(when.length ? { when } : {}) };
+    })
+    .sort((a, b) => a.depth - b.depth || a.key.localeCompare(b.key));
+}
 
 const stats = {
   filesScanned: files.length,

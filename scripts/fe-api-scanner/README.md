@@ -88,12 +88,24 @@ File: `scripts/fe-api-scanner/config.json`
 }
 ```
 
+Untuk endpoint `next-bff` (route `/api/...` milik FE), ada field `backendCalls`: API backend
+yang dipanggil oleh route itu, lengkap dengan kondisinya (`when`, mis. `type = 'profile'`).
+`depth` kecil (0-2) = dipanggil langsung di route/helper-nya; `depth` besar = infrastruktur
+bersama (mis. refresh token). Method `ANY` berarti route meneruskan method request yang masuk.
+
 Arti `target`:
 
 - `backend` — API backend (yang relevan untuk tim BE)
 - `next-bff` — route `/api/...` milik Next.js FE sendiri
 - `external` — layanan luar (Facebook, YouTube, dll.)
 - `dynamic` — URL dibentuk saat runtime, tidak bisa ditentukan statis
+
+## Cara mencari "API FE ini hit BE apa?"
+
+Di halaman `/fe-api`, tempel URL FE lengkap ke kolom pencarian, mis.
+`https://sit-ascom.auto2000.co.id/api/get-singleid?type=profile`. Halaman mengambil
+path-nya (`/api/get-singleid`), membuka endpoint-nya, dan menandai API backend yang cocok
+dengan `type=profile`.
 
 ## Batasan
 
