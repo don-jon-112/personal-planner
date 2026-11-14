@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Panel, PanelContent } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Network, Search, RefreshCw, Download, Lock, ChevronRight, ChevronDown, GitCommit } from "lucide-react";
+import { Network, Search, Download, Lock, ChevronRight, ChevronDown, GitCommit } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn } from "@/lib/utils";
 
@@ -15,11 +15,13 @@ interface EndpointCall {
   symbol: string | null;
   client: string;
 }
-interface EndpointUsage {
-  app: string;
-  route: string;
-  kind: "page" | "api-route" | "global";
-  file: string;
+// "<app>:<route>", e.g. "digiroom-cms:/news-tips/[slug]"
+type EndpointUsage = string;
+function parseUsage(u: EndpointUsage) {
+  const i = u.indexOf(":");
+  const route = u.slice(i + 1);
+  const kind = route.startsWith("/api/") ? "api-route" : route === "/_app" || route === "/_document" ? "global" : "page";
+  return { app: u.slice(0, i), route, kind };
 }
 interface FeEndpoint {
   key: string;
@@ -37,7 +39,7 @@ interface FeApiMap {
   generatedAt: string;
   repo: { name: string; branch?: string; commit?: string; commitAuthor?: string; commitDate?: string; commitMessage?: string };
   stats: { filesScanned: number; pages: number; endpoints: number };
-  sync?: { lastCheckedAt?: string; changes?: { added: string[]; removed: string[] } | null };
+  changes?: { previousCommit: string | null; previousScannedAt: string; added: string[]; removed: string[] } | null;
   endpoints: FeEndpoint[];
 }
 
@@ -55,10 +57,7 @@ export default function FeApiPage() {
   const hasView = canView("fe-api");
 
   const [map, setMap] = useState<FeApiMap | null>(null);
-  const [syncEnabled, setSyncEnabled] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
 
   const [search, setSearch] = useState("");
   const [service, setService] = useState("all");
@@ -74,10 +73,8 @@ export default function FeApiPage() {
       const res = await fetch("/api/fe-api-map", { cache: "no-store" });
       const json = await res.json();
       setMap(json.map);
-      setSyncEnabled(Boolean(json.syncEnabled));
-      setMessage(json.message || null);
     } catch {
-      setMessage("Failed to load the API map.");
+      setMap(null);
     } finally {
       setLoading(false);
     }
@@ -86,18 +83,6 @@ export default function FeApiPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const runSync = async () => {
-    setSyncing(true);
-    try {
-      const res = await fetch("/api/fe-api-map", { method: "POST" });
-      const json = await res.json();
-      setMessage(json.message);
-      await load();
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const endpoints = map?.endpoints ?? [];
   const services = useMemo(() => [...new Set(endpoints.filter((e) => e.target === "backend").map((e) => e.service))].sort(), [endpoints]);
@@ -111,7 +96,7 @@ export default function FeApiPage() {
       if (method !== "all" && e.method !== method) return false;
       if (app !== "all" && !e.apps.includes(app)) return false;
       if (q.length >= 2) {
-        const hay = `${e.key} ${e.usedBy.map((u) => u.route).join(" ")} ${e.calls.map((c) => c.file).join(" ")}`.toLowerCase();
+        const hay = `${e.key} ${e.usedBy.join(" ")} ${e.calls.map((c) => c.file).join(" ")}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -154,7 +139,7 @@ export default function FeApiPage() {
   }
 
   const selectCls = "h-9 rounded-md border bg-background px-2 text-sm";
-  const changes = map?.sync?.changes;
+  const changes = map?.changes;
 
   return (
     <div className="flex-1 p-4 md:p-6 space-y-4 overflow-auto">
@@ -163,19 +148,20 @@ export default function FeApiPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Network className="w-6 h-6 text-primary" /> FE API Map
           </h1>
-          <p className="text-sm text-muted-foreground">Backend endpoints called by the frontend, and the pages that use them.</p>
+          <p className="text-sm text-muted-foreground">Backend endpoints called by the frontend, and the pages that use them. Data comes from a scan of the FE repo (<code>npm run fe-api:scan</code>).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={downloadJson} disabled={!map}>
             <Download className="w-4 h-4 mr-1.5" /> JSON
           </Button>
-          <Button size="sm" onClick={runSync} disabled={!syncEnabled || syncing} title={syncEnabled ? "git fetch + rescan if the FE branch changed" : "Sync is disabled on this server (FE_API_SYNC_ENABLED)"}>
-            <RefreshCw className={cn("w-4 h-4 mr-1.5", syncing && "animate-spin")} /> Sync
-          </Button>
         </div>
       </div>
 
-      {message && <div className="text-sm rounded-md border bg-muted/40 px-3 py-2 whitespace-pre-line">{message}</div>}
+      {!loading && !map && (
+        <div className="text-sm rounded-md border bg-muted/40 px-3 py-2">
+          No scan data yet. Pull the FE repo, then run <code>npm run fe-api:scan</code> and commit <code>src/data/fe-api-map.json</code>.
+        </div>
+      )}
 
       {map && (
         <Panel>
@@ -254,12 +240,15 @@ export default function FeApiPage() {
                             <p className="text-muted-foreground">No page reaches this call (dead code, or called through a path the scanner cannot follow).</p>
                           ) : (
                             <ul className="space-y-0.5 max-h-64 overflow-auto">
-                              {e.usedBy.map((u) => (
-                                <li key={u.app + u.route}>
-                                  <span className="text-muted-foreground">{u.app}</span> <code>{u.route}</code>
-                                  {u.kind !== "page" && <span className="ml-1 text-[10px] uppercase text-muted-foreground">{u.kind}</span>}
-                                </li>
-                              ))}
+                              {e.usedBy.map((raw) => {
+                                const u = parseUsage(raw);
+                                return (
+                                  <li key={raw}>
+                                    <span className="text-muted-foreground">{u.app}</span> <code>{u.route}</code>
+                                    {u.kind !== "page" && <span className="ml-1 text-[10px] uppercase text-muted-foreground">{u.kind}</span>}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           )}
                         </div>

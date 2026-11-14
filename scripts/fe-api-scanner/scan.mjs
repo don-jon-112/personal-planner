@@ -27,7 +27,7 @@ const getArg = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const REPO = path.resolve(getArg("repo", ""));
-const OUT = path.resolve(getArg("out", "data/fe-api-map.json"));
+const OUT = path.resolve(getArg("out", "src/data/fe-api-map.json"));
 const META = getArg("meta", null) ? JSON.parse(getArg("meta")) : {};
 if (!getArg("repo")) {
   console.error("Missing --repo <path>");
@@ -455,17 +455,18 @@ for (const f of files) {
   while (queue.length) {
     const n = queue.pop();
     for (const k of callSites.get(n) || []) {
-      if (!usedBySet.has(k)) usedBySet.set(k, new Map());
-      usedBySet.get(k).set(`${f.app}|${pi.route}`, { app: f.app, route: pi.route, kind: pi.kind, file: rel(f.abs) });
+      if (!usedBySet.has(k)) usedBySet.set(k, new Set());
+      usedBySet.get(k).add(`${f.app}:${pi.route}`);
     }
     for (const nx of graph.get(n) || []) if (!seen.has(nx)) { seen.add(nx); queue.push(nx); }
   }
 }
 
 const list = [...endpoints.values()].map((ep) => {
-  const usedBy = [...(usedBySet.get(ep.key)?.values() || [])].sort((a, b) => (a.app + a.route).localeCompare(b.app + b.route));
+  // "<app>:<route>" strings keep the file small (hundreds of pages use the auth endpoints)
+  const usedBy = [...(usedBySet.get(ep.key) || [])].sort();
   ep.calls.sort((a, b) => (a.file + a.line).localeCompare(b.file + b.line));
-  return { ...ep, usedBy, apps: [...new Set(usedBy.map((u) => u.app))].sort() };
+  return { ...ep, usedBy, apps: [...new Set(usedBy.map((u) => u.slice(0, u.indexOf(":"))))].sort() };
 }).sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
 
 const stats = {
