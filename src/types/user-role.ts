@@ -17,6 +17,7 @@ export type PermissionKey =
   | "projects"
   | "users-roles"
   | "assignment-logs"
+  | "fe-api"
   | "settings";
 
 export interface PermissionFeature {
@@ -39,6 +40,7 @@ export const PERMISSION_FEATURES: PermissionFeature[] = [
   { key: "projects", label: "All Projects", description: "Create, view, and configure workspaces", category: "global" },
   { key: "users-roles", label: "Users & Roles", description: "User accounts, role assignment, and permissions", category: "global" },
   { key: "assignment-logs", label: "Audit & Activity Logs", description: "Audit trail of task claims and secret key modifications", category: "global" },
+  { key: "fe-api", label: "FE API Map", description: "Backend APIs used by the frontend, and which pages use them", category: "global" },
   { key: "settings", label: "System Settings", description: "Sync data, backup/restore, and site configs", category: "global" },
 ];
 

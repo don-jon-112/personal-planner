@@ -9,6 +9,7 @@ import {
   Users,
   Layers,
   Tag,
+  Network,
   Key,
   UserCog,
   ClipboardList
@@ -51,6 +52,7 @@ export const globalMenuItems: MenuItem[] = [
   { name: "Notes", href: "/notes", icon: FileText, permissionKey: "notes" },
   { name: "All Projects", href: "/projects", icon: Layers, permissionKey: "projects" },
   { name: "Users & Roles", href: "/users", icon: UserCog, permissionKey: "users-roles" },
+  { name: "FE API Map", href: "/fe-api", icon: Network, permissionKey: "fe-api" },
   { name: "Audit Logs", href: "/assignment-logs", icon: ClipboardList, permissionKey: "assignment-logs" },
 ];
 
