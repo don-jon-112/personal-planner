@@ -56,17 +56,11 @@ export const SortableEpicRow = React.memo(function SortableEpicRow({
   const totalTasks = epicTasks.length;
   const totalMd = Number(epicTasks.reduce((sum, t) => sum + (parseFloat(t.md) || 0), 0).toFixed(3));
   const doneTasks = epicTasks.filter((t) => isCompletedStatus(t.status)).length;
-  const activeTasks = epicTasks.filter((t) => {
-    const s = (t.status || "").trim().toUpperCase();
-    return s !== "WON'T DO" && s !== "WONT DO";
-  }).length;
 
-  const isAllDone = totalTasks > 0 && (doneTasks === totalTasks || (activeTasks > 0 && doneTasks === activeTasks));
-  const percentage = totalTasks === 0
-    ? 0
-    : activeTasks === 0
-    ? 100
-    : Math.round((doneTasks / activeTasks) * 100);
+  // Done is decided by the "Done Category" flag set in /statuses (isCompletedStatus),
+  // same as the epic detail dialog: done / total (e.g. 258 / 416 Selesai = 62%)
+  const isAllDone = totalTasks > 0 && doneTasks === totalTasks;
+  const percentage = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   return (
     <TableRow
