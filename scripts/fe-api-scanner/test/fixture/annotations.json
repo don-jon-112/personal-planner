@@ -1,0 +1,4 @@
+{
+  "notApi": [{ "file": "apps/demo/src/service/user.ts", "rawIncludes": "fileUrl", "reason": "file download url, not an API" }],
+  "externallyInvokedRoutes": []
+}

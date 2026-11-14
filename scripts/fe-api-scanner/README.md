@@ -107,21 +107,56 @@ Di halaman `/fe-api`, tempel URL FE lengkap ke kolom pencarian, mis.
 path-nya (`/api/get-singleid`), membuka endpoint-nya, dan menandai API backend yang cocok
 dengan `type=profile`.
 
+## Cakupan: hanya API storefront yang hidup
+
+- **CMS dan boilerplate tidak dipindai** (`excludeApps` di `config.json`).
+- **Kode mati tidak dimasukkan.** Endpoint yang tidak dijangkau halaman, route, atau middleware
+  mana pun dibuang, begitu juga route `/api/...` yang tidak dipanggil kode FE. Daftar yang dibuang
+  tetap ada di `audit.deadOmitted` / `audit.unreferencedRoutes` supaya bisa dicek ulang.
+  Route yang dipanggil di luar kode FE (mis. NextAuth) didaftarkan di `annotations.json`
+  (`externallyInvokedRoutes`).
+- **Bukan API backend, sudah dibaca kodenya.** Panggilan seperti download file dari URL hasil BE,
+  upload ke Azure Blob, atau proxy Evergage didaftarkan di `annotations.json` (`notApi`) lengkap dengan
+  alasannya. Hasilnya tampil di `audit.verifiedNonApi`, bukan di daftar endpoint.
+- **Route `/api` FE tanpa panggilan BE** (mis. hanya mengatur cookie) tidak dimasukkan
+  (`audit.bffWithoutBackend`).
+
+## Cara membaca satu endpoint
+
+- `hosts`: nama environment variable server tujuan. Default-nya dibaca dari `axios.create({ baseURL })`
+  milik client; kalau panggilan memberi `baseURL` sendiri (mis. `API_GATEWAY_URL_CONTENT`), itu yang dipakai.
+- `method`: dari pemanggilan langsung, atau, untuk route yang meneruskan `req.method`, dari penjagaan
+  (`if (req.method !== 'POST') return`) di sekitar panggilan. Kalau tidak ada penjagaan, method
+  mengikuti method yang dipakai FE saat memanggil route itu (atau GET untuk SSR halaman). Asalnya
+  ada di `calls[].methodSource` (`guard` / `forwarded` / `inferred`).
+- `when` (di `backendCalls` dan `calls`): kondisi `switch/case` dan `if` di sekitar panggilan.
+
 ## Memastikan semua API tercatat (audit)
 
 Scanner tidak bisa "membuktikan" kelengkapan, jadi ada tiga pengaman:
 
 1. **Audit otomatis.** Setiap scan melaporkan pemanggilan yang *mirip* panggilan jaringan tapi
-   tidak berhasil dikenali (mis. `new WebSocket`, `x.get('/path')` pada objek yang tidak dikenal).
+   tidak berhasil dikenali (mis. `new WebSocket`, `x.get('/path')` pada objek yang tidak dikenal,
+   atau method baru pada client seperti `api.postFormData(...)`).
    Daftarnya ada di akhir output `npm run fe-api:scan`, di `audit.suspects` pada JSON, dan di
    halaman `/fe-api`. Idealnya **0**. Kalau ada isinya: itu API yang terlewat (perbaiki
    `scan.mjs`, tambahkan test) atau memang bukan panggilan API.
    `npm run fe-api:scan -- --strict` membuat scan gagal kalau audit tidak kosong.
-2. **Endpoint `dynamic`.** URL yang hanya diketahui saat runtime (mis. URL file dari data)
-   tetap dicatat dan ditandai, tidak dibuang diam-diam.
+2. **Endpoint `dynamic`.** URL yang hanya diketahui saat runtime tetap dicatat dan ditandai, tidak
+   dibuang diam-diam. Kalau isinya sudah dibaca dan ternyata bukan API backend, daftarkan di
+   `annotations.json` dengan alasannya.
 3. **Test regresi.** `npm run fe-api:test` menjalankan scanner pada contoh FE kecil
    (`scripts/fe-api-scanner/test/fixture`) dan memastikan setiap pola yang pernah terlewat
    tetap terdeteksi. Setiap kali menemukan pola baru yang terlewat, tambahkan ke fixture.
+
+## Menelusuri "kenapa halaman X dianggap memakai API Y?"
+
+```bash
+node scripts/fe-api-scanner/scan.mjs --repo D:/WORK/Digiroom-Web-FrontEnd --out %TEMP%/x.json   --exclude-apps digiroom-cms,boilerplate --explain "buy-now"
+```
+
+Mencetak rantai pemanggilan (halaman -> fungsi -> ... -> panggilan API) untuk beberapa halaman.
+Dipakai kalau sebuah endpoint terlihat dipakai padahal seharusnya tidak, atau sebaliknya.
 
 ## Batasan
 

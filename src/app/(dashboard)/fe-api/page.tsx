@@ -14,6 +14,9 @@ interface EndpointCall {
   line: number;
   symbol: string | null;
   client: string;
+  hosts?: string[];
+  when?: string;
+  methodSource?: "guard" | "forwarded" | "inferred";
 }
 // "<app>:<route>", e.g. "digiroom-cms:/news-tips/[slug]"
 type EndpointUsage = string;
@@ -35,13 +38,21 @@ interface FeEndpoint {
   usedBy: EndpointUsage[];
   apps: string[];
   /** Only for Next.js /api routes: the backend calls the route handler makes. */
-  backendCalls?: { key: string; depth: number; when?: string[] }[];
+  backendCalls?: { key: string; depth: number; when?: string[]; hosts?: string[] }[];
+  /** Environment variables that hold the server address this endpoint is called on. */
+  hosts?: string[];
 }
 interface FeApiMap {
   generatedAt: string;
   repo: { name: string; branch?: string; commit?: string; commitAuthor?: string; commitDate?: string; commitMessage?: string };
   stats: { filesScanned: number; pages: number; endpoints: number };
-  audit?: { suspects: { file: string; line: number; symbol: string | null; reason: string; code: string }[] };
+  audit?: {
+    suspects: { file: string; line: number; symbol: string | null; reason: string; code: string }[];
+    verifiedNonApi?: { file: string; line: number; url: string; reason: string }[];
+    deadOmitted?: { key: string; at: string[] }[];
+    bffWithoutBackend?: string[];
+    excludedApps?: string[];
+  };
   changes?: { previousCommit: string | null; previousScannedAt: string; added: string[]; removed: string[] } | null;
   endpoints: FeEndpoint[];
 }
@@ -205,6 +216,12 @@ export default function FeApiPage() {
             >
               Audit: {map.audit?.suspects.length ?? 0} unclassified · {endpoints.filter((e) => e.target === "dynamic").length} runtime-only URLs
             </span>
+            <span
+              className="text-muted-foreground"
+              title="Storefront scope: CMS apps are excluded, dead code is left out, and calls read in the source and verified not to be a backend API are listed in the JSON (audit.verifiedNonApi)"
+            >
+              Scope: storefront{map.audit?.excludedApps?.length ? ` (excl. ${map.audit.excludedApps.join(", ")})` : ""} · {map.audit?.deadOmitted?.length ?? 0} dead-code endpoints left out · {map.audit?.verifiedNonApi?.length ?? 0} verified non-API calls
+            </span>
           </PanelContent>
         </Panel>
       )}
@@ -274,6 +291,11 @@ export default function FeApiPage() {
                       {isOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
                       <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded w-16 text-center shrink-0", METHOD_STYLE[e.method] || "bg-muted text-muted-foreground")}>{e.method}</span>
                       <code className="text-sm flex-1 break-all">{e.path}</code>
+                      {e.hosts && e.hosts.length > 0 && (
+                        <span className="hidden md:inline text-[11px] text-muted-foreground shrink-0 max-w-[260px] truncate" title={`Server: ${e.hosts.join(" / ")}`}>
+                          {e.hosts.join(" / ")}
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground shrink-0">{e.usedBy.length} pages · {e.apps.length} apps</span>
                     </button>
                     {isOpen && (
@@ -291,6 +313,7 @@ export default function FeApiPage() {
                                     return (
                                       <li key={b.key} className={cn("flex flex-wrap items-center gap-x-2", hit && "bg-amber-500/15 rounded px-1 -mx-1")}>
                                         <code>{b.key}</code>
+                                        {b.hosts && b.hosts.length > 0 && <span className="text-[11px] text-muted-foreground">@ {b.hosts.join(" / ")}</span>}
                                         {b.when?.map((w) => <span key={w} className="text-[11px] px-1.5 py-0.5 rounded bg-background border">when {w}</span>)}
                                         {hit && <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">matches your URL</span>}
                                       </li>
@@ -334,6 +357,8 @@ export default function FeApiPage() {
                               <li key={i} className="break-all">
                                 <code>{c.file}:{c.line}</code>
                                 {c.symbol && <span className="text-muted-foreground"> · {c.symbol}()</span>}
+                                {c.when && <span className="text-muted-foreground"> · when {c.when}</span>}
+                                {c.methodSource && <span className="text-muted-foreground"> · method {c.methodSource === "guard" ? "from the req.method guard" : "same as the request that reaches this route / page"}</span>}
                               </li>
                             ))}
                           </ul>

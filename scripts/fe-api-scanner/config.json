@@ -1,3 +1,4 @@
 {
-  "repoPath": "D:/WORK/Digiroom-Web-FrontEnd"
+  "repoPath": "D:/WORK/Digiroom-Web-FrontEnd",
+  "excludeApps": ["digiroom-cms", "boilerplate"]
 }

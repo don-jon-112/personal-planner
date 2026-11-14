@@ -57,7 +57,9 @@ const previous = fs.existsSync(outFile) ? JSON.parse(fs.readFileSync(outFile, "u
 
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 const tmpOut = outFile + ".tmp";
-execFileSync(process.execPath, [path.join(here, "scan.mjs"), "--repo", repoPath, "--out", tmpOut, "--meta", JSON.stringify(meta)], { stdio: "inherit" });
+const scanArgs = [path.join(here, "scan.mjs"), "--repo", repoPath, "--out", tmpOut, "--meta", JSON.stringify(meta), "--annotations", path.join(here, "annotations.json")];
+if ((config.excludeApps || []).length) scanArgs.push("--exclude-apps", config.excludeApps.join(","));
+execFileSync(process.execPath, scanArgs, { stdio: "inherit" });
 
 const next = JSON.parse(fs.readFileSync(tmpOut, "utf8"));
 const prevKeys = new Set((previous?.endpoints || []).map((e) => e.key));

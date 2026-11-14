@@ -1,0 +1,66 @@
+{
+  "_comment": "Calls that were READ in the FE source and verified NOT to be a Digiroom backend API. They are left out of the endpoint list and shown under audit.verifiedNonApi with the reason. Match = file suffix + text contained in the (unresolved) url expression.",
+  "notApi": [
+    {
+      "file": "apps/digiroom-my-account/src/components/molecules/CertificateQRCodeSection/index.tsx",
+      "rawIncludes": "ECertificateUrl",
+      "reason": "fetch() of the e-certificate PDF url returned by the BE (file download), not an API endpoint"
+    },
+    {
+      "file": "apps/digiroom-my-account/src/components/molecules/CardOrderSummary/index.tsx",
+      "rawIncludes": "eReceipt",
+      "reason": "fetch() of the e-receipt file url returned by the BE (file download), not an API endpoint"
+    },
+    {
+      "file": "apps/digiroom-my-account/src/components/Overview/LandingPage/index.tsx",
+      "rawIncludes": "customerQRImage",
+      "reason": "fetch() of the customer QR image url returned by the BE (image asset)"
+    },
+    {
+      "file": "apps/digiroom-my-account/src/components/Sidebar/index.tsx",
+      "rawIncludes": "customerQRImage",
+      "reason": "fetch() of the customer QR image url returned by the BE (image asset)"
+    },
+    {
+      "file": "apps/digiroom-service-coupon/src/pages/index.tsx",
+      "rawIncludes": "imageDesktopUrl",
+      "reason": "downloads the banner image (imageDesktopUrl from the banner API response) as arraybuffer, an asset url"
+    },
+    {
+      "file": "apps/digiroom-service-package/src/pages/index.tsx",
+      "rawIncludes": "imageDesktopUrl",
+      "reason": "downloads the banner image (imageDesktopUrl from the banner API response) as arraybuffer, an asset url"
+    },
+    {
+      "file": "apps/digiroom/src/pages/sitemap/[sitemapName]/index.tsx",
+      "rawIncludes": "xmlUrl",
+      "reason": "fetches the sitemap XML file whose url comes from parameterService.getSitemapByName (file url, not an API endpoint)"
+    },
+    {
+      "file": "packages/shared/ui/services/product.ts",
+      "rawIncludes": "newCarExterior360Url",
+      "reason": "fetches the 360 view XML asset url taken from the product data"
+    },
+    {
+      "file": "packages/shared/ui/services/azure.ts",
+      "rawIncludes": "azureUrl.baseUrl",
+      "reason": "PUT upload straight to Azure Blob Storage (NEXT_PUBLIC_URL_UPLOAD_AZURE), not a Digiroom backend API"
+    },
+    {
+      "file": "apps/digiroom-service-toyota/src/services/azure.ts",
+      "rawIncludes": "azureUrl.baseUrl",
+      "reason": "PUT upload straight to Azure Blob Storage, not a Digiroom backend API"
+    },
+    {
+      "file": "apps/digiroom/src/pages/api/proxy/evergage.ts",
+      "rawIncludes": "req.query.url",
+      "reason": "proxy to the third-party Evergage (Salesforce Interaction Studio) domain; the handler rejects any url that does not contain 'evergage'"
+    }
+  ],
+  "externallyInvokedRoutes": [
+    {
+      "route": "/api/auth/[...nextauth]",
+      "reason": "NextAuth endpoint: called by next-auth/react (signIn, signOut, session) and listed in the auth proxy matcher, so it is live even though no FE code writes its url"
+    }
+  ]
+}
