@@ -148,10 +148,10 @@ function analyse(file) {
       const mod = resolveModule(st.moduleSpecifier.text, file);
       const clause = st.importClause;
       if (!clause) continue;
-      if (clause.name) info.imports.set(clause.name.text, { module: mod, imported: "default" });
+      if (clause.name) info.imports.set(clause.name.text, { module: mod, imported: "default", spec: st.moduleSpecifier.text });
       const nb = clause.namedBindings;
-      if (nb && ts.isNamespaceImport(nb)) info.imports.set(nb.name.text, { module: mod, imported: "*" });
-      if (nb && ts.isNamedImports(nb)) for (const el of nb.elements) info.imports.set(el.name.text, { module: mod, imported: (el.propertyName || el.name).text });
+      if (nb && ts.isNamespaceImport(nb)) info.imports.set(nb.name.text, { module: mod, imported: "*", spec: st.moduleSpecifier.text });
+      if (nb && ts.isNamedImports(nb)) for (const el of nb.elements) info.imports.set(el.name.text, { module: mod, imported: (el.propertyName || el.name).text, spec: st.moduleSpecifier.text });
     } else if (ts.isExportDeclaration(st)) {
       const mod = st.moduleSpecifier && ts.isStringLiteral(st.moduleSpecifier) ? resolveModule(st.moduleSpecifier.text, file) : undefined;
       if (!st.exportClause) {
@@ -284,6 +284,16 @@ function enclosingCondition(node, info) {
   return parts.length ? parts.join(" & ") : null;
 }
 
+/** An identifier is an HTTP client by name (api, axios...) or because of what it was imported from, so
+ *  aliases such as `import APIInstance from "ui/services/api"` and `import CMS from "./apiCMS"` count too. */
+const CLIENT_MODULE = /(^|[/])(axios|api|api[A-Z][\w-]*|[\w-]*[Aa]pi|api-[\w-]+)(\/index)?([.]\w+)?$/;
+function isHttpClient(name, isPlainIdentifier, info) {
+  if (API_RECEIVER.test(name)) return true;
+  if (!isPlainIdentifier) return false;
+  const imp = info.imports.get(name);
+  return Boolean(imp?.spec && CLIENT_MODULE.test(imp.spec));
+}
+
 function detectApiCall(node, info) {
   const sf = info.sf;
   const callee = node.expression;
@@ -327,7 +337,7 @@ function detectApiCall(node, info) {
   } else if (ts.isPropertyAccessExpression(callee) && HTTP_METHODS.has(callee.name.text)) {
     const recv = callee.expression;
     const recvName = ts.isIdentifier(recv) ? recv.text : ts.isPropertyAccessExpression(recv) ? recv.name.text : null;
-    if (!recvName || NOT_API_RECEIVER.test(recvName) || !API_RECEIVER.test(recvName)) return null;
+    if (!recvName || NOT_API_RECEIVER.test(recvName) || !isHttpClient(recvName, ts.isIdentifier(recv), info)) return null;
     client = recvName;
     method = callee.name.text.toUpperCase();
   } else {
@@ -380,8 +390,21 @@ function resolveString(node, info, depth) {
     if (t.startsWith("process.env.")) return { value: `{env:${t.slice(12)}}`, resolved: true };
     return { value: `{${t}}`, resolved: false };
   }
-  if (ts.isConditionalExpression(node)) return { value: `{${textOf(sf, node)}}`, resolved: false };
-  return { value: `{${textOf(sf, node).slice(0, 40)}}`, resolved: false };
+  if (ts.isConditionalExpression(node)) {
+    // `cond ? "?a=1" : ""` -> an optional suffix: keep the non-empty branch
+    const t = resolveString(node.whenTrue, info, depth + 1);
+    const f = resolveString(node.whenFalse, info, depth + 1);
+    if (f.resolved && f.value === "" && t.resolved) return t;
+    if (t.resolved && t.value === "" && f.resolved) return f;
+    return { value: "{param}", resolved: false };
+  }
+  if (ts.isBinaryExpression(node) && (node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken || node.operatorToken.kind === ts.SyntaxKind.BarBarToken)) {
+    // `cond && "?a=1"` / `x || "default"` -> use the string side
+    const r = resolveString(node.right, info, depth + 1);
+    if (r.resolved) return r;
+  }
+  const t = textOf(sf, node);
+  return { value: /^[\w.]+$/.test(t) ? `{${t}}` : "{param}", resolved: false };
 }
 
 function findConst(info, name) {
@@ -404,6 +427,11 @@ function resolveExport(absFile, name, depth = 0, seen = new Set()) {
   if (!info) return null;
   const e = info.exports.get(name);
   if (e?.local && info.symbols.has(e.local)) return `${absFile}#${e.local}`;
+  // `import { x } from "..."; export default x;` -> follow the import
+  if (e?.local) {
+    const imp = info.imports.get(e.local);
+    if (imp?.module && imp.imported !== "*") return resolveExport(imp.module, imp.imported, depth + 1, seen);
+  }
   if (e?.from) return resolveExport(e.from, e.orig, depth + 1, seen);
   if (name !== "default") for (const star of info.stars) {
     const r = resolveExport(star, name, depth + 1, seen);
@@ -512,7 +540,12 @@ function sanitizeParams(p) {
 function normalizePath(raw) {
   let p = raw.trim();
   let query = null;
-  const qi = p.indexOf("?");
+  let qi = -1;
+  for (let i = 0, depth = 0; i < p.length; i++) {
+    if (p[i] === "{") depth++;
+    else if (p[i] === "}") depth = Math.max(0, depth - 1);
+    else if (p[i] === "?" && depth === 0) { qi = i; break; }
+  }
   if (qi >= 0) {
     query = p.slice(qi + 1);
     p = p.slice(0, qi);
@@ -521,15 +554,32 @@ function normalizePath(raw) {
   p = p.replace(BASE_PLACEHOLDER, "/");
   if (!/^https?:\/\//.test(p) && !p.startsWith("/")) p = "/" + p;
   p = p.replace(/\/{2,}/g, (m, off) => (off > 0 && p[off - 1] === ":" ? m : "/"));
+  // `/path{params}` : a placeholder glued to the end of a segment is a query string built at runtime
+  const tail = p.match(/^(.*[^/{])\{[^}]*\}$/);
+  if (tail) {
+    p = tail[1];
+    if (!query) query = "(dynamic)";
+  }
   // a path whose first segment is still a placeholder cannot be attributed to a service
   const dynamic = /^\/\{/.test(p);
   return { path: sanitizeParams(p), query, dynamic };
 }
 
+// All Next.js API routes of the FE (pages/api/**, app/**/route.*), with params blanked: "/api/x/{}"
+const blankParams = (r) => r.replace(/\[\.{0,3}\w+\]|\{[^}]*\}/g, "{}");
+const apiRouteSet = new Set();
+for (const f of files) {
+  const pi = pageInfo(f);
+  if (pi?.kind === "api-route") apiRouteSet.add(blankParams(pi.route));
+}
+
 function classify(p, dynamic) {
   if (/^https?:\/\//.test(p)) return { target: "external", service: new URL(p.replace(/\{[^}]*\}/g, "x")).host };
   if (dynamic) return { target: "dynamic", service: "(dynamic)" };
-  if (p === "/api" || p.startsWith("/api/")) return { target: "next-bff", service: "next-bff" };
+  if (p === "/api" || p.startsWith("/api/")) return { target: "next-bff", service: "next-bff", bffRoute: p };
+  // an app served under a basePath, e.g. "/myaccount/api/loyalty/astrapoints" -> route "/api/loyalty/astrapoints"
+  const bp = p.match(/^\/[^/]+(\/api\/.*)$/);
+  if (bp && apiRouteSet.has(blankParams(bp[1]))) return { target: "next-bff", service: "next-bff", bffRoute: bp[1] };
   const seg = p.split("/").filter(Boolean);
   return { target: "backend", service: seg[0] || "(root)", version: /^v\d+$/.test(seg[1] || "") ? seg[1] : null };
 }
@@ -574,6 +624,9 @@ for (const f of files) {
   if (!info) continue;
   pageCount++;
   const start = [...info.symbols.keys()].map((s) => `${f.abs}#${s}`);
+  // `export default importedHandler;` has no symbol of its own: start from what it points at
+  const defaultTarget = resolveExport(f.abs, "default");
+  if (defaultTarget && !start.includes(defaultTarget)) start.push(defaultTarget);
   const dist = new Map(start.map((n) => [n, 0]));
   const queue = [...start];
   const routeKey = pi.kind === "api-route" ? pi.route.replace(/\[\.{0,3}(\w+)\]/g, "{$1}") : null;
@@ -604,7 +657,7 @@ const list = [...endpoints.values()].map((ep) => {
 const byKey = new Map(list.map((e) => [e.key, e]));
 for (const ep of list) {
   if (ep.target !== "next-bff") continue;
-  const depths = routeDepth.get(ep.path.replace(/\?.*$/, ""));
+  const depths = routeDepth.get((ep.bffRoute || ep.path).replace(/\?.*$/, ""));
   if (!depths) continue;
   ep.backendCalls = [...depths.entries()]
     .filter(([k]) => byKey.get(k) && byKey.get(k).target !== "next-bff")
