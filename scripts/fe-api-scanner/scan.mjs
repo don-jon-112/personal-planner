@@ -112,7 +112,7 @@ function analyse(file) {
   };
 
   const ensureSymbol = (name) => {
-    if (!info.symbols.has(name)) info.symbols.set(name, { nodes: [], refs: new Set(), nsRefs: [], memberRefs: [], dynamicImports: [], calls: [], members: null });
+    if (!info.symbols.has(name)) info.symbols.set(name, { nodes: [], refs: new Set(), nsRefs: [], memberRefs: [], dynamicImports: [], calls: [], suspects: [], members: null });
     return info.symbols.get(name);
   };
   const addSymbol = (name, node) => ensureSymbol(name).nodes.push(node);
@@ -242,8 +242,19 @@ function analyse(file) {
             const m = resolveModule(node.arguments[0].text, file);
             if (m) sym.dynamicImports.push(m);
           }
-          const call = detectApiCall(node, info);
-          if (call) sym.calls.push({ ...call, symbol: symName, condition: enclosingCondition(node, info) });
+          const found = detectApiCall(node, info);
+          if (found.length) for (const call of found) sym.calls.push({ ...call, symbol: symName, condition: enclosingCondition(node, info) });
+          else {
+            const reason = suspectReason(node, info);
+            if (reason) sym.suspects.push({ ...reason, symbol: symName });
+          }
+        } else if (ts.isNewExpression(node)) {
+          const found = detectApiCall(node, info);
+          if (found.length) for (const call of found) sym.calls.push({ ...call, symbol: symName, condition: enclosingCondition(node, info) });
+          else {
+            const reason = suspectReason(node, info);
+            if (reason) sym.suspects.push({ ...reason, symbol: symName });
+          }
         }
         ts.forEachChild(node, visit);
       };
@@ -294,13 +305,74 @@ function isHttpClient(name, isPlainIdentifier, info) {
   return Boolean(imp?.spec && CLIENT_MODULE.test(imp.spec));
 }
 
+/** Calls that look like network access but were not recognised: reported in the audit, never silently ignored. */
+function suspectReason(node, info) {
+  const sf = info.sf;
+  const callee = node.expression;
+  const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+  const mk = (reason) => ({ line: pos.line + 1, reason, text: textOf(sf, node).slice(0, 140) });
+  if (ts.isNewExpression(node)) {
+    const n = ts.isIdentifier(callee) ? callee.text : "";
+    return /^(XMLHttpRequest|EventSource|WebSocket)$/.test(n) ? mk(`new ${n}`) : null;
+  }
+  if (ts.isIdentifier(callee)) {
+    if (/^(ky|got|superagent|\$http|ajax)$/.test(callee.text)) return mk(`direct ${callee.text}() call`);
+    const impSpec = info.imports.get(callee.text)?.spec;
+    if ((callee.text === "axios" || (impSpec && CLIENT_MODULE.test(impSpec))) && node.arguments[0] && ts.isObjectLiteralExpression(unwrap(node.arguments[0]))) return mk(`${callee.text}({...}) config call`);
+    if (/^(useSWR|useSWRImmutable|useQuery|useMutation|useInfiniteQuery)$/.test(callee.text)) {
+      const a = node.arguments[0] && resolveString(node.arguments[0], info, 0).value;
+      return a && a.startsWith("/") ? mk(`${callee.text} keyed by a url`) : null;
+    }
+    return null;
+  }
+  if (ts.isPropertyAccessExpression(callee)) {
+    const name = callee.name.text;
+    const recv = textOf(sf, callee.expression);
+    if (name === "sendBeacon") return mk("navigator.sendBeacon");
+    if (recv === "$" && /^(ajax|get|post|getJSON)$/.test(name)) return mk("jQuery ajax");
+    if (HTTP_METHODS.has(name) || name === "request") {
+      const a0 = node.arguments[0];
+      if (!a0) return null;
+      const rn = ts.isIdentifier(callee.expression) ? callee.expression.text : ts.isPropertyAccessExpression(callee.expression) ? callee.expression.name.text : "";
+      if (NOT_API_RECEIVER.test(rn)) return null;
+      if (name === "request" && ts.isObjectLiteralExpression(unwrap(a0))) return mk(`.request({...}) on ${recv.slice(0, 40)}`);
+      const v = resolveString(a0, info, 0).value;
+      if (v.includes("/") || /^https?:/.test(v)) return mk(`.${name}("${v.slice(0, 60)}") on unrecognised receiver ${recv.slice(0, 40)}`);
+    }
+  }
+  return null;
+}
+
+/** Returns the calls found at `node`: usually one, several when the url has alternatives
+ *  (`isDev ? "/api/x" : "x"`). `api.get(url)` inside a helper whose `url` is its own parameter only
+ *  forwards what its callers pass: the real URLs are recorded at those call sites, so it is marked
+ *  `passthrough` and not listed as an endpoint. */
 function detectApiCall(node, info) {
+  const call = detectApiCallRaw(node, info);
+  if (!call) return [];
+  if (call.isParam && /^\{\w+\}$/.test(call.raw)) return [{ ...call, passthrough: true }];
+  if (call.urlNode) {
+    const alts = resolveAll(call.urlNode, info, 0);
+    if (alts.length > 1) return alts.map((a) => ({ ...call, raw: a.value, resolved: a.resolved, isParam: false }));
+  }
+  return [call];
+}
+
+function detectApiCallRaw(node, info) {
   const sf = info.sf;
   const callee = node.expression;
   const a0 = node.arguments[0];
   if (!a0) return null;
   let client = null;
   let method = null;
+
+  // server-sent events: new EventSource(url)
+  if (ts.isNewExpression(node)) {
+    if (!(ts.isIdentifier(callee) && callee.text === "EventSource")) return null;
+    const r = resolveString(a0, info, 0);
+    const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+    return { client: "EventSource", method: "GET", raw: r.value, resolved: r.resolved, isParam: r.isParam, urlNode: a0, line: pos.line + 1 };
+  }
 
   // APIProxy / axios style: x.makeRequest({ method, url, ... }) and x.request({ ... })
   if (ts.isPropertyAccessExpression(callee) && /^(makeRequest|request)$/.test(callee.name.text) && ts.isObjectLiteralExpression(unwrap(a0))) {
@@ -312,20 +384,20 @@ function detectApiCall(node, info) {
     if (m && (ts.isStringLiteral(m.node) || ts.isNoSubstitutionTemplateLiteral(m.node))) method = m.node.text.toUpperCase();
     const r = resolveString(urlProp.node, info, 0);
     const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
-    return { client: callee.name.text, method, raw: r.value, resolved: r.resolved, line: pos.line + 1 };
+    return { client: callee.name.text, method, raw: r.value, resolved: r.resolved, isParam: r.isParam, urlNode: urlProp.node, line: pos.line + 1 };
   }
   // serverGet(ctx, url, config)
   if (ts.isIdentifier(callee) && /^server(Get|Post|Put|Patch|Delete)$/.test(callee.text) && node.arguments[1]) {
     const r = resolveString(node.arguments[1], info, 0);
     const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
-    return { client: callee.text, method: callee.text.slice(6).toUpperCase(), raw: r.value, resolved: r.resolved, line: pos.line + 1 };
+    return { client: callee.text, method: callee.text.slice(6).toUpperCase(), raw: r.value, resolved: r.resolved, isParam: r.isParam, urlNode: node.arguments[1], line: pos.line + 1 };
   }
 
   if (ts.isIdentifier(callee) && WRAPPER_FN.test(callee.text)) {
     client = callee.text;
     const a1 = node.arguments[1];
     if (a1 && (ts.isStringLiteral(a1) || ts.isNoSubstitutionTemplateLiteral(a1))) method = a1.text.toUpperCase();
-  } else if (ts.isIdentifier(callee) && callee.text === "fetch") {
+  } else if ((ts.isIdentifier(callee) && callee.text === "fetch") || (ts.isPropertyAccessExpression(callee) && callee.name.text === "fetch" && /^(window|globalThis|self)$/.test(textOf(sf, callee.expression)))) {
     client = "fetch";
     method = "GET";
     const opts = node.arguments[1];
@@ -346,11 +418,61 @@ function detectApiCall(node, info) {
 
   const r = resolveString(a0, info, 0);
   // Ignore calls whose first argument is clearly not a URL (e.g. map.get(key)).
-  const looksLikeUrl = r.value.includes("/") || r.value.startsWith("{env:");
-  const trusted = client === "fetch" || WRAPPER_FN.test(client);
-  if (!looksLikeUrl && !trusted) return null;
+  // the receiver was already vetted as an http client above, so even `api.get(url)` with an
+  // unknown url is recorded (as a dynamic endpoint) instead of being silently dropped
   const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
-  return { client, method: method || "UNKNOWN", raw: r.value, resolved: r.resolved, line: pos.line + 1 };
+  return { client, method: method || "UNKNOWN", raw: r.value, resolved: r.resolved, isParam: r.isParam, urlNode: a0, line: pos.line + 1 };
+}
+
+/** Like resolveString, but a conditional (`a ? "x" : "y"`) yields every alternative (max 8). */
+function resolveAll(node, info, depth) {
+  const n = unwrap(node);
+  if (depth > 6 || !n) return [resolveString(node, info, depth)];
+  const uniq = (list) => {
+    const seen = new Set();
+    return list.filter((x) => !seen.has(x.value) && seen.add(x.value)).slice(0, 8);
+  };
+  const cross = (lefts, rights, glue) => uniq(lefts.flatMap((l) => rights.map((r) => ({ value: glue(l.value, r.value), resolved: l.resolved && r.resolved }))));
+  if (ts.isConditionalExpression(n)) return uniq([...resolveAll(n.whenTrue, info, depth + 1), ...resolveAll(n.whenFalse, info, depth + 1)]);
+  if (ts.isTemplateExpression(n)) {
+    let combos = [{ value: n.head.text, resolved: true }];
+    for (const span of n.templateSpans) {
+      combos = cross(combos, resolveAll(span.expression, info, depth + 1), (a, b) => a + b + span.literal.text);
+    }
+    return combos;
+  }
+  if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return cross(resolveAll(n.left, info, depth + 1), resolveAll(n.right, info, depth + 1), (a, b) => a + b);
+  }
+  if (ts.isIdentifier(n)) {
+    const local = findLocalDecl(n);
+    if (local?.init) return resolveAll(local.init, info, depth + 1);
+  }
+  return [resolveString(n, info, depth)];
+}
+
+/** Find the declaration `name` refers to by walking up the enclosing scopes of `node`. */
+function findLocalDecl(node) {
+  const name = node.text;
+  for (let n = node.parent; n; n = n.parent) {
+    if (ts.isFunctionLike(n)) {
+      for (const prm of n.parameters || []) {
+        // a parameter is a runtime value even with a default: callers may pass something else
+        if (ts.isIdentifier(prm.name) && prm.name.text === name) return { init: null, isParam: true };
+      }
+    }
+    const stmts = ts.isBlock(n) || ts.isSourceFile(n) || ts.isModuleBlock(n) ? n.statements : null;
+    if (stmts) {
+      for (const st of stmts) {
+        if (st.pos > node.pos) break;
+        if (!ts.isVariableStatement(st)) continue;
+        for (const d of st.declarationList.declarations) {
+          if (ts.isIdentifier(d.name) && d.name.text === name) return { init: d.initializer || null };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /** Resolve a URL-ish expression to a template string. `${x}` becomes `{x}`. */
@@ -359,6 +481,9 @@ function resolveString(node, info, depth) {
   if (depth > 6) return { value: `{${textOf(sf, node)}}`, resolved: false };
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return { value: node.text, resolved: true };
   if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node)) return resolveString(node.expression, info, depth + 1);
+  if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "URL" && node.arguments?.[0]) {
+    return resolveString(node.arguments[0], info, depth + 1); // new URL("/api/x", base) -> "/api/x"
+  }
   if (ts.isTemplateExpression(node)) {
     let value = node.head.text;
     let resolved = true;
@@ -375,7 +500,13 @@ function resolveString(node, info, depth) {
     return { value: l.value + r.value, resolved: l.resolved && r.resolved };
   }
   if (ts.isIdentifier(node)) {
-    // local const (only when the name is unambiguous in this file)
+    // nearest declaration in an enclosing scope wins (a parameter without a default is a runtime value)
+    const local = findLocalDecl(node);
+    if (local) {
+      if (local.init) return resolveString(local.init, info, depth + 1);
+      return { value: `{${node.text}}`, resolved: false, isParam: Boolean(local.isParam) };
+    }
+    // file-wide const (only when the name is unambiguous in this file)
     if (info.consts.has(node.text) && info.constCounts.get(node.text) === 1) return resolveString(info.consts.get(node.text), info, depth + 1);
     const imp = info.imports.get(node.text);
     if (imp?.module && imp.imported !== "*") {
@@ -531,7 +662,8 @@ function pageInfo(f) {
 // ---- endpoint registry
 const endpoints = new Map(); // key -> endpoint
 
-const BASE_PLACEHOLDER = /^\{(?:env:)?[^}]*(base|api[_-]?url|host|origin|server|domain)[^}]*\}\/?/i;
+// a leading environment variable ({env:X}) or a base/host-like name is the server address, not part of the path
+const BASE_PLACEHOLDER = /^(\{env:[^}]*\}|\{[^}]*(base|api[_-]?url|host|origin|server|domain)[^}]*\})\/?/i;
 
 function sanitizeParams(p) {
   return p.replace(/\{([^}]*)\}/g, (_, inner) => (/^[\w.]+$/.test(inner) ? `{${inner.split(".").pop()}}` : "{param}"));
@@ -584,11 +716,13 @@ function classify(p, dynamic) {
   return { target: "backend", service: seg[0] || "(root)", version: /^v\d+$/.test(seg[1] || "") ? seg[1] : null };
 }
 
+let passthroughCalls = 0;
 const callSites = new Map(); // node -> [endpointKey]
 for (const info of infos.values()) {
   for (const [symName, sym] of info.symbols) {
     for (const c of sym.calls) {
       if (!c.raw) continue;
+      if (c.passthrough) { passthroughCalls++; continue; }
       const { path: p, query, dynamic } = normalizePath(c.raw);
       const cls = classify(p, dynamic);
       const key = `${c.method} ${p}`;
@@ -668,6 +802,15 @@ for (const ep of list) {
     .sort((a, b) => a.depth - b.depth || a.key.localeCompare(b.key));
 }
 
+// ---- audit: network-looking calls the scanner could not classify
+const suspects = [];
+for (const info of infos.values()) {
+  for (const [symName, sym] of info.symbols) {
+    for (const sp of sym.suspects) suspects.push({ file: rel(info.file.abs), line: sp.line, symbol: symName === "<module>" ? null : symName, reason: sp.reason, code: sp.text });
+  }
+}
+suspects.sort((a, b) => (a.file + String(a.line).padStart(6, "0")).localeCompare(b.file + String(b.line).padStart(6, "0")));
+
 const stats = {
   filesScanned: files.length,
   pages: pageCount,
@@ -682,7 +825,8 @@ const result = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
   repo: { name: path.basename(REPO), ...META },
-  stats,
+  stats: { ...stats, auditSuspects: suspects.length, passthroughWrapperCalls: passthroughCalls },
+  audit: { suspects },
   endpoints: list,
 };
 

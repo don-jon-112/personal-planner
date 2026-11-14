@@ -41,6 +41,7 @@ interface FeApiMap {
   generatedAt: string;
   repo: { name: string; branch?: string; commit?: string; commitAuthor?: string; commitDate?: string; commitMessage?: string };
   stats: { filesScanned: number; pages: number; endpoints: number };
+  audit?: { suspects: { file: string; line: number; symbol: string | null; reason: string; code: string }[] };
   changes?: { previousCommit: string | null; previousScannedAt: string; added: string[]; removed: string[] } | null;
   endpoints: FeEndpoint[];
 }
@@ -198,6 +199,26 @@ export default function FeApiPage() {
             <span>{map.stats.endpoints} endpoints</span>
             <span>{map.stats.pages} pages</span>
             <span>{map.stats.filesScanned} files</span>
+            <span
+              className={cn("font-medium", (map.audit?.suspects.length ?? 0) === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}
+              title="Calls that look like network access but could not be classified by the scanner"
+            >
+              Audit: {map.audit?.suspects.length ?? 0} unclassified · {endpoints.filter((e) => e.target === "dynamic").length} runtime-only URLs
+            </span>
+          </PanelContent>
+        </Panel>
+      )}
+
+      {map && (map.audit?.suspects.length ?? 0) > 0 && (
+        <Panel>
+          <PanelContent className="p-4 text-sm space-y-1">
+            <b>Calls the scanner could not classify ({map.audit!.suspects.length})</b>
+            <p className="text-muted-foreground">Each one is either an API call the scanner missed or not an API call. Check them with the FE team.</p>
+            <ul className="max-h-48 overflow-auto space-y-0.5">
+              {map.audit!.suspects.map((sp, i) => (
+                <li key={i} className="break-all"><code>{sp.file}:{sp.line}</code> — {sp.reason}</li>
+              ))}
+            </ul>
           </PanelContent>
         </Panel>
       )}

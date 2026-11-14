@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "fe-api:scan": "node scripts/fe-api-scanner/refresh.mjs"
+    "fe-api:scan": "node scripts/fe-api-scanner/refresh.mjs",
+    "fe-api:test": "node --test scripts/fe-api-scanner/test/scan.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

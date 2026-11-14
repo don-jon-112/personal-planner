@@ -79,4 +79,12 @@ fs.rmSync(tmpOut, { force: true });
 
 console.error(`\nFE repo: ${meta.branch} @ ${(meta.commit || "").slice(0, 8)}${meta.dirty ? " (has uncommitted changes)" : ""}`);
 console.error(previous ? `Changes vs previous scan: +${added.length} / -${removed.length} endpoints` : "First scan.");
+const suspects = next.audit?.suspects || [];
+const dynamic = next.endpoints.filter((e) => e.target === "dynamic");
+console.error(`
+Audit: ${suspects.length} network-looking call(s) the scanner could not classify, ${dynamic.length} endpoint(s) with a runtime-only URL.`);
+for (const sp of suspects.slice(0, 15)) console.error(`  ? ${sp.file}:${sp.line}  ${sp.reason}`);
+if (suspects.length > 15) console.error(`  ... and ${suspects.length - 15} more (see audit.suspects in the JSON)`);
+if (suspects.length) console.error("  -> check these: each is either a missed API call (extend scan.mjs + add a test) or not an API call.");
 console.error(`Wrote ${path.relative(root, outFile)} — commit this file to publish the update.`);
+if (process.argv.includes("--strict") && suspects.length) process.exit(1);

@@ -107,6 +107,22 @@ Di halaman `/fe-api`, tempel URL FE lengkap ke kolom pencarian, mis.
 path-nya (`/api/get-singleid`), membuka endpoint-nya, dan menandai API backend yang cocok
 dengan `type=profile`.
 
+## Memastikan semua API tercatat (audit)
+
+Scanner tidak bisa "membuktikan" kelengkapan, jadi ada tiga pengaman:
+
+1. **Audit otomatis.** Setiap scan melaporkan pemanggilan yang *mirip* panggilan jaringan tapi
+   tidak berhasil dikenali (mis. `new WebSocket`, `x.get('/path')` pada objek yang tidak dikenal).
+   Daftarnya ada di akhir output `npm run fe-api:scan`, di `audit.suspects` pada JSON, dan di
+   halaman `/fe-api`. Idealnya **0**. Kalau ada isinya: itu API yang terlewat (perbaiki
+   `scan.mjs`, tambahkan test) atau memang bukan panggilan API.
+   `npm run fe-api:scan -- --strict` membuat scan gagal kalau audit tidak kosong.
+2. **Endpoint `dynamic`.** URL yang hanya diketahui saat runtime (mis. URL file dari data)
+   tetap dicatat dan ditandai, tidak dibuang diam-diam.
+3. **Test regresi.** `npm run fe-api:test` menjalankan scanner pada contoh FE kecil
+   (`scripts/fe-api-scanner/test/fixture`) dan memastikan setiap pola yang pernah terlewat
+   tetap terdeteksi. Setiap kali menemukan pola baru yang terlewat, tambahkan ke fixture.
+
 ## Batasan
 
 - Analisis statis: URL yang dibentuk dinamis ditandai `dynamic`, bukan ditebak.
